@@ -1,11 +1,12 @@
 "use client";
-import { useState } from "react";
-import { getSoldBills, deleteSoldBill } from "@/lib/data";
+import { useState, useEffect } from "react";
+import { searchSoldBills, deleteSoldBill } from "@/lib/data";
 import Card from "@/components/Card";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 
 export default function SoldPage() {
+  const [bills, setBills] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBill, setSelectedBill] = useState(null);
   const [filters, setFilters] = useState({
@@ -14,34 +15,73 @@ export default function SoldPage() {
     endDate: "",
     itemName: ""
   });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const router = useRouter();
+
+  // Fetch all sold bills on component mount
+  useEffect(() => {
+    const fetchBills = async () => {
+      try {
+        setIsLoading(true);
+        // Pass empty string to get all bills
+        const results = await searchSoldBills("");
+        setBills(results);
+      } catch (error) {
+        console.error("Error fetching sold bills:", error);
+        setError("Failed to fetch sold bills. Please try again.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchBills();
+  }, []);
 
   const handleFilterChange = (field, value) => {
     setFilters({...filters, [field]: value});
   };
 
-  const filteredBills = getSoldBills().filter(bill => {
-    const matchesBillNumber = !filters.billNumber ||
-                          bill.billNumber.toString().includes(filters.billNumber);
-    const billDate = new Date(bill.date);
-    const matchesStartDate = !filters.startDate ||
-                            billDate >= new Date(filters.startDate);
-    const matchesEndDate = !filters.endDate ||
-                          billDate <= new Date(filters.endDate);
-    const matchesItem = !filters.itemName ||
-                       bill.items.some(item =>
-                         item.name.toLowerCase().includes(filters.itemName.toLowerCase()) ||
-                         item.barcode.includes(filters.itemName)
-                       );
-    const matchesSearch = !searchQuery ||
-                          bill.items.some(item =>
-                            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            item.barcode.includes(searchQuery)
-                          ) ||
-                          bill.billNumber.toString().includes(searchQuery);
+  const filteredBills = bills.filter(bill => {
+    try {
+      const matchesBillNumber = !filters.billNumber ||
+                              bill.billNumber.toString().includes(filters.billNumber);
 
-    return matchesBillNumber && matchesStartDate &&
-           matchesEndDate && matchesItem && matchesSearch;
+      // Handle date filtering safely
+      let matchesStartDate = true;
+      let matchesEndDate = true;
+      if (bill.date) {
+        const billDate = bill.date.toDate ? bill.date.toDate() : new Date(bill.date);
+        if (filters.startDate) {
+          matchesStartDate = billDate >= new Date(filters.startDate + 'T00:00:00');
+        }
+        if (filters.endDate) {
+          matchesEndDate = billDate <= new Date(filters.endDate + 'T23:59:59');
+        }
+      }
+
+      // Handle item name filtering
+      let matchesItem = true;
+      if (filters.itemName && bill.items) {
+        matchesItem = bill.items.some(item =>
+          (item.name && item.name.toLowerCase().includes(filters.itemName.toLowerCase())) ||
+          (item.barcode && item.barcode.includes(filters.itemName))
+        );
+      }
+
+      // Handle search query
+      let matchesSearch = true;
+      if (searchQuery) {
+        matchesSearch = bill.items.some(item =>
+          (item.name && item.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+          (item.barcode && item.barcode.includes(searchQuery))
+        ) || (bill.billNumber && bill.billNumber.toString().includes(searchQuery));
+      }
+
+      return matchesBillNumber && matchesStartDate && matchesEndDate && matchesItem && matchesSearch;
+    } catch (error) {
+      console.error("Error filtering bill:", error, bill);
+      return false;
+    }
   });
 
   const handleUpdateBill = (bill) => {
@@ -49,22 +89,52 @@ export default function SoldPage() {
     router.push('/selling?edit=true');
   };
 
-  const handleDeleteBill = (billNumber) => {
+  const handleDeleteBill = async (billNumber) => {
     if (confirm("Are you sure you want to delete this bill?")) {
-      deleteSoldBill(billNumber);
-      setSelectedBill(null);
-      alert("Bill deleted successfully!");
+      try {
+        await deleteSoldBill(billNumber);
+        setBills(bills.filter(bill => bill.billNumber !== billNumber));
+        setSelectedBill(null);
+        alert("Bill deleted successfully!");
+      } catch (error) {
+        console.error("Error deleting bill:", error);
+        alert("Failed to delete bill. Please try again.");
+      }
     }
   };
 
+  if (isLoading) {
+    return (
+      <>
+        <Navbar />
+        <div className="container py-8">
+          <h1 className="text-2xl font-bold mb-6">Sales History</h1>
+          <div className="text-center py-8">Loading sales history...</div>
+        </div>
+      </>
+    );
+  }
+
+  if (error) {
+    return (
+      <>
+        <Navbar />
+        <div className="container py-8">
+          <h1 className="text-2xl font-bold mb-6">Sales History</h1>
+          <div className="alert alert-danger">{error}</div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-    
+  
       <div className="container py-8">
         <h1 className="text-2xl font-bold mb-6">Sales History</h1>
 
         {/* Excel-like filter row */}
-        <div className="overflow-x-auto mb-4">
+        <div className="overflow-x-auto mb-4 bg-white rounded-lg shadow">
           <table className="table w-full">
             <thead>
               <tr className="bg-gray-100">
@@ -102,7 +172,14 @@ export default function SoldPage() {
                     onChange={(e) => handleFilterChange('itemName', e.target.value)}
                   />
                 </th>
-                <th className="p-2 text-left">Actions</th>
+                <th className="p-2 text-left">
+                  <input
+                    className="input w-full text-sm"
+                    placeholder="Global search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </th>
               </tr>
               <tr className="bg-gray-200">
                 <th className="p-2 text-center">Bill #</th>
@@ -115,43 +192,54 @@ export default function SoldPage() {
           </table>
         </div>
 
-        <div className="overflow-x-auto mb-6">
+        <div className="overflow-x-auto mb-6 bg-white rounded-lg shadow">
           <table className="table w-full">
             <tbody>
-              {filteredBills.map(bill => (
-                <tr
-                  key={bill.billNumber}
-                  onClick={() => setSelectedBill(selectedBill === bill ? null : bill)}
-                  className="hover:bg-gray-100 cursor-pointer"
-                >
-                  <td className="p-2 text-center">{bill.billNumber}</td>
-                  <td className="p-2 text-center">{new Date(bill.date).toLocaleString()}</td>
-                  <td className="p-2 text-center">{bill.items.length}</td>
-                  <td className="p-2 text-center">
-                    ${bill.items.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
-                  </td>
-                  <td className="p-2 text-center">
-                    <button
-                      className="btn btn-secondary text-xs mr-2"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleUpdateBill(bill)
-                      }}
-                    >
-                      Update
-                    </button>
-                    <button
-                      className="btn btn-danger text-xs"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteBill(bill.billNumber)
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </td>
+              {filteredBills.length > 0 ? (
+                filteredBills.map(bill => (
+                  <tr
+                    key={bill.billNumber}
+                    onClick={() => setSelectedBill(selectedBill?.billNumber === bill.billNumber ? null : bill)}
+                    className="hover:bg-gray-100 cursor-pointer"
+                  >
+                    <td className="p-2 text-center">{bill.billNumber}</td>
+                    <td className="p-2 text-center">
+                      {bill.date?.toDate ? 
+                        bill.date.toDate().toLocaleString() : 
+                        bill.date ? new Date(bill.date).toLocaleString() : 'N/A'
+                      }
+                    </td>
+                    <td className="p-2 text-center">{bill.items?.length || 0}</td>
+                    <td className="p-2 text-center">
+                      ${bill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)}
+                    </td>
+                    <td className="p-2 text-center space-x-2">
+                      <button
+                        className="btn btn-secondary text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdateBill(bill);
+                        }}
+                      >
+                        Update
+                      </button>
+                      <button
+                        className="btn btn-danger text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteBill(bill.billNumber);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="p-4 text-center">No bills found</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -159,9 +247,11 @@ export default function SoldPage() {
         {selectedBill && (
           <Card title={`Sales Bill #${selectedBill.billNumber}`}>
             <div className="mb-4 text-center">
-              <p><strong>Date:</strong> {new Date(selectedBill.date).toLocaleString()}</p>
+              <p><strong>Date:</strong> {selectedBill.date?.toDate ? 
+                selectedBill.date.toDate().toLocaleString() : 
+                selectedBill.date ? new Date(selectedBill.date).toLocaleString() : 'N/A'
+              }</p>
             </div>
-
             <div className="overflow-x-auto">
               <table className="table w-full">
                 <thead>
@@ -174,13 +264,13 @@ export default function SoldPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {selectedBill.items.map((item, index) => (
+                  {selectedBill.items?.map((item, index) => (
                     <tr key={index} className="hover:bg-gray-50">
-                      <td className="p-2 text-center">{item.name}</td>
-                      <td className="p-2 text-center">{item.barcode}</td>
-                      <td className="p-2 text-center">${item.price.toFixed(2)}</td>
-                      <td className="p-2 text-center">{item.quantity}</td>
-                      <td className="p-2 text-center">${(item.price * item.quantity).toFixed(2)}</td>
+                      <td className="p-2 text-center">{item.name || 'N/A'}</td>
+                      <td className="p-2 text-center">{item.barcode || 'N/A'}</td>
+                      <td className="p-2 text-center">${(item.price || 0).toFixed(2)}</td>
+                      <td className="p-2 text-center">{item.quantity || 0}</td>
+                      <td className="p-2 text-center">${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -188,7 +278,7 @@ export default function SoldPage() {
                   <tr>
                     <td colSpan="4" className="p-2 text-right font-medium">Total:</td>
                     <td className="p-2 text-center font-medium">
-                      ${selectedBill.items.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2)}
+                      ${selectedBill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)}
                     </td>
                   </tr>
                 </tfoot>

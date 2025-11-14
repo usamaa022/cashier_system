@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from "react";
 import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/data";
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 export default function BuyingForm({ onBillCreated, editingBill }) {
-  // State
   const [companyId, setCompanyId] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [companyCode, setCompanyCode] = useState("");
@@ -21,12 +21,17 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const [activeField, setActiveField] = useState("0-barcode");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [formKey, setFormKey] = useState("purchaseFormData");
+
   const formRef = useRef(null);
   const inputRefs = useRef({});
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Load editing bill data if in edit mode
+  // Custom hook to persist form data
+  const { getItem, setItem } = useLocalStorage();
+
+  // Load saved form data or editing bill data
   useEffect(() => {
     if (editingBill) {
       setCompanyId(editingBill.companyId);
@@ -41,8 +46,33 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
           outPrice: item.outPrice || 0,
         }))
       );
+    } else {
+      const savedData = getItem(formKey);
+      if (savedData) {
+        setCompanyId(savedData.companyId || "");
+        setCompanySearch(savedData.companySearch || "");
+        setCompanyCode(savedData.companyCode || "");
+        setBillDate(savedData.billDate || new Date().toISOString().split('T')[0]);
+        setBillItems(savedData.billItems || [
+          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 }
+        ]);
+      }
     }
   }, [editingBill]);
+
+  // Save form data when it changes
+  useEffect(() => {
+    if (!editingBill) {
+      const formData = {
+        companyId,
+        companySearch,
+        companyCode,
+        billDate,
+        billItems
+      };
+      setItem(formKey, formData);
+    }
+  }, [companyId, companySearch, companyCode, billDate, billItems]);
 
   // Fetch companies when companySearch changes
   useEffect(() => {
@@ -71,34 +101,42 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [companySearch]);
 
-  // Fetch items when barcode changes
+  // Fixed: Fetch items when barcode changes with proper error handling
   useEffect(() => {
-    const fetchItems = async () => {
-      const currentBarcode = billItems[activeItemIndex].barcode;
-      if (currentBarcode.length > 0) {
-        setIsLoading(true);
+    const fetchItemsByBarcode = async () => {
+      const currentBarcode = billItems[activeItemIndex]?.barcode;
+      if (currentBarcode && currentBarcode.length > 0) {
         try {
           const results = await searchInitializedItems(currentBarcode, "barcode");
-          setSuggestions(results);
-          setShowSuggestions(results.length > 0);
+          
+          // Check if results exist and has at least one item
+          if (results && results.length > 0 && results[0]) {
+            const item = results[0];
+            const updatedItems = [...billItems];
+            updatedItems[activeItemIndex] = {
+              ...updatedItems[activeItemIndex],
+              barcode: item.barcode || "",
+              name: item.name || "",
+              netPrice: item.netPrice || 0,
+              outPrice: item.outPrice || 0,
+            };
+            setBillItems(updatedItems);
+            setActiveField(`${activeItemIndex}-quantity`);
+          }
+          // If no results found, do nothing - let user continue typing
         } catch (error) {
           console.error("Error fetching items by barcode:", error);
-          setError("Failed to fetch items by barcode. Please try again.");
-        } finally {
-          setIsLoading(false);
+          // Don't set error state here as it's not critical for user experience
         }
-      } else {
-        setSuggestions([]);
-        setShowSuggestions(false);
       }
     };
-    const timer = setTimeout(fetchItems, 300);
+    const timer = setTimeout(fetchItemsByBarcode, 500);
     return () => clearTimeout(timer);
-  }, [billItems[activeItemIndex].barcode, activeItemIndex]);
+  }, [billItems[activeItemIndex]?.barcode, activeItemIndex]);
 
   // Fetch items when name changes
   useEffect(() => {
-    const fetchItems = async () => {
+    const fetchItemsByName = async () => {
       const currentName = billItems[activeItemIndex].name;
       if (currentName.length > 0) {
         setIsLoading(true);
@@ -112,9 +150,12 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         } finally {
           setIsLoading(false);
         }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
       }
     };
-    const timer = setTimeout(fetchItems, 300);
+    const timer = setTimeout(fetchItemsByName, 300);
     return () => clearTimeout(timer);
   }, [billItems[activeItemIndex].name, activeItemIndex]);
 
@@ -141,7 +182,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         const companies = await getCompanies();
         const company = companies.find((c) => c.code == code);
         if (company) {
-          setCompanyId(company.id);
+          setCompanyId(company.id); // This should be the Firestore document ID (string)
           setCompanySearch(company.name);
         } else {
           setError("Company not found.");
@@ -162,21 +203,15 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
 
   // Key down handler for form navigation
   const handleKeyDown = (e, index, field, isLastField = false) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       e.preventDefault();
       if (isLastField && index === billItems.length - 1) {
         addItem();
-      } else if (field === "barcode" && suggestions.length > 0) {
-        handleItemSelect(suggestions[0]);
       } else {
         const nextField =
-          field === "barcode"
-            ? "name"
-            : field === "name"
-            ? "quantity"
-            : field === "quantity"
-            ? "netPrice"
-            : "outPrice";
+          field === 'barcode' ? 'name' :
+          field === 'name' ? 'quantity' :
+          field === 'quantity' ? 'netPrice' : 'outPrice';
         setActiveField(`${index}-${nextField}`);
       }
     }
@@ -199,12 +234,12 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
 
   // Select a company from suggestions
   const handleCompanySelect = (company) => {
-    setCompanyId(company.id);
+    setCompanyId(company.id); // This is the Firestore document ID
     setCompanySearch(company.name);
     setShowCompanySuggestions(false);
   };
 
-  // Submit the form
+  // Submit the form - FIXED: Remove the + conversion for companyId
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -227,20 +262,29 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         price: item.outPrice,
       }));
       const billNumber = editingBill ? editingBill.billNumber : null;
-      const bill = await createBoughtBill(+companyId, itemsWithExpireDate, billNumber);
+      
+      // Pass companyId as string (no + conversion)
+      const bill = await createBoughtBill(companyId, itemsWithExpireDate, billNumber);
+      
       if (onBillCreated) onBillCreated(bill);
+
+      // Clear local storage after successful submission
+      if (!editingBill) {
+        setItem(formKey, null);
+      }
+
       if (!editingBill) {
         setCompanyId("");
         setCompanySearch("");
         setCompanyCode("");
-        setBillDate(new Date().toISOString().split("T")[0]);
+        setBillDate(new Date().toISOString().split('T')[0]);
         setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 }]);
         setActiveItemIndex(0);
         setActiveField("0-barcode");
       } else {
-        router.push("/buying");
+        router.push('/buying');
       }
-      alert(`Bill #${bill.billNumber} ${editingBill ? "updated" : "created"} successfully!`);
+      alert(`Bill #${bill.billNumber} ${editingBill ? 'updated' : 'created'} successfully!`);
     } catch (error) {
       console.error("Error creating/updating bill:", error);
       setError(error.message || "Failed to create/update bill. Please try again.");
@@ -254,12 +298,8 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     const updatedItems = [...billItems];
     updatedItems[index][field] =
       field === "quantity" || field === "netPrice" || field === "outPrice" ? +value : value;
-    if (field === "barcode") {
-      updatedItems[index].name = "";
-    } else if (field === "name") {
-      updatedItems[index].barcode = "";
-    }
     setBillItems(updatedItems);
+    setActiveItemIndex(index);
   };
 
   // Add a new item to the bill
@@ -299,7 +339,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                 value={companyCode}
                 onChange={handleCompanyCodeChange}
                 placeholder="Enter company code..."
-                disabled={isLoading}
+                disabled={isLoading || !!editingBill}
               />
             </div>
             <div className="relative">
@@ -344,7 +384,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
             <table className="min-w-full bg-white border">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="p-2 text-left w-24">Barcode</th>
+                  <th className="p-2 text-left w-32">Barcode</th>
                   <th className="p-2 text-left">Item Name</th>
                   <th className="p-2 text-left w-20">Qty</th>
                   <th className="p-2 text-left w-24">Net Price</th>
@@ -355,14 +395,26 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               <tbody>
                 {billItems.map((item, index) => (
                   <tr key={index} className="border-b">
-                    <td className="p-2 relative">
+                    <td className="p-2">
                       <input
                         className="input w-full text-sm"
                         placeholder="Barcode"
                         value={item.barcode}
                         onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, "barcode")}
-                        ref={(el) => (inputRefs.current[`${index}-barcode`] = el)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'barcode')}
+                        ref={el => inputRefs.current[`${index}-barcode`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2 relative">
+                      <input
+                        className="input w-full text-sm"
+                        placeholder="Item Name"
+                        value={item.name}
+                        onChange={(e) => handleItemChange(index, "name", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'name')}
+                        ref={el => inputRefs.current[`${index}-name`] = el}
                         required
                         disabled={isLoading}
                       />
@@ -372,7 +424,14 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                             <li
                               key={suggestedItem.id}
                               className="p-2 hover:bg-gray-100 cursor-pointer"
-                              onClick={() => handleItemSelect(suggestedItem)}
+                              onClick={() => {
+                                handleItemChange(index, "name", suggestedItem.name);
+                                handleItemChange(index, "barcode", suggestedItem.barcode);
+                                handleItemChange(index, "netPrice", suggestedItem.netPrice || 0);
+                                handleItemChange(index, "outPrice", suggestedItem.outPrice || 0);
+                                setShowSuggestions(false);
+                                setActiveField(`${index}-quantity`);
+                              }}
                             >
                               {suggestedItem.name} ({suggestedItem.barcode})
                             </li>
@@ -382,25 +441,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                     </td>
                     <td className="p-2">
                       <input
-                        className="input w-full text-sm"
-                        placeholder="Item Name"
-                        value={item.name}
-                        onChange={(e) => handleItemChange(index, "name", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, "name")}
-                        ref={(el) => (inputRefs.current[`${index}-name`] = el)}
-                        required
-                        disabled={isLoading}
-                      />
-                    </td>
-                    <td className="p-2">
-                      <input
                         type="number"
                         min="1"
                         className="input w-full text-sm"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, "quantity")}
-                        ref={(el) => (inputRefs.current[`${index}-quantity`] = el)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
+                        ref={el => inputRefs.current[`${index}-quantity`] = el}
                         required
                         disabled={isLoading}
                       />
@@ -413,8 +460,8 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                         className="input w-full text-sm"
                         value={item.netPrice}
                         onChange={(e) => handleItemChange(index, "netPrice", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, "netPrice")}
-                        ref={(el) => (inputRefs.current[`${index}-netPrice`] = el)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'netPrice')}
+                        ref={el => inputRefs.current[`${index}-netPrice`] = el}
                         required
                         disabled={isLoading}
                       />
@@ -427,8 +474,8 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                         className="input w-full text-sm"
                         value={item.outPrice}
                         onChange={(e) => handleItemChange(index, "outPrice", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, "outPrice", index === billItems.length - 1)}
-                        ref={(el) => (inputRefs.current[`${index}-outPrice`] = el)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'outPrice', index === billItems.length - 1)}
+                        ref={el => inputRefs.current[`${index}-outPrice`] = el}
                         required
                         disabled={isLoading}
                       />

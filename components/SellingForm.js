@@ -1,363 +1,410 @@
 "use client";
-import { useState, useEffect } from "react";
-import { searchStoreItems, createSoldBill, getSoldBills, getItemDetails, getStoreItems } from "@/lib/data";
+import { useState, useEffect, useRef } from "react";
+import { searchInitializedItems, createSoldBill, getAvailableQuantities } from "@/lib/data";
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
 
-export default function SellingForm({ onBillCreated }) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const [cartItems, setCartItems] = useState([]);
-  const [quantity, setQuantity] = useState(1);
-  const searchParams = useSearchParams();
+export default function SellingForm({ onBillCreated, editingBill }) {
+  const [billItems, setBillItems] = useState([
+    { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, availableQuantity: 0 }
+  ]);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const [activeField, setActiveField] = useState("0-barcode");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [formKey, setFormKey] = useState("saleFormData");
+
+  const inputRefs = useRef({});
   const router = useRouter();
-  const [editingBill, setEditingBill] = useState(null);
-  const [selectedItemDetails, setSelectedItemDetails] = useState(null);
-  const [priceSelection, setPriceSelection] = useState(null);
 
+  // Custom hook to persist form data
+  const { getItem, setItem } = useLocalStorage();
+
+  // Load saved form data or editing bill data
   useEffect(() => {
-    if (searchParams.get('edit') === 'true') {
-      const billData = localStorage.getItem('editingSoldBill');
-      if (billData) {
-        const bill = JSON.parse(billData);
-        setEditingBill(bill);
-        setCartItems(bill.items.map(item => ({
-          ...item,
-          editablePrice: item.price,
-          total: item.price * item.quantity,
-          netPrice: item.netPrice
-        })));
-      }
-      localStorage.removeItem('editingSoldBill');
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (searchQuery.length > 0) {
-      const results = searchStoreItems(searchQuery);
-      setSearchResults(results);
-    } else {
-      setSearchResults([]);
-    }
-  }, [searchQuery]);
-
-  const showItemDetails = (barcode) => {
-    const details = getItemDetails(barcode);
-    setSelectedItemDetails(details);
-  };
-
-  const handlePriceSelect = (price) => {
-    setPriceSelection(price);
-  };
-
-  const addToCart = (item) => {
-    // If item has multiple price groups, show selection dialog
-    if (selectedItemDetails?.priceGroups && Object.keys(selectedItemDetails.priceGroups).length > 1 && !priceSelection) {
-      setSelectedItemDetails(item);
-      return;
-    }
-
-    const priceToUse = priceSelection || (selectedItemDetails?.netPrice || item.netPrice);
-    const selectedPriceGroup = selectedItemDetails?.priceGroups?.[priceToUse] ||
-                              (selectedItemDetails?.priceGroups && selectedItemDetails.priceGroups[Object.keys(selectedItemDetails.priceGroups)[0]]);
-
-    const availableQuantity = selectedPriceGroup?.totalQuantity || item.quantity;
-
-    const existingItem = cartItems.find(
-      i => i.barcode === item.barcode && i.netPrice === priceToUse
-    );
-
-    if (existingItem) {
-      if (existingItem.quantity + quantity > availableQuantity) {
-        alert(`Cannot add more than available stock (${availableQuantity})`);
-        return;
-      }
-      existingItem.quantity += quantity;
-      existingItem.total = existingItem.editablePrice * existingItem.quantity;
-      setCartItems([...cartItems]);
-    } else {
-      if (quantity > availableQuantity) {
-        alert(`Cannot add more than available stock (${availableQuantity})`);
-        return;
-      }
-
-      const priceToAdd = selectedPriceGroup?.outPrice || item.outPrice || item.netPrice;
-      setCartItems([...cartItems, {
-        ...item,
-        quantity,
-        netPrice: priceToUse,
-        outPrice: selectedPriceGroup?.outPrice || item.outPrice || item.netPrice,
-        editablePrice: priceToAdd,
-        total: priceToAdd * quantity
-      }]);
-    }
-
-    setSearchQuery("");
-    setQuantity(1);
-    setSelectedItemDetails(null);
-    setPriceSelection(null);
-  };
-
-  const updateCartItem = (barcode, netPrice, field, value) => {
-    const item = cartItems.find(i => i.barcode === barcode && i.netPrice === netPrice);
-
-    if (field === 'quantity') {
-      // Find available quantity for this item at this price
-      const storeItemsForItem = getStoreItems().filter(i =>
-        i.barcode === barcode && i.netPrice === netPrice
+    if (editingBill) {
+      setBillItems(
+        editingBill.items.map((item) => ({
+          barcode: item.barcode,
+          name: item.name,
+          quantity: item.quantity,
+          netPrice: item.netPrice || 0,
+          outPrice: item.outPrice || 0,
+          availableQuantity: 0
+        }))
       );
-      const availableQty = storeItemsForItem.reduce((sum, i) => sum + i.quantity, 0);
-
-      if (value > availableQty) {
-        alert(`Cannot exceed available stock (${availableQty})`);
-        return;
+    } else {
+      const savedData = getItem(formKey);
+      if (savedData) {
+        setBillItems(savedData.billItems || [
+          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, availableQuantity: 0 }
+        ]);
       }
-      if (value <= 0) {
-        removeFromCart(barcode, netPrice);
-        return;
-      }
-      item.quantity = value;
-      item.total = item.editablePrice * value;
-    } else if (field === 'price') {
-      item.editablePrice = value;
-      item.total = value * item.quantity;
     }
+  }, [editingBill]);
 
-    setCartItems([...cartItems]);
+  // Save form data when it changes
+  useEffect(() => {
+    if (!editingBill) {
+      const formData = {
+        billItems
+      };
+      setItem(formKey, formData);
+    }
+  }, [billItems]);
+
+  // Fixed: Fetch items when barcode changes with proper error handling
+  useEffect(() => {
+    const fetchItemsByBarcode = async () => {
+      const currentBarcode = billItems[activeItemIndex]?.barcode;
+      if (currentBarcode && currentBarcode.length > 0) {
+        try {
+          const results = await searchInitializedItems(currentBarcode, "barcode");
+          
+          // Check if results exist and has at least one item
+          if (results && results.length > 0 && results[0]) {
+            const item = results[0];
+            const updatedItems = [...billItems];
+            updatedItems[activeItemIndex] = {
+              ...updatedItems[activeItemIndex],
+              barcode: item.barcode || "",
+              name: item.name || "",
+              netPrice: item.netPrice || 0,
+              outPrice: item.outPrice || 0,
+            };
+            setBillItems(updatedItems);
+            
+            // Fetch available quantities
+            const quantities = await getAvailableQuantities(item.barcode);
+            if (quantities && Object.keys(quantities).length > 0) {
+              const totalAvailable = Object.values(quantities).reduce(
+                (sum, group) => sum + (group.totalQuantity || 0), 0
+              );
+              updatedItems[activeItemIndex].availableQuantity = totalAvailable;
+              setBillItems([...updatedItems]);
+            }
+            
+            setActiveField(`${activeItemIndex}-quantity`);
+          }
+        } catch (error) {
+          console.error("Error fetching items by barcode:", error);
+        }
+      }
+    };
+    const timer = setTimeout(fetchItemsByBarcode, 500);
+    return () => clearTimeout(timer);
+  }, [billItems[activeItemIndex]?.barcode, activeItemIndex]);
+
+  // Fetch items when name changes
+  useEffect(() => {
+    const fetchItemsByName = async () => {
+      const currentName = billItems[activeItemIndex].name;
+      if (currentName.length > 0) {
+        setIsLoading(true);
+        try {
+          const results = await searchInitializedItems(currentName, "name");
+          setSuggestions(results);
+          setShowSuggestions(results.length > 0);
+        } catch (error) {
+          console.error("Error fetching items by name:", error);
+          setError("Failed to fetch items by name. Please try again.");
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+    const timer = setTimeout(fetchItemsByName, 300);
+    return () => clearTimeout(timer);
+  }, [billItems[activeItemIndex].name, activeItemIndex]);
+
+  // Focus management
+  useEffect(() => {
+    if (inputRefs.current["0-barcode"]) {
+      inputRefs.current["0-barcode"].focus();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeField && inputRefs.current[activeField]) {
+      inputRefs.current[activeField].focus();
+    }
+  }, [activeField, billItems]);
+
+  // Key down handler for form navigation
+  const handleKeyDown = (e, index, field, isLastField = false) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isLastField && index === billItems.length - 1) {
+        addItem();
+      } else {
+        const nextField =
+          field === 'barcode' ? 'name' :
+          field === 'name' ? 'quantity' :
+          field === 'quantity' ? 'netPrice' : 'outPrice';
+        setActiveField(`${index}-${nextField}`);
+      }
+    }
   };
 
-  const removeFromCart = (barcode, netPrice) => {
-    setCartItems(cartItems.filter(i =>
-      !(i.barcode === barcode && i.netPrice === netPrice)
-    ));
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (cartItems.length === 0) {
-      alert("Your cart is empty");
-      return;
-    }
-
+  // Select an item from suggestions
+  const handleItemSelect = async (item) => {
+    const updatedItems = [...billItems];
+    updatedItems[activeItemIndex] = {
+      ...updatedItems[activeItemIndex],
+      barcode: item.barcode,
+      name: item.name,
+      netPrice: item.netPrice || 0,
+      outPrice: item.outPrice || 0,
+    };
+    setBillItems(updatedItems);
+    setShowSuggestions(false);
+    
+    // Fetch available quantities for selected item
     try {
-      const billNumber = editingBill ? editingBill.billNumber : null;
+      const quantities = await getAvailableQuantities(item.barcode);
+      if (quantities && Object.keys(quantities).length > 0) {
+        const totalAvailable = Object.values(quantities).reduce(
+          (sum, group) => sum + (group.totalQuantity || 0), 0
+        );
+        updatedItems[activeItemIndex].availableQuantity = totalAvailable;
+        setBillItems([...updatedItems]);
+      }
+    } catch (error) {
+      console.error("Error fetching available quantities:", error);
+    }
+    
+    setActiveField(`${activeItemIndex}-quantity`);
+  };
 
-      // Prepare items for the bill
-      const billItems = cartItems.map(item => ({
-        barcode: item.barcode,
-        name: item.name,
-        quantity: item.quantity,
-        netPrice: item.netPrice,
-        outPrice: item.outPrice,
-        price: item.editablePrice,
-        expireDate: new Date().toISOString() // Add current date as expire date for sold items
+  // Submit the form
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    try {
+      const validItems = billItems.every(
+        (item) => item.barcode && item.name && item.quantity > 0
+      );
+      if (!validItems) {
+        setError("Please fill all item fields correctly.");
+        return;
+      }
+
+      // Check available quantities
+      for (const item of billItems) {
+        if (item.quantity > item.availableQuantity) {
+          setError(`Not enough stock for ${item.name}. Available: ${item.availableQuantity}, Requested: ${item.quantity}`);
+          return;
+        }
+      }
+
+      const preparedItems = billItems.map((item) => ({
+        ...item,
+        price: item.outPrice,
       }));
-
-      const bill = createSoldBill(billItems, billNumber);
-
+      
+      const billNumber = editingBill ? editingBill.billNumber : null;
+      const bill = await createSoldBill(preparedItems, billNumber);
+      
       if (onBillCreated) onBillCreated(bill);
 
+      // Clear local storage after successful submission
       if (!editingBill) {
-        setCartItems([]);
-        setSearchQuery("");
-        setQuantity(1);
-      } else {
-        router.push('/sold');
+        setItem(formKey, null);
       }
 
-      alert(`Sale ${editingBill ? 'updated' : 'completed'}! Bill #${bill.billNumber}`);
-      return bill;
+      if (!editingBill) {
+        setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, availableQuantity: 0 }]);
+        setActiveItemIndex(0);
+        setActiveField("0-barcode");
+      } else {
+        router.push('/selling');
+      }
+      alert(`Bill #${bill.billNumber} ${editingBill ? 'updated' : 'created'} successfully!`);
     } catch (error) {
-      alert(error.message);
-      console.error("Error creating bill:", error);
-      return null;
+      console.error("Error creating/updating bill:", error);
+      setError(error.message || "Failed to create/update bill. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update an item in the bill
+  const handleItemChange = (index, field, value) => {
+    const updatedItems = [...billItems];
+    updatedItems[index][field] =
+      field === "quantity" || field === "netPrice" || field === "outPrice" ? +value : value;
+    setBillItems(updatedItems);
+    setActiveItemIndex(index);
+  };
+
+  // Add a new item to the bill
+  const addItem = () => {
+    setBillItems([
+      ...billItems,
+      { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, availableQuantity: 0 },
+    ]);
+    setActiveItemIndex(billItems.length);
+    setActiveField(`${billItems.length}-barcode`);
+  };
+
+  // Remove an item from the bill
+  const removeItem = (index) => {
+    if (billItems.length > 1) {
+      const updatedItems = [...billItems];
+      updatedItems.splice(index, 1);
+      setBillItems(updatedItems);
+      if (index === activeItemIndex) {
+        setActiveItemIndex(Math.max(0, index - 1));
+        setActiveField(`${Math.max(0, index - 1)}-barcode`);
+      }
     }
   };
 
   return (
     <div className="container py-4">
-      <Card title={editingBill ? `Edit Bill #${editingBill.billNumber}` : "Create Sales Bill"}>
-        <div className="mb-4">
-          <label className="block mb-2">Search Items by Name or Barcode</label>
-          <input
-            className="input w-full"
-            placeholder="Search by name or barcode..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-
-        {selectedItemDetails && (
-          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-            <h3 className="font-medium mb-2">Select Price for {selectedItemDetails.name}</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Object.entries(selectedItemDetails.priceGroups).map(([price, group]) => (
-                <div
-                  key={price}
-                  className={`p-3 border rounded-lg cursor-pointer ${priceSelection === parseFloat(price) ? 'border-blue-500 bg-blue-100' : 'border-gray-200'}`}
-                  onClick={() => handlePriceSelect(parseFloat(price))}
-                >
-                  <p className="font-medium">Net Price: ${parseFloat(price).toFixed(2)}</p>
-                  <p>Out Price: ${group.outPrice.toFixed(2)}</p>
-                  <p>Available: {group.totalQuantity}</p>
-                  <button
-                    className="btn btn-primary text-xs mt-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePriceSelect(parseFloat(price));
-                      addToCart(selectedItemDetails);
-                    }}
-                  >
-                    Select & Add
-                  </button>
-                </div>
-              ))}
-            </div>
+      <Card title={editingBill ? `Edit Sale Bill #${editingBill.billNumber}` : "Create Sale Bill"}>
+        {error && <div className="alert alert-danger mb-4">{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="overflow-x-auto mb-4">
+            <table className="min-w-full bg-white border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2 text-left w-32">Barcode</th>
+                  <th className="p-2 text-left">Item Name</th>
+                  <th className="p-2 text-left w-20">Qty</th>
+                  <th className="p-2 text-left w-24">Net Price</th>
+                  <th className="p-2 text-left w-24">Out Price</th>
+                  <th className="p-2 text-left w-20">Available</th>
+                  <th className="p-2 text-left w-16">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {billItems.map((item, index) => (
+                  <tr key={index} className="border-b">
+                    <td className="p-2">
+                      <input
+                        className="input w-full text-sm"
+                        placeholder="Barcode"
+                        value={item.barcode}
+                        onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'barcode')}
+                        ref={el => inputRefs.current[`${index}-barcode`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2 relative">
+                      <input
+                        className="input w-full text-sm"
+                        placeholder="Item Name"
+                        value={item.name}
+                        onChange={(e) => handleItemChange(index, "name", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'name')}
+                        ref={el => inputRefs.current[`${index}-name`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                      {showSuggestions && activeItemIndex === index && (
+                        <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                          {suggestions.map((suggestedItem) => (
+                            <li
+                              key={suggestedItem.id}
+                              className="p-2 hover:bg-gray-100 cursor-pointer"
+                              onClick={() => handleItemSelect(suggestedItem)}
+                            >
+                              {suggestedItem.name} ({suggestedItem.barcode})
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max={item.availableQuantity}
+                        className="input w-full text-sm"
+                        value={item.quantity}
+                        onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
+                        ref={el => inputRefs.current[`${index}-quantity`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input w-full text-sm"
+                        value={item.netPrice}
+                        onChange={(e) => handleItemChange(index, "netPrice", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'netPrice')}
+                        ref={el => inputRefs.current[`${index}-netPrice`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="input w-full text-sm"
+                        value={item.outPrice}
+                        onChange={(e) => handleItemChange(index, "outPrice", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'outPrice', index === billItems.length - 1)}
+                        ref={el => inputRefs.current[`${index}-outPrice`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2 text-sm">
+                      {item.availableQuantity || 0}
+                    </td>
+                    <td className="p-2">
+                      {billItems.length > 1 && (
+                        <button
+                          type="button"
+                          className="btn btn-danger text-xs"
+                          onClick={() => removeItem(index)}
+                          disabled={isLoading}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex gap-2 mt-4">
             <button
-              className="btn btn-secondary mt-2 text-sm"
-              onClick={() => setSelectedItemDetails(null)}
+              type="button"
+              className="btn btn-secondary flex-1"
+              onClick={addItem}
+              disabled={isLoading}
             >
-              Cancel
+              Add Item
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary flex-1"
+              disabled={isLoading}
+            >
+              {isLoading ? "Processing..." : editingBill ? "Update Bill" : "Create Bill"}
             </button>
           </div>
-        )}
-
-        {searchResults.length > 0 && !selectedItemDetails && (
-          <div className="mb-4">
-            <h3 className="font-medium mb-2">Search Results</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {searchResults.map(item => {
-                const details = getItemDetails(item.barcode);
-                const hasMultiplePrices = details?.priceGroups && Object.keys(details.priceGroups).length > 1;
-
-                return (
-                  <div key={`${item.barcode}-${item.expireDate}`} className="p-4 border rounded-lg">
-                    <h4 className="font-medium">{item.name}</h4>
-                    <p className="text-sm">Barcode: {item.barcode}</p>
-                    <p className="text-sm">Expires: {new Date(item.expireDate).toLocaleDateString()}</p>
-                    <p className="text-sm">Available: {item.quantity}</p>
-                    {hasMultiplePrices ? (
-                      <button
-                        className="btn btn-primary text-sm mt-2 w-full"
-                        onClick={() => showItemDetails(item.barcode)}
-                      >
-                        Select Price
-                      </button>
-                    ) : (
-                      <>
-                        <p className="text-sm">Net Price: ${item.netPrice?.toFixed(2) || '0.00'}</p>
-                        <p className="text-sm">Out Price: ${item.outPrice?.toFixed(2) || '0.00'}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <input
-                            type="number"
-                            min="1"
-                            max={item.quantity}
-                            value={quantity}
-                            onChange={(e) => setQuantity(Math.min(+e.target.value, item.quantity))}
-                            className="input w-20"
-                          />
-                          <button
-                            className="btn btn-primary text-sm"
-                            onClick={() => addToCart(item)}
-                          >
-                            Add to Cart
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {cartItems.length > 0 && (
-          <>
-            <div className="mb-4">
-              <h3 className="font-medium mb-2">Shopping Cart</h3>
-              <div className="overflow-x-auto">
-                <table className="table w-full">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="p-2 text-left">Item</th>
-                      <th className="p-2 text-left">Barcode</th>
-                      <th className="p-2 text-left">Net Price</th>
-                      <th className="p-2 text-left w-20">Qty</th>
-                      <th className="p-2 text-left">Out Price</th>
-                      <th className="p-2 text-left">Total</th>
-                      <th className="p-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cartItems.map((item, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="p-2">
-                          <div className="font-medium">{item.name}</div>
-                        </td>
-                        <td className="p-2">{item.barcode}</td>
-                        <td className="p-2">${item.netPrice.toFixed(2)}</td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => updateCartItem(
-                              item.barcode,
-                              item.netPrice,
-                              'quantity',
-                              +e.target.value
-                            )}
-                            className="input w-full"
-                          />
-                        </td>
-                        <td className="p-2">
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            value={item.editablePrice}
-                            onChange={(e) => updateCartItem(
-                              item.barcode,
-                              item.netPrice,
-                              'price',
-                              +e.target.value
-                            )}
-                            className="input w-full"
-                          />
-                        </td>
-                        <td className="p-2">${item.total.toFixed(2)}</td>
-                        <td className="p-2">
-                          <button
-                            className="btn btn-danger text-sm"
-                            onClick={() => removeFromCart(item.barcode, item.netPrice)}
-                          >
-                            Remove
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan="5" className="p-2 text-right font-medium">Total:</td>
-                      <td className="p-2 font-medium">
-                        ${cartItems.reduce((sum, item) => sum + item.total, 0).toFixed(2)}
-                      </td>
-                      <td className="p-2"></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-            <button
-              className="btn btn-primary w-full mt-4"
-              onClick={handleSubmit}
-            >
-              {editingBill ? 'Update Bill' : 'Complete Sale'}
-            </button>
-          </>
-        )}
+        </form>
       </Card>
     </div>
   );
