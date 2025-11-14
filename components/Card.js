@@ -1,3 +1,4 @@
+// components/Card.js
 export default function Card({ title, children, className = "" }) {
     return (
       <div className={`card ${className}`}>

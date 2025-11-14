@@ -1,4 +1,5 @@
 "use client";
+// app/buying/page.js
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import BuyingForm from "@/components/BuyingForm";

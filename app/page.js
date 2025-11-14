@@ -1,7 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Link from "next/link";
 import { FaBox, FaShoppingCart, FaStore, FaHistory } from "react-icons/fa";
-
+// app/page.js
 export default function Home() {
   return (
     <>

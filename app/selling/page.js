@@ -1,4 +1,5 @@
 "use client";
+// app/selling/page.js
 import { useState } from "react";
 import SellingForm from "@/components/SellingForm";
 import Navbar from "@/components/Navbar";
@@ -12,7 +13,7 @@ export default function SellingPage() {
 
   return (
     <>
-      <Navbar />
+
       <div className="container py-8">
         <h1 className="text-2xl font-bold mb-6">Sales</h1>
         <SellingForm onBillCreated={handleBillCreated} key={refresh ? 'refresh' : 'normal'} />

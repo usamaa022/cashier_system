@@ -1,46 +1,6 @@
-// "use client";
-// import Link from "next/link";
-// import { usePathname } from "next/navigation";
-
-// export default function Navbar() {
-//   const pathname = usePathname();
-
-//   const navLinks = [
-//     { href: "/items", label: "Items" },
-//     { href: "/buying", label: "Purchasing" },
-//     { href: "/selling", label: "Sales" },
-//     { href: "/sold", label: "Sales History" }
-//   ];
-
-//   return (
-//     <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm z-50 h-16">
-//       <div className="container mx-auto px-4 h-full">
-//         <div className="flex justify-between items-center h-full">
-//           <Link href="/" className="text-xl font-bold text-blue-600">
-//             MarketShop
-//           </Link>
-//           <div className="flex gap-4 h-full items-center">
-//             {navLinks.map((link) => (
-//               <Link
-//                 key={link.href}
-//                 href={link.href}
-//                 className={`px-4 h-full flex items-center text-sm font-medium transition-colors ${
-//                   pathname === link.href
-//                     ? 'border-b-2 border-blue-600 text-blue-600'
-//                     : 'text-gray-700 hover:bg-gray-50'
-//                 }`}
-//               >
-//                 {link.label}
-//               </Link>
-//             ))}
-//           </div>
-//         </div>
-//       </div>
-//     </nav>
-//   );
-// }
 
 
+// components/Navbar.js
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

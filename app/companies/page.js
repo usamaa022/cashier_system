@@ -1,4 +1,5 @@
 "use client";
+// app/companies/page.js
 import { useState, useEffect } from "react";
 import { getCompanies, addCompany, updateCompany, deleteCompany } from "@/lib/data";
 import Card from "@/components/Card";

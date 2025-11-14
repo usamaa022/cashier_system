@@ -1,4 +1,5 @@
 "use client";
+// app/sold/page.js
 import { useState, useEffect } from "react";
 import { searchSoldBills, deleteSoldBill } from "@/lib/data";
 import Card from "@/components/Card";

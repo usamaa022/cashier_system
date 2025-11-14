@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { getBoughtBills, getCompanies, deleteBoughtBill } from "@/lib/data";
 import Card from "./Card";
 import { useRouter } from "next/navigation";
+import Select from "react-select";
 
 export default function BuyingList({ refreshTrigger }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -13,7 +14,7 @@ export default function BuyingList({ refreshTrigger }) {
     startDate: "",
     endDate: ""
   });
-  const [itemFilters, setItemFilters] = useState({});
+  const [itemFilters, setItemFilters] = useState([]);
   const [availableItems, setAvailableItems] = useState([]);
   const [companySuggestions, setCompanySuggestions] = useState([]);
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
@@ -21,13 +22,11 @@ export default function BuyingList({ refreshTrigger }) {
   const [companies, setCompanies] = useState([]);
   const router = useRouter();
 
-  // Fetch bills and companies
   useEffect(() => {
     const fetchData = async () => {
       try {
         const billsData = await getBoughtBills();
         setBills(billsData);
-
         const companiesData = await getCompanies();
         setCompanies(companiesData);
       } catch (error) {
@@ -37,7 +36,6 @@ export default function BuyingList({ refreshTrigger }) {
     fetchData();
   }, [refreshTrigger]);
 
-  // Get all unique items for filters
   useEffect(() => {
     const items = new Set();
     bills.forEach(bill => {
@@ -48,7 +46,6 @@ export default function BuyingList({ refreshTrigger }) {
     setAvailableItems(Array.from(items));
   }, [bills]);
 
-  // Search companies by name
   useEffect(() => {
     if (filters.companySearch.length > 0) {
       const results = companies.filter(company =>
@@ -71,19 +68,17 @@ export default function BuyingList({ refreshTrigger }) {
     setShowCompanySuggestions(false);
   };
 
-  const toggleItemFilter = (itemName) => {
-    setItemFilters(prev => ({
-      ...prev,
-      [itemName]: !prev[itemName]
-    }));
-  };
+  const itemOptions = availableItems.map(item => ({
+    value: item,
+    label: item
+  }));
 
   const filteredBills = bills.filter(bill => {
     const matchesBillNumber = !filters.billNumber ||
                           bill.billNumber.toString().includes(filters.billNumber);
     const matchesCompany = !filters.companySearch ||
                           companies.find(c => c.id === bill.companyId)?.name.toLowerCase().includes(filters.companySearch.toLowerCase());
-    const billDate = new Date(bill.date);
+    const billDate = bill.date instanceof Date ? bill.date : new Date(bill.date);
     const matchesStartDate = !filters.startDate ||
                           billDate >= new Date(filters.startDate);
     const matchesEndDate = !filters.endDate ||
@@ -94,9 +89,8 @@ export default function BuyingList({ refreshTrigger }) {
                             item.barcode.includes(searchQuery)
                           ) ||
                           bill.billNumber.toString().includes(searchQuery);
-    // Check item filters
-    const matchesItemFilters = Object.keys(itemFilters).length === 0 ||
-                            bill.items.some(item => itemFilters[item.name]);
+    const matchesItemFilters = itemFilters.length === 0 ||
+                            bill.items.some(item => itemFilters.includes(item.name));
     return matchesBillNumber && matchesCompany &&
            matchesStartDate && matchesEndDate &&
            matchesSearch && matchesItemFilters;
@@ -122,7 +116,6 @@ export default function BuyingList({ refreshTrigger }) {
 
   return (
     <Card title="Purchase History">
-      {/* Excel-like filter row */}
       <div className="overflow-x-auto mb-4">
         <table className="table w-full">
           <thead>
@@ -194,24 +187,16 @@ export default function BuyingList({ refreshTrigger }) {
           </thead>
         </table>
       </div>
-      {/* Item filters */}
-      {availableItems.length > 0 && (
-        <div className="mb-4 p-4 bg-gray-50 rounded-lg">
-          <h3 className="font-medium mb-2">Filter by Items:</h3>
-          <div className="flex flex-wrap gap-2">
-            {availableItems.map(itemName => (
-              <label key={itemName} className="flex items-center gap-1">
-                <input
-                  type="checkbox"
-                  checked={itemFilters[itemName] || false}
-                  onChange={() => toggleItemFilter(itemName)}
-                />
-                <span className="text-sm">{itemName}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="mb-4 p-4 bg-gray-50 rounded-lg">
+        <h3 className="font-medium mb-2">Filter by Items:</h3>
+        <Select
+          isMulti
+          options={itemOptions}
+          onChange={(selected) => setItemFilters(selected.map(option => option.value))}
+          placeholder="Select items..."
+          className="react-select"
+        />
+      </div>
       <div className="overflow-x-auto">
         <table className="table w-full">
           <tbody>
@@ -225,7 +210,9 @@ export default function BuyingList({ refreshTrigger }) {
                 <td className="p-2 text-center">
                   {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'}
                 </td>
-                <td className="p-2 text-center">{new Date(bill.date).toLocaleDateString()}</td>
+                <td className="p-2 text-center">
+                  {bill.date instanceof Date ? bill.date.toLocaleDateString() : new Date(bill.date).toLocaleDateString()}
+                </td>
                 <td className="p-2 text-center">{bill.items.length}</td>
                 <td className="p-2 text-center">
                   <button
@@ -256,7 +243,7 @@ export default function BuyingList({ refreshTrigger }) {
         <Card title={`Bill #${selectedBill.billNumber} Details`} className="mt-4">
           <div className="mb-4 text-center">
             <p><strong>Company:</strong> {companies.find(c => c.id === selectedBill.companyId)?.name}</p>
-            <p><strong>Date:</strong> {new Date(selectedBill.date).toLocaleString()}</p>
+            <p><strong>Date:</strong> {selectedBill.date instanceof Date ? selectedBill.date.toLocaleString() : new Date(selectedBill.date).toLocaleString()}</p>
           </div>
           <div className="overflow-x-auto">
             <table className="table w-full">
@@ -265,8 +252,9 @@ export default function BuyingList({ refreshTrigger }) {
                   <th className="p-2 text-center">Barcode</th>
                   <th className="p-2 text-center">Item Name</th>
                   <th className="p-2 text-center">Quantity</th>
-                  <th className="p-2 text-center">Net Price</th>
-                  <th className="p-2 text-center">Out Price</th>
+                  <th className="p-2 text-center">Net Price (IQD)</th>
+                  <th className="p-2 text-center">Out Price (IQD)</th>
+                  <th className="p-2 text-center">Expire Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -275,8 +263,11 @@ export default function BuyingList({ refreshTrigger }) {
                     <td className="p-2 text-center">{item.barcode}</td>
                     <td className="p-2 text-center">{item.name}</td>
                     <td className="p-2 text-center">{item.quantity}</td>
-                    <td className="p-2 text-center">${item.price?.toFixed(2) || '0.00'}</td>
-                    <td className="p-2 text-center">${item.outPrice?.toFixed(2) || '0.00'}</td>
+                    <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
+                    <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
+                    <td className="p-2 text-center">
+                      {item.expireDate ? new Date(item.expireDate).toLocaleDateString() : 'N/A'}
+                    </td>
                   </tr>
                 ))}
               </tbody>

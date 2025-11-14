@@ -1,4 +1,5 @@
 "use client";
+// components/Sellingsearch.js
 import { useState, useEffect } from "react";
 import { searchStoreItems, createSoldBill, getSoldBills, getItemDetails, getStoreItems } from "@/lib/data";
 import Card from "./Card";

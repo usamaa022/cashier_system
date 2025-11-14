@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-
+// hooks/useLocalStorage.js
 export function useLocalStorage() {
   const getItem = (key) => {
     if (typeof window !== 'undefined') {

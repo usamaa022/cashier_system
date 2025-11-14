@@ -4,6 +4,7 @@ import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/da
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import Select from "react-select";
 
 export default function BuyingForm({ onBillCreated, editingBill }) {
   const [companyId, setCompanyId] = useState("");
@@ -11,7 +12,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const [companyCode, setCompanyCode] = useState("");
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [billItems, setBillItems] = useState([
-    { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 }
+    { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }
   ]);
   const [suggestions, setSuggestions] = useState([]);
   const [companySuggestions, setCompanySuggestions] = useState([]);
@@ -22,16 +23,12 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formKey, setFormKey] = useState("purchaseFormData");
-
   const formRef = useRef(null);
   const inputRefs = useRef({});
   const searchParams = useSearchParams();
   const router = useRouter();
-
-  // Custom hook to persist form data
   const { getItem, setItem } = useLocalStorage();
 
-  // Load saved form data or editing bill data
   useEffect(() => {
     if (editingBill) {
       setCompanyId(editingBill.companyId);
@@ -44,6 +41,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
           quantity: item.quantity,
           netPrice: item.netPrice || 0,
           outPrice: item.outPrice || 0,
+          expireDate: item.expireDate || new Date().toISOString().split('T')[0]
         }))
       );
     } else {
@@ -54,13 +52,12 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setCompanyCode(savedData.companyCode || "");
         setBillDate(savedData.billDate || new Date().toISOString().split('T')[0]);
         setBillItems(savedData.billItems || [
-          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 }
+          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }
         ]);
       }
     }
   }, [editingBill]);
 
-  // Save form data when it changes
   useEffect(() => {
     if (!editingBill) {
       const formData = {
@@ -74,7 +71,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [companyId, companySearch, companyCode, billDate, billItems]);
 
-  // Fetch companies when companySearch changes
   useEffect(() => {
     const fetchCompanies = async () => {
       if (companySearch.length > 0) {
@@ -101,15 +97,12 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [companySearch]);
 
-  // Fixed: Fetch items when barcode changes with proper error handling
   useEffect(() => {
     const fetchItemsByBarcode = async () => {
       const currentBarcode = billItems[activeItemIndex]?.barcode;
       if (currentBarcode && currentBarcode.length > 0) {
         try {
           const results = await searchInitializedItems(currentBarcode, "barcode");
-          
-          // Check if results exist and has at least one item
           if (results && results.length > 0 && results[0]) {
             const item = results[0];
             const updatedItems = [...billItems];
@@ -119,14 +112,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               name: item.name || "",
               netPrice: item.netPrice || 0,
               outPrice: item.outPrice || 0,
+              expireDate: item.expireDate || new Date().toISOString().split('T')[0],
             };
             setBillItems(updatedItems);
             setActiveField(`${activeItemIndex}-quantity`);
           }
-          // If no results found, do nothing - let user continue typing
         } catch (error) {
           console.error("Error fetching items by barcode:", error);
-          // Don't set error state here as it's not critical for user experience
         }
       }
     };
@@ -134,7 +126,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [billItems[activeItemIndex]?.barcode, activeItemIndex]);
 
-  // Fetch items when name changes
   useEffect(() => {
     const fetchItemsByName = async () => {
       const currentName = billItems[activeItemIndex].name;
@@ -159,7 +150,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [billItems[activeItemIndex].name, activeItemIndex]);
 
-  // Focus management
   useEffect(() => {
     if (inputRefs.current["0-barcode"]) {
       inputRefs.current["0-barcode"].focus();
@@ -172,7 +162,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [activeField, billItems]);
 
-  // Company code search handler
   const handleCompanyCodeChange = async (e) => {
     const code = e.target.value;
     setCompanyCode(code);
@@ -182,7 +171,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         const companies = await getCompanies();
         const company = companies.find((c) => c.code == code);
         if (company) {
-          setCompanyId(company.id); // This should be the Firestore document ID (string)
+          setCompanyId(company.id);
           setCompanySearch(company.name);
         } else {
           setError("Company not found.");
@@ -201,7 +190,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   };
 
-  // Key down handler for form navigation
   const handleKeyDown = (e, index, field, isLastField = false) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -211,13 +199,14 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         const nextField =
           field === 'barcode' ? 'name' :
           field === 'name' ? 'quantity' :
-          field === 'quantity' ? 'netPrice' : 'outPrice';
+          field === 'quantity' ? 'netPrice' :
+          field === 'netPrice' ? 'outPrice' :
+          field === 'outPrice' ? 'expireDate' : 'barcode';
         setActiveField(`${index}-${nextField}`);
       }
     }
   };
 
-  // Select an item from suggestions
   const handleItemSelect = (item) => {
     const updatedItems = [...billItems];
     updatedItems[activeItemIndex] = {
@@ -226,20 +215,19 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
       name: item.name,
       netPrice: item.netPrice || 0,
       outPrice: item.outPrice || 0,
+      expireDate: item.expireDate || new Date().toISOString().split('T')[0],
     };
     setBillItems(updatedItems);
     setShowSuggestions(false);
     setActiveField(`${activeItemIndex}-quantity`);
   };
 
-  // Select a company from suggestions
   const handleCompanySelect = (company) => {
-    setCompanyId(company.id); // This is the Firestore document ID
+    setCompanyId(company.id);
     setCompanySearch(company.name);
     setShowCompanySuggestions(false);
   };
 
-  // Submit the form - FIXED: Remove the + conversion for companyId
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -258,27 +246,18 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
       }
       const itemsWithExpireDate = billItems.map((item) => ({
         ...item,
-        expireDate: new Date(billDate).toISOString(),
-        price: item.outPrice,
+        expireDate: item.expireDate || new Date().toISOString().split('T')[0],
       }));
       const billNumber = editingBill ? editingBill.billNumber : null;
-      
-      // Pass companyId as string (no + conversion)
       const bill = await createBoughtBill(companyId, itemsWithExpireDate, billNumber);
-      
       if (onBillCreated) onBillCreated(bill);
-
-      // Clear local storage after successful submission
       if (!editingBill) {
         setItem(formKey, null);
-      }
-
-      if (!editingBill) {
         setCompanyId("");
         setCompanySearch("");
         setCompanyCode("");
         setBillDate(new Date().toISOString().split('T')[0]);
-        setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 }]);
+        setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }]);
         setActiveItemIndex(0);
         setActiveField("0-barcode");
       } else {
@@ -293,7 +272,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   };
 
-  // Update an item in the bill
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...billItems];
     updatedItems[index][field] =
@@ -302,17 +280,15 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     setActiveItemIndex(index);
   };
 
-  // Add a new item to the bill
   const addItem = () => {
     setBillItems([
       ...billItems,
-      { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0 },
+      { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" },
     ]);
     setActiveItemIndex(billItems.length);
     setActiveField(`${billItems.length}-barcode`);
   };
 
-  // Remove an item from the bill
   const removeItem = (index) => {
     if (billItems.length > 1) {
       const updatedItems = [...billItems];
@@ -387,8 +363,9 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                   <th className="p-2 text-left w-32">Barcode</th>
                   <th className="p-2 text-left">Item Name</th>
                   <th className="p-2 text-left w-20">Qty</th>
-                  <th className="p-2 text-left w-24">Net Price</th>
-                  <th className="p-2 text-left w-24">Out Price</th>
+                  <th className="p-2 text-left w-24">Net Price (IQD)</th>
+                  <th className="p-2 text-left w-24">Out Price (IQD)</th>
+                  <th className="p-2 text-left w-32">Expire Date</th>
                   <th className="p-2 text-left w-16">Actions</th>
                 </tr>
               </thead>
@@ -429,6 +406,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                                 handleItemChange(index, "barcode", suggestedItem.barcode);
                                 handleItemChange(index, "netPrice", suggestedItem.netPrice || 0);
                                 handleItemChange(index, "outPrice", suggestedItem.outPrice || 0);
+                                handleItemChange(index, "expireDate", suggestedItem.expireDate || new Date().toISOString().split('T')[0]);
                                 setShowSuggestions(false);
                                 setActiveField(`${index}-quantity`);
                               }}
@@ -474,8 +452,20 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                         className="input w-full text-sm"
                         value={item.outPrice}
                         onChange={(e) => handleItemChange(index, "outPrice", e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(e, index, 'outPrice', index === billItems.length - 1)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'outPrice')}
                         ref={el => inputRefs.current[`${index}-outPrice`] = el}
+                        required
+                        disabled={isLoading}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <input
+                        type="date"
+                        className="input w-full text-sm"
+                        value={item.expireDate}
+                        onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
+                        onKeyDown={(e) => handleKeyDown(e, index, 'expireDate', index === billItems.length - 1)}
+                        ref={el => inputRefs.current[`${index}-expireDate`] = el}
                         required
                         disabled={isLoading}
                       />
