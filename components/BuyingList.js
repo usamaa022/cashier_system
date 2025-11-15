@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import React from 'react';
 import { getBoughtBills, getCompanies, deleteBoughtBill } from "@/lib/data";
 import Card from "./Card";
 import { useRouter } from "next/navigation";
@@ -114,6 +115,10 @@ export default function BuyingList({ refreshTrigger }) {
     }
   };
 
+  const toggleBillDetails = (bill) => {
+    setSelectedBill(selectedBill?.billNumber === bill.billNumber ? null : bill);
+  };
+
   return (
     <Card title="Purchase History">
       <div className="overflow-x-auto mb-4">
@@ -181,7 +186,6 @@ export default function BuyingList({ refreshTrigger }) {
               <th className="p-2 text-center">Bill #</th>
               <th className="p-2 text-center">Company</th>
               <th className="p-2 text-center">Date</th>
-              <th className="p-2 text-center">Items</th>
               <th className="p-2 text-center">Actions</th>
             </tr>
           </thead>
@@ -201,80 +205,81 @@ export default function BuyingList({ refreshTrigger }) {
         <table className="table w-full">
           <tbody>
             {filteredBills.map(bill => (
-              <tr
-                key={bill.billNumber}
-                onClick={() => setSelectedBill(selectedBill === bill ? null : bill)}
-                className="hover:bg-gray-100 cursor-pointer"
-              >
-                <td className="p-2 text-center">{bill.billNumber}</td>
-                <td className="p-2 text-center">
-                  {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'}
-                </td>
-                <td className="p-2 text-center">
-                  {bill.date instanceof Date ? bill.date.toLocaleDateString() : new Date(bill.date).toLocaleDateString()}
-                </td>
-                <td className="p-2 text-center">{bill.items.length}</td>
-                <td className="p-2 text-center">
-                  <button
-                    className="btn btn-secondary text-xs mr-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUpdateBill(bill)
-                    }}
-                  >
-                    Update
-                  </button>
-                  <button
-                    className="btn btn-danger text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteBill(bill.billNumber)
-                    }}
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
+              <React.Fragment key={bill.billNumber}>
+                <tr
+                  onClick={() => toggleBillDetails(bill)}
+                  className={`hover:bg-gray-100 cursor-pointer ${selectedBill?.billNumber === bill.billNumber ? 'bg-blue-50' : ''}`}
+                >
+                  <td className="p-2 text-center">{bill.billNumber}</td>
+                  <td className="p-2 text-center">
+                    {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'}
+                  </td>
+                  <td className="p-2 text-center">
+                    {bill.date instanceof Date ? bill.date.toLocaleDateString() : new Date(bill.date).toLocaleDateString()}
+                  </td>
+                  <td className="p-2 text-center">
+                    <button
+                      className="btn btn-secondary text-xs mr-2"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUpdateBill(bill);
+                      }}
+                    >
+                      Update
+                    </button>
+                    <button
+                      className="btn btn-danger text-xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteBill(bill.billNumber);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+                {selectedBill?.billNumber === bill.billNumber && (
+                  <tr>
+                    <td colSpan="4" className="p-0">
+                      <div className="p-4 bg-blue-50 rounded-lg my-2 shadow-inner">
+                        <h4 className="font-medium text-center mb-2">Bill #{bill.billNumber} Details</h4>
+                        <div className="overflow-x-auto">
+                          <table className="table w-full">
+                            <thead>
+                              <tr className="bg-blue-100">
+                                <th className="p-2 text-center">Barcode</th>
+                                <th className="p-2 text-center">Item Name</th>
+                                <th className="p-2 text-center">Quantity</th>
+                                <th className="p-2 text-center">Net Price (IQD)</th>
+                                <th className="p-2 text-center">Out Price (IQD)</th>
+                                <th className="p-2 text-center">Expire Date</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {bill.items.map((item, index) => (
+                                <tr key={index} className="hover:bg-blue-50">
+                                  <td className="p-2 text-center">{item.barcode}</td>
+                                  <td className="p-2 text-center">{item.name}</td>
+                                  <td className="p-2 text-center">{item.quantity}</td>
+                                  <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
+                                  <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
+                                  <td className="p-2 text-center">
+                                    {item.expireDate ? new Date(item.expireDate).toLocaleDateString() : 'N/A'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
             ))}
           </tbody>
         </table>
       </div>
-      {selectedBill && (
-        <Card title={`Bill #${selectedBill.billNumber} Details`} className="mt-4">
-          <div className="mb-4 text-center">
-            <p><strong>Company:</strong> {companies.find(c => c.id === selectedBill.companyId)?.name}</p>
-            <p><strong>Date:</strong> {selectedBill.date instanceof Date ? selectedBill.date.toLocaleString() : new Date(selectedBill.date).toLocaleString()}</p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="table w-full">
-              <thead>
-                <tr className="bg-gray-200">
-                  <th className="p-2 text-center">Barcode</th>
-                  <th className="p-2 text-center">Item Name</th>
-                  <th className="p-2 text-center">Quantity</th>
-                  <th className="p-2 text-center">Net Price (IQD)</th>
-                  <th className="p-2 text-center">Out Price (IQD)</th>
-                  <th className="p-2 text-center">Expire Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {selectedBill.items.map((item, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="p-2 text-center">{item.barcode}</td>
-                    <td className="p-2 text-center">{item.name}</td>
-                    <td className="p-2 text-center">{item.quantity}</td>
-                    <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
-                    <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
-                    <td className="p-2 text-center">
-                      {item.expireDate ? new Date(item.expireDate).toLocaleDateString() : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
     </Card>
   );
 }

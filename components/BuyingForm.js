@@ -4,7 +4,6 @@ import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/da
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
-import Select from "react-select";
 
 export default function BuyingForm({ onBillCreated, editingBill }) {
   const [companyId, setCompanyId] = useState("");
@@ -23,6 +22,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formKey, setFormKey] = useState("purchaseFormData");
+  const [searchQuery, setSearchQuery] = useState("");
   const formRef = useRef(null);
   const inputRefs = useRef({});
   const searchParams = useSearchParams();
@@ -98,46 +98,16 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   }, [companySearch]);
 
   useEffect(() => {
-    const fetchItemsByBarcode = async () => {
-      const currentBarcode = billItems[activeItemIndex]?.barcode;
-      if (currentBarcode && currentBarcode.length > 0) {
-        try {
-          const results = await searchInitializedItems(currentBarcode, "barcode");
-          if (results && results.length > 0 && results[0]) {
-            const item = results[0];
-            const updatedItems = [...billItems];
-            updatedItems[activeItemIndex] = {
-              ...updatedItems[activeItemIndex],
-              barcode: item.barcode || "",
-              name: item.name || "",
-              netPrice: item.netPrice || 0,
-              outPrice: item.outPrice || 0,
-              expireDate: item.expireDate || new Date().toISOString().split('T')[0],
-            };
-            setBillItems(updatedItems);
-            setActiveField(`${activeItemIndex}-quantity`);
-          }
-        } catch (error) {
-          console.error("Error fetching items by barcode:", error);
-        }
-      }
-    };
-    const timer = setTimeout(fetchItemsByBarcode, 500);
-    return () => clearTimeout(timer);
-  }, [billItems[activeItemIndex]?.barcode, activeItemIndex]);
-
-  useEffect(() => {
-    const fetchItemsByName = async () => {
-      const currentName = billItems[activeItemIndex].name;
-      if (currentName.length > 0) {
+    const fetchItems = async () => {
+      if (searchQuery.length > 0) {
         setIsLoading(true);
         try {
-          const results = await searchInitializedItems(currentName, "name");
+          const results = await searchInitializedItems(searchQuery, "both");
           setSuggestions(results);
           setShowSuggestions(results.length > 0);
         } catch (error) {
-          console.error("Error fetching items by name:", error);
-          setError("Failed to fetch items by name. Please try again.");
+          console.error("Error fetching items:", error);
+          setError("Failed to fetch items. Please try again.");
         } finally {
           setIsLoading(false);
         }
@@ -146,9 +116,9 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setShowSuggestions(false);
       }
     };
-    const timer = setTimeout(fetchItemsByName, 300);
+    const timer = setTimeout(fetchItems, 300);
     return () => clearTimeout(timer);
-  }, [billItems[activeItemIndex].name, activeItemIndex]);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (inputRefs.current["0-barcode"]) {
@@ -162,14 +132,16 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [activeField, billItems]);
 
-  const handleCompanyCodeChange = async (e) => {
-    const code = e.target.value;
-    setCompanyCode(code);
-    if (code) {
+  const handleCompanyCodeChange = (e) => {
+    setCompanyCode(e.target.value);
+  };
+
+  const handleCompanyCodeBlur = async () => {
+    if (companyCode) {
       setIsLoading(true);
       try {
         const companies = await getCompanies();
-        const company = companies.find((c) => c.code == code);
+        const company = companies.find((c) => c.code == companyCode);
         if (company) {
           setCompanyId(company.id);
           setCompanySearch(company.name);
@@ -219,6 +191,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     };
     setBillItems(updatedItems);
     setShowSuggestions(false);
+    setSearchQuery("");
     setActiveField(`${activeItemIndex}-quantity`);
   };
 
@@ -310,10 +283,11 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
             <div>
               <label className="block mb-2">Company Code</label>
               <input
-                type="number"
+                type="text"
                 className="input w-full"
                 value={companyCode}
                 onChange={handleCompanyCodeChange}
+                onBlur={handleCompanyCodeBlur}
                 placeholder="Enter company code..."
                 disabled={isLoading || !!editingBill}
               />
@@ -356,6 +330,30 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               />
             </div>
           </div>
+          <div className="mb-4">
+            <label className="block mb-2">Search Items</label>
+            <input
+              type="text"
+              className="input w-full"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by barcode or name..."
+              disabled={isLoading}
+            />
+            {showSuggestions && (
+              <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                {suggestions.map((suggestedItem) => (
+                  <li
+                    key={suggestedItem.id}
+                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                    onClick={() => handleItemSelect(suggestedItem)}
+                  >
+                    {suggestedItem.name} ({suggestedItem.barcode})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="overflow-x-auto mb-4">
             <table className="min-w-full bg-white border">
               <thead>
@@ -384,7 +382,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                         disabled={isLoading}
                       />
                     </td>
-                    <td className="p-2 relative">
+                    <td className="p-2">
                       <input
                         className="input w-full text-sm"
                         placeholder="Item Name"
@@ -395,27 +393,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                         required
                         disabled={isLoading}
                       />
-                      {showSuggestions && activeItemIndex === index && (
-                        <ul className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
-                          {suggestions.map((suggestedItem) => (
-                            <li
-                              key={suggestedItem.id}
-                              className="p-2 hover:bg-gray-100 cursor-pointer"
-                              onClick={() => {
-                                handleItemChange(index, "name", suggestedItem.name);
-                                handleItemChange(index, "barcode", suggestedItem.barcode);
-                                handleItemChange(index, "netPrice", suggestedItem.netPrice || 0);
-                                handleItemChange(index, "outPrice", suggestedItem.outPrice || 0);
-                                handleItemChange(index, "expireDate", suggestedItem.expireDate || new Date().toISOString().split('T')[0]);
-                                setShowSuggestions(false);
-                                setActiveField(`${index}-quantity`);
-                              }}
-                            >
-                              {suggestedItem.name} ({suggestedItem.barcode})
-                            </li>
-                          ))}
-                        </ul>
-                      )}
                     </td>
                     <td className="p-2">
                       <input
