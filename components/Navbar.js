@@ -29,6 +29,7 @@ export default function Navbar() {
     { href: "/selling", label: "Sales" },
     { href: "/sold", label: "Sales History" },
     { href: "/return", label: "Return" },
+    { href: "/statements", label: "kashf" },
   ];
 
   return (

@@ -100,11 +100,10 @@ export default function SellingForm({ onBillCreated }) {
   // Add item to selected items
   const handleSelectBatch = (batch) => {
     const existingItemIndex = selectedItems.findIndex(
-      item => item.barcode === batch.barcode && 
-             item.netPrice === batch.netPrice && 
+      item => item.barcode === batch.barcode &&
+             item.netPrice === batch.netPrice &&
              item.outPrice === batch.outPrice
     );
-
     if (existingItemIndex >= 0) {
       const updatedItems = [...selectedItems];
       const maxQty = batch.quantity;
@@ -172,14 +171,17 @@ export default function SellingForm({ onBillCreated }) {
         price: parseFloat(item.outPrice.toFixed(2)),
         expireDate: item.expireDate,
       }));
-      const bill = await createSoldBill({
-        items: preparedItems,
+
+      const bill = await createSoldBill(
+        preparedItems,
         pharmacyId,
-        date: saleDate,
+        null,
         paymentMethod
-      });
+      );
+
       if (onBillCreated) onBillCreated(bill);
       alert(`Bill #${bill.billNumber} created successfully!`);
+
       // Reset form
       setPharmacyId("");
       setPharmacyCode("");
@@ -203,7 +205,6 @@ export default function SellingForm({ onBillCreated }) {
             <button onClick={() => setError(null)} className="ml-4 text-red-800">×</button>
           </div>
         )}
-
         {/* Pharmacy and Sale Info Section */}
         <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
@@ -220,7 +221,7 @@ export default function SellingForm({ onBillCreated }) {
               onFocus={() => setShowPharmacySuggestions(true)}
             />
           </div>
-          
+
           <div className="relative">
             <label className="block mb-1 text-sm font-medium">Pharmacy Name</label>
             <input
@@ -249,7 +250,6 @@ export default function SellingForm({ onBillCreated }) {
               </div>
             )}
           </div>
-
           <div>
             <label className="block mb-1 text-sm font-medium">Sale Date</label>
             <input
@@ -259,7 +259,6 @@ export default function SellingForm({ onBillCreated }) {
               onChange={(e) => setSaleDate(e.target.value)}
             />
           </div>
-
           <div>
             <label className="block mb-1 text-sm font-medium">Payment Method</label>
             <select
@@ -272,7 +271,6 @@ export default function SellingForm({ onBillCreated }) {
             </select>
           </div>
         </div>
-
         {/* Item Search Section */}
         <div className="mb-6">
           <label className="block mb-1 text-sm font-medium">Search Items</label>
@@ -283,7 +281,6 @@ export default function SellingForm({ onBillCreated }) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
-
           {/* Search Results Table */}
           {searchResults.length > 0 && (
             <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -332,7 +329,6 @@ export default function SellingForm({ onBillCreated }) {
             </div>
           )}
         </div>
-
         {/* Selected Items Section */}
         {selectedItems.length > 0 && (
           <div className="mb-6">
@@ -425,7 +421,6 @@ export default function SellingForm({ onBillCreated }) {
             </div>
           </div>
         )}
-
         {/* Submit Button */}
         <div className="flex justify-end">
           <button
