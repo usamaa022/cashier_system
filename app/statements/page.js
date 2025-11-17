@@ -116,6 +116,7 @@ export default function StatementPage() {
                         <tr>
                           <th className="p-2 text-center">Bill #</th>
                           <th className="p-2 text-center">Date</th>
+                          <th className="p-2 text-center">Payment Status</th>
                           <th className="p-2 text-center">Amount (IQD)</th>
                         </tr>
                       </thead>
@@ -129,6 +130,9 @@ export default function StatementPage() {
                               <td className="p-2 text-center">
                                 {formatDateForDisplay(bill.date)}
                               </td>
+                              <td className="p-2 text-center">
+                                {bill.paymentStatus}
+                              </td>
                               <td className="p-2 text-right">
                                 {formatCurrency(billTotal)}
                               </td>
@@ -138,7 +142,7 @@ export default function StatementPage() {
                       </tbody>
                       <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan="2" className="p-2 text-right font-bold">Total Sales:</td>
+                          <td colSpan="3" className="p-2 text-right font-bold">Total Sales:</td>
                           <td className="p-2 text-right font-bold">
                             {formatCurrency(totalBeforeReturn)}
                           </td>

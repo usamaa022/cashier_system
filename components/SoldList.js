@@ -1,7 +1,6 @@
-// components/SoldList.js
 "use client";
 import { useState, useEffect } from "react";
-import { searchSoldBills } from "@/lib/data";
+import { searchSoldBills, formatDate } from "@/lib/data";
 import Card from "./Card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -19,6 +18,8 @@ export default function SoldList() {
       try {
         setIsLoading(true);
         const billsData = await searchSoldBills("");
+        // Sort by date (newest first)
+        billsData.sort((a, b) => new Date(b.date) - new Date(a.date));
         setBills(billsData);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -38,17 +39,19 @@ export default function SoldList() {
       let matchesSearch = true;
       if (searchQuery) {
         const searchTerms = searchQuery.toLowerCase().split(" ");
-        matchesSearch = bill.items.some(item =>
+        matchesSearch = bill.items?.some(item =>
           searchTerms.some(term =>
             (item.name && item.name.toLowerCase().includes(term)) ||
             (item.barcode && item.barcode.includes(term))
           )
-        ) || (bill.billNumber && bill.billNumber.toString().includes(searchQuery));
+        ) || (bill.billNumber?.toString().includes(searchQuery));
       }
+
       let matchesPaymentStatus = true;
       if (filters.paymentStatus !== "all") {
         matchesPaymentStatus = bill.paymentStatus?.toLowerCase() === filters.paymentStatus.toLowerCase();
       }
+
       return matchesSearch && matchesPaymentStatus;
     } catch (error) {
       console.error("Error filtering bill:", error, bill);
@@ -58,11 +61,11 @@ export default function SoldList() {
 
   // Prepare data for chart
   const chartData = filteredBills.flatMap(bill =>
-    bill.items.map(item => ({
-      name: item.name,
-      quantity: item.quantity,
-      billNumber: bill.billNumber
-    }))
+    bill.items?.map(item => ({
+      name: item.name || 'Unknown',
+      quantity: item.quantity || 0,
+      billNumber: bill.billNumber || 'N/A'
+    })) || []
   );
 
   if (isLoading) {
@@ -79,7 +82,7 @@ export default function SoldList() {
         <div>
           <label className="block mb-1 text-sm font-medium">Search</label>
           <input
-            className="input w-full"
+            className="w-full p-2 border rounded text-sm"
             placeholder="Search by item, barcode, or bill number"
             value={searchQuery}
             onChange={(e) => {
@@ -91,7 +94,7 @@ export default function SoldList() {
         <div>
           <label className="block mb-1 text-sm font-medium">Payment Status</label>
           <select
-            className="input w-full"
+            className="w-full p-2 border rounded text-sm"
             value={filters.paymentStatus}
             onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
           >
@@ -101,6 +104,7 @@ export default function SoldList() {
           </select>
         </div>
       </div>
+
       <div className="overflow-x-auto mb-6">
         <table className="min-w-full border-collapse border border-gray-200">
           <thead>
@@ -116,20 +120,17 @@ export default function SoldList() {
             {filteredBills.length > 0 ? (
               filteredBills.map(bill => (
                 <tr
-                  key={bill.billNumber}
+                  key={bill.billNumber || bill.id}
                   onClick={() => setSelectedBill(selectedBill?.billNumber === bill.billNumber ? null : bill)}
                   className="hover:bg-gray-50 cursor-pointer"
                 >
-                  <td className="p-2 border border-gray-200 text-center">{bill.billNumber}</td>
+                  <td className="p-2 border border-gray-200 text-center">{bill.billNumber || 'N/A'}</td>
                   <td className="p-2 border border-gray-200 text-center">
-                    {bill.date?.toDate ?
-                      bill.date.toDate().toLocaleString() :
-                      bill.date ? new Date(bill.date).toLocaleString() : 'N/A'
-                    }
+                    {formatDate(bill.date)}
                   </td>
                   <td className="p-2 border border-gray-200 text-center">{bill.items?.length || 0}</td>
                   <td className="p-2 border border-gray-200 text-center">
-                    ${bill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)}
+                    {bill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)} IQD
                   </td>
                   <td className="p-2 border border-gray-200 text-center">
                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -150,6 +151,7 @@ export default function SoldList() {
           </tbody>
         </table>
       </div>
+
       {chartData.length > 0 && (
         <Card title="Sales Overview" className="mb-6">
           <ResponsiveContainer width="100%" height={300}>
@@ -164,15 +166,15 @@ export default function SoldList() {
           </ResponsiveContainer>
         </Card>
       )}
+
       {selectedBill && (
-        <Card title={`Sales Bill #${selectedBill.billNumber}`}>
+        <Card title={`Sales Bill #${selectedBill.billNumber || 'N/A'}`}>
           <div className="mb-4">
-            <p><strong>Date:</strong> {
-              selectedBill.date?.toDate ?
-              selectedBill.date.toDate().toLocaleString() :
-              selectedBill.date ? new Date(selectedBill.date).toLocaleString() : 'N/A'
-            }</p>
+            <p><strong>Date:</strong> {formatDate(selectedBill.date)}</p>
             <p><strong>Payment Status:</strong> {selectedBill.paymentStatus || "Unpaid"}</p>
+            {selectedBill.pharmacyName && (
+              <p><strong>Pharmacy:</strong> {selectedBill.pharmacyName}</p>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full border-collapse border border-gray-200">
@@ -182,6 +184,7 @@ export default function SoldList() {
                   <th className="p-2 border border-gray-200 text-center">Barcode</th>
                   <th className="p-2 border border-gray-200 text-center">Price</th>
                   <th className="p-2 border border-gray-200 text-center">Quantity</th>
+                  <th className="p-2 border border-gray-200 text-center">Expire Date</th>
                   <th className="p-2 border border-gray-200 text-center">Total</th>
                 </tr>
               </thead>
@@ -190,17 +193,18 @@ export default function SoldList() {
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="p-2 border border-gray-200 text-center">{item.name || 'N/A'}</td>
                     <td className="p-2 border border-gray-200 text-center">{item.barcode || 'N/A'}</td>
-                    <td className="p-2 border border-gray-200 text-center">${(item.price || 0).toFixed(2)}</td>
+                    <td className="p-2 border border-gray-200 text-center">{item.price?.toFixed(2) || '0.00'} IQD</td>
                     <td className="p-2 border border-gray-200 text-center">{item.quantity || 0}</td>
-                    <td className="p-2 border border-gray-200 text-center">${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</td>
+                    <td className="p-2 border border-gray-200 text-center">{formatDate(item.expireDate)}</td>
+                    <td className="p-2 border border-gray-200 text-center">{((item.price || 0) * (item.quantity || 0)).toFixed(2)} IQD</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr>
-                  <td colSpan="4" className="p-2 border border-gray-200 text-right font-medium">Total:</td>
+                  <td colSpan="5" className="p-2 border border-gray-200 text-right font-medium">Total:</td>
                   <td className="p-2 border border-gray-200 text-center font-medium">
-                    ${selectedBill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)}
+                    {selectedBill.items?.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)} IQD
                   </td>
                 </tr>
               </tfoot>

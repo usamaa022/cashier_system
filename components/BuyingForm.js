@@ -1,17 +1,18 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/data";
+import { getCompanies, searchInitializedItems, createBoughtBill, formatDate } from "@/lib/data";
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
 
 export default function BuyingForm({ onBillCreated, editingBill }) {
+  // State declarations
   const [companyId, setCompanyId] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [companyCode, setCompanyCode] = useState("");
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [billItems, setBillItems] = useState([
-    { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }
+    { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }
   ]);
   const [suggestions, setSuggestions] = useState([]);
   const [companySuggestions, setCompanySuggestions] = useState([]);
@@ -29,6 +30,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const router = useRouter();
   const { getItem, setItem } = useLocalStorage();
 
+  // Load data on mount
   useEffect(() => {
     if (editingBill) {
       setCompanyId(editingBill.companyId);
@@ -41,7 +43,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
           quantity: item.quantity,
           netPrice: item.netPrice || 0,
           outPrice: item.outPrice || 0,
-          expireDate: item.expireDate || new Date().toISOString().split('T')[0]
+          expireDate: item.expireDate ? formatDate(item.expireDate.toDate()) : formatDate(new Date())
         }))
       );
     } else {
@@ -52,12 +54,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setCompanyCode(savedData.companyCode || "");
         setBillDate(savedData.billDate || new Date().toISOString().split('T')[0]);
         setBillItems(savedData.billItems || [
-          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }
+          { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }
         ]);
       }
     }
   }, [editingBill]);
 
+  // Save form data
   useEffect(() => {
     if (!editingBill) {
       const formData = {
@@ -71,6 +74,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [companyId, companySearch, companyCode, billDate, billItems]);
 
+  // Fetch companies
   useEffect(() => {
     const fetchCompanies = async () => {
       if (companySearch.length > 0) {
@@ -97,6 +101,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [companySearch]);
 
+  // Fetch items
   useEffect(() => {
     const fetchItems = async () => {
       if (searchQuery.length > 0) {
@@ -120,6 +125,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Focus management
   useEffect(() => {
     if (inputRefs.current["0-barcode"]) {
       inputRefs.current["0-barcode"].focus();
@@ -132,6 +138,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [activeField, billItems]);
 
+  // Handlers
   const handleCompanyCodeChange = (e) => {
     setCompanyCode(e.target.value);
   };
@@ -187,7 +194,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
       name: item.name,
       netPrice: item.netPrice || 0,
       outPrice: item.outPrice || 0,
-      expireDate: item.expireDate || new Date().toISOString().split('T')[0],
+      expireDate: item.expireDate || formatDate(new Date()),
     };
     setBillItems(updatedItems);
     setShowSuggestions(false);
@@ -210,19 +217,28 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setError("Please select a company.");
         return;
       }
+
       const validItems = billItems.every(
         (item) => item.barcode && item.name && item.quantity > 0
       );
+
       if (!validItems) {
         setError("Please fill all item fields correctly.");
         return;
       }
-      const itemsWithExpireDate = billItems.map((item) => ({
+
+      const itemsWithProperDates = billItems.map(item => ({
         ...item,
-        expireDate: item.expireDate || new Date().toISOString().split('T')[0],
+        expireDate: item.expireDate instanceof Date ?
+          item.expireDate :
+          (typeof item.expireDate === 'string' ?
+           new Date(item.expireDate) :
+           new Date())
       }));
+
       const billNumber = editingBill ? editingBill.billNumber : null;
-      const bill = await createBoughtBill(companyId, itemsWithExpireDate, billNumber);
+      const bill = await createBoughtBill(companyId, itemsWithProperDates, billNumber);
+
       if (onBillCreated) onBillCreated(bill);
       if (!editingBill) {
         setItem(formKey, null);
@@ -230,12 +246,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setCompanySearch("");
         setCompanyCode("");
         setBillDate(new Date().toISOString().split('T')[0]);
-        setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" }]);
+        setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }]);
         setActiveItemIndex(0);
         setActiveField("0-barcode");
       } else {
         router.push('/buying');
       }
+
       alert(`Bill #${bill.billNumber} ${editingBill ? 'updated' : 'created'} successfully!`);
     } catch (error) {
       console.error("Error creating/updating bill:", error);
@@ -247,8 +264,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
 
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...billItems];
-    updatedItems[index][field] =
-      field === "quantity" || field === "netPrice" || field === "outPrice" ? +value : value;
+    if (field === 'expireDate') {
+      // For date fields, we'll keep it as a string in YYYY-MM-DD format
+      updatedItems[index][field] = value;
+    } else {
+      updatedItems[index][field] =
+        field === "quantity" || field === "netPrice" || field === "outPrice" ? +value : value;
+    }
     setBillItems(updatedItems);
     setActiveItemIndex(index);
   };
@@ -256,7 +278,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const addItem = () => {
     setBillItems([
       ...billItems,
-      { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: "" },
+      { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) },
     ]);
     setActiveItemIndex(billItems.length);
     setActiveField(`${billItems.length}-barcode`);
@@ -278,6 +300,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     <div className="container py-4">
       <Card title={editingBill ? `Edit Bill #${editingBill.billNumber}` : "Create Purchase Bill"}>
         {error && <div className="alert alert-danger mb-4">{error}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -330,6 +353,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               />
             </div>
           </div>
+
           <div className="mb-4">
             <label className="block mb-2">Search Items</label>
             <input
@@ -354,6 +378,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               </ul>
             )}
           </div>
+
           <div className="overflow-x-auto mb-4">
             <table className="min-w-full bg-white border">
               <thead>
@@ -439,7 +464,11 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                       <input
                         type="date"
                         className="input w-full text-sm"
-                        value={item.expireDate}
+                        value={typeof item.expireDate === 'string' ?
+                              item.expireDate :
+                              (item.expireDate instanceof Date ?
+                               item.expireDate.toISOString().split('T')[0] :
+                               new Date().toISOString().split('T')[0])}
                         onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
                         onKeyDown={(e) => handleKeyDown(e, index, 'expireDate', index === billItems.length - 1)}
                         ref={el => inputRefs.current[`${index}-expireDate`] = el}
@@ -464,6 +493,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               </tbody>
             </table>
           </div>
+
           <div className="flex gap-2 mt-4">
             <button
               type="button"

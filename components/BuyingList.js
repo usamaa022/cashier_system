@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import React from 'react';
-import { getBoughtBills, getCompanies, deleteBoughtBill } from "@/lib/data";
+import { getBoughtBills, getCompanies, deleteBoughtBill, formatDate } from "@/lib/data";
 import Card from "./Card";
 import { useRouter } from "next/navigation";
 import Select from "react-select";
@@ -191,6 +191,7 @@ export default function BuyingList({ refreshTrigger }) {
           </thead>
         </table>
       </div>
+
       <div className="mb-4 p-4 bg-gray-50 rounded-lg">
         <h3 className="font-medium mb-2">Filter by Items:</h3>
         <Select
@@ -201,6 +202,7 @@ export default function BuyingList({ refreshTrigger }) {
           className="react-select"
         />
       </div>
+
       <div className="overflow-x-auto">
         <table className="table w-full">
           <tbody>
@@ -215,7 +217,7 @@ export default function BuyingList({ refreshTrigger }) {
                     {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'}
                   </td>
                   <td className="p-2 text-center">
-                    {bill.date instanceof Date ? bill.date.toLocaleDateString() : new Date(bill.date).toLocaleDateString()}
+                    {formatDate(bill.date)}
                   </td>
                   <td className="p-2 text-center">
                     <button
@@ -256,18 +258,33 @@ export default function BuyingList({ refreshTrigger }) {
                               </tr>
                             </thead>
                             <tbody>
-                              {bill.items.map((item, index) => (
-                                <tr key={index} className="hover:bg-blue-50">
-                                  <td className="p-2 text-center">{item.barcode}</td>
-                                  <td className="p-2 text-center">{item.name}</td>
-                                  <td className="p-2 text-center">{item.quantity}</td>
-                                  <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
-                                  <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
-                                  <td className="p-2 text-center">
-                                    {item.expireDate ? new Date(item.expireDate).toLocaleDateString() : 'N/A'}
-                                  </td>
-                                </tr>
-                              ))}
+                              {bill.items.map((item, index) => {
+                                // Format the expire date properly
+                                let expireDate = 'N/A';
+                                if (item.expireDate) {
+                                  if (item.expireDate.toDate) {
+                                    // If it's a Firestore Timestamp
+                                    expireDate = formatDate(item.expireDate.toDate());
+                                  } else if (item.expireDate instanceof Date) {
+                                    // If it's a Date object
+                                    expireDate = formatDate(item.expireDate);
+                                  } else if (typeof item.expireDate === 'string') {
+                                    // If it's a string
+                                    expireDate = formatDate(new Date(item.expireDate));
+                                  }
+                                }
+
+                                return (
+                                  <tr key={index} className="hover:bg-blue-50">
+                                    <td className="p-2 text-center">{item.barcode}</td>
+                                    <td className="p-2 text-center">{item.name}</td>
+                                    <td className="p-2 text-center">{item.quantity}</td>
+                                    <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
+                                    <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
+                                    <td className="p-2 text-center">{expireDate}</td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
