@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { getStoreItems } from "@/lib/data";
 import { formatDate } from "@/lib/data";
-import Card from "@/components/Card";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -15,7 +14,8 @@ export default function StorePage() {
   const [groupedItems, setGroupedItems] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [branchFilter, setBranchFilter] = useState("Slemany"); // Default to Slemany
+  const [branchFilter, setBranchFilter] = useState("Slemany");
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   useEffect(() => {
     if (!user) {
@@ -23,85 +23,109 @@ export default function StorePage() {
       return;
     }
 
-    const fetchStoreItems = async () => {
-      try {
-        setIsLoading(true);
-        const items = await getStoreItems();
-
-        // Set default branch filter based on user role
-        if (user.role !== "superAdmin" && user.branch) {
-          setBranchFilter(user.branch);
-        }
-
-        // Filter items by branch
-        const filteredItems = user.role === "superAdmin"
-          ? items.filter(item => item.branch === branchFilter)
-          : items.filter(item => item.branch === user.branch);
-
-        // Process items to handle date formatting
-        const processedItems = filteredItems.map(item => {
-          let expireDate = item.expireDate;
-          if (expireDate && expireDate.toDate) {
-            expireDate = expireDate.toDate();
-          }
-          return {
-            ...item,
-            expireDate: expireDate
-          };
-        });
-
-        setStoreItems(processedItems);
-
-        // Group items by barcode, prices, and expire date
-        const grouped = {};
-        processedItems.forEach(item => {
-          const expireDateStr = item.expireDate ?
-            (item.expireDate instanceof Date ?
-              item.expireDate.toISOString() :
-              (item.expireDate.toDate ?
-                item.expireDate.toDate().toISOString() :
-                'no-date')) :
-            'no-date';
-          const key = `${item.barcode}-${item.netPrice}-${item.outPrice}-${expireDateStr}`;
-          if (!grouped[key]) {
-            grouped[key] = {
-              ...item,
-              quantities: []
-            };
-          }
-          grouped[key].quantities.push({
-            quantity: item.quantity,
-            expireDate: item.expireDate
-          });
-        });
-        setGroupedItems(grouped);
-      } catch (err) {
-        console.error("Error fetching store items:", err);
-        setError("Failed to load store items. Please try again.");
-      } finally {
-        setIsLoading(false);
+// In store/page.js, inside the fetchStoreItems function:
+const fetchStoreItems = async () => {
+  try {
+    setIsLoading(true);
+    const items = await getStoreItems();
+    let filteredItems;
+    if (user.role === "superAdmin") {
+      filteredItems = items.filter(item => item.branch === branchFilter && item.quantity > 0);
+    } else {
+      filteredItems = items.filter(item => item.branch === user.branch && item.quantity > 0);
+    }
+    const processedItems = filteredItems.map(item => {
+      let expireDate = item.expireDate;
+      if (expireDate && expireDate.toDate) {
+        expireDate = expireDate.toDate();
       }
-    };
+      return {
+        ...item,
+        expireDate: expireDate
+      };
+    });
+    setStoreItems(processedItems);
+    // Group items by unique combination
+    const grouped = {};
+    processedItems.forEach(item => {
+      const key = `${item.barcode}-${item.netPrice}-${item.outPrice}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          ...item,
+          batches: []
+        };
+      }
+      grouped[key].batches.push({
+        quantity: item.quantity,
+        expireDate: item.expireDate,
+        id: item.id
+      });
+      grouped[key].totalQuantity = (grouped[key].totalQuantity || 0) + item.quantity;
+    });
+    setGroupedItems(grouped);
+  } catch (err) {
+    console.error("Error fetching store items:", err);
+    setError("Failed to load store items. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
     fetchStoreItems();
   }, [user, branchFilter, router]);
 
-  // Update filtered items when branchFilter or searchQuery changes
-  useEffect(() => {
-    if (user) {
-      const filteredItems = Object.values(groupedItems).filter(item =>
-        item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.barcode?.includes(searchQuery)
-      );
-      // No need to set state here as we're already filtering in the render
+  // Sort grouped items
+  const sortedItems = Object.values(groupedItems).sort((a, b) => {
+    if (sortConfig.key === 'name') {
+      return sortConfig.direction === 'asc' 
+        ? a.name?.localeCompare(b.name)
+        : b.name?.localeCompare(a.name);
+    } else if (sortConfig.key === 'quantity') {
+      return sortConfig.direction === 'asc'
+        ? a.totalQuantity - b.totalQuantity
+        : b.totalQuantity - a.totalQuantity;
+    } else if (sortConfig.key === 'netPrice') {
+      return sortConfig.direction === 'asc'
+        ? a.netPrice - b.netPrice
+        : b.netPrice - a.netPrice;
     }
-  }, [searchQuery, branchFilter, user, groupedItems]);
+    return 0;
+  });
+
+  const filteredItems = sortedItems.filter(item =>
+    item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.barcode?.includes(searchQuery)
+  );
+
+  const handleSort = (key) => {
+    setSortConfig({
+      key,
+      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc'
+    });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return '↕️';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
+  // Fix for user null error
+  if (!user) {
+    return null;
+  }
 
   if (isLoading) {
     return (
-      <div className="container py-8">
-        <div className="flex justify-center items-center h-64">
-          <div className="text-lg">Loading store inventory...</div>
+      <div style={{ width: '100%', minHeight: '100vh', padding: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '256px' }}>
+          <div style={{ 
+            animation: 'spin 1s linear infinite', 
+            borderRadius: '9999px', 
+            height: '40px', 
+            width: '40px', 
+            borderTop: '2px solid var(--primary)',
+            borderBottom: '2px solid var(--primary)'
+          }}></div>
         </div>
       </div>
     );
@@ -109,80 +133,164 @@ export default function StorePage() {
 
   if (error) {
     return (
-      <div className="container py-8">
-        <div className="alert alert-danger">{error}</div>
+      <div style={{ width: '100%', minHeight: '100vh', padding: '2rem' }}>
+        <div style={{ 
+          padding: '1rem', 
+          backgroundColor: 'rgba(239, 68, 68, 0.1)', 
+          border: '1px solid rgba(239, 68, 68, 0.2)', 
+          borderRadius: 'var(--rounded-lg)', 
+          color: 'var(--danger)' 
+        }}>
+          {error}
+        </div>
       </div>
     );
   }
 
-  // Filter items for display
-  const filteredItems = Object.values(groupedItems).filter(item =>
-    item.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.barcode?.includes(searchQuery)
-  );
-
   return (
-    <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-6">Store Inventory</h1>
-      <Card title="Inventory Search">
-        {user?.role === "superAdmin" && (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Branch:</label>
-            <select
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="select w-full max-w-xs"
-            >
-              <option value="Slemany">Slemany</option>
-              <option value="Erbil">Erbil</option>
-            </select>
+    <div style={{ width: '100%', minHeight: '100vh', padding: '1rem' }}>
+      {/* <div className="page-header">
+        <h1>Store Inventory</h1>
+        <p>Manage and view all items in stock</p>
+        {user.role !== "superAdmin" && (
+          <div style={{ 
+            marginTop: '0.5rem',
+            padding: '0.5rem',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderRadius: 'var(--rounded-md)',
+            fontSize: '14px',
+            color: 'var(--primary)'
+          }}>
+            <strong>Viewing:</strong> {user.role} can see {user.branch} branch only
           </div>
         )}
-        <div className="mb-4">
-          <input
-            className="input w-full"
-            placeholder="Search by name or barcode..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+      </div> */}
+
+      <div className="card">
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: '600', color: 'var(--dark)', marginBottom: '1rem' }}>Inventory Search</h2>
+          
+          {user?.role === "superAdmin" && (
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: 'var(--dark)', marginBottom: '4px' }}>Branch:</label>
+              <select
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+                className="input"
+                style={{ maxWidth: '200px' }}
+              >
+                <option value="Slemany">Slemany</option>
+                <option value="Erbil">Erbil</option>
+              </select>
+            </div>
+          )}
+          
+          <div style={{ marginBottom: '1rem' }}>
+            <input
+              className="input"
+              placeholder="Search by name or barcode..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ maxWidth: '400px' }}
+            />
+          </div>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '14px', color: 'var(--gray)' }}>
+              Showing {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
+              {user.role !== "superAdmin" && ` in ${user.branch} branch`}
+            </div>
+          </div>
         </div>
+
         {filteredItems.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            {searchQuery ? "No items found matching your search." : "No items in inventory."}
+          <div className="empty-state">
+            <div style={{ 
+              margin: '0 auto 16px', 
+              height: '48px', 
+              width: '48px', 
+              borderRadius: '9999px', 
+              backgroundColor: 'var(--light)', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center' 
+            }}>
+              <svg style={{ height: '24px', width: '24px', color: 'var(--gray)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </div>
+            <h3 style={{ marginBottom: '8px', fontSize: '18px', fontWeight: '600', color: 'var(--dark)' }}>
+              {searchQuery ? "No items found" : "No items in inventory"}
+            </h3>
+            <p style={{ color: 'var(--gray)' }}>
+              {searchQuery ? "Try adjusting your search terms" : "Items will appear here once added to the store"}
+              {user.role !== "superAdmin" && ` for ${user.branch} branch`}
+            </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="table w-full">
+          <div style={{ overflowX: 'auto', borderRadius: 'var(--rounded-lg)' }}>
+            <table className="table">
               <thead>
-                <tr className="bg-gray-100">
-                  <th className="p-2 text-left">Barcode</th>
-                  <th className="p-2 text-left">Item Name</th>
-                  <th className="p-2 text-left">Net Price (IQD)</th>
-                  <th className="p-2 text-left">Out Price (IQD)</th>
-                  <th className="p-2 text-left">Total Quantity</th>
-                  <th className="p-2 text-left">Branch</th>
-                  <th className="p-2 text-left">Details</th>
+                <tr>
+                  <th 
+                    style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left', cursor: 'pointer' }}
+                    onClick={() => handleSort('name')}
+                  >
+                    Item Name {getSortIcon('name')}
+                  </th>
+                  <th style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left' }}>Barcode</th>
+                  <th 
+                    style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left', cursor: 'pointer' }}
+                    onClick={() => handleSort('netPrice')}
+                  >
+                    Net Price {getSortIcon('netPrice')}
+                  </th>
+                  <th style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left' }}>Out Price</th>
+                  <th 
+                    style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left', cursor: 'pointer' }}
+                    onClick={() => handleSort('quantity')}
+                  >
+                    Total Quantity {getSortIcon('quantity')}
+                  </th>
+                  {user.role === "superAdmin" && (
+                    <th style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left' }}>Branch</th>
+                  )}
+                  <th style={{ padding: '12px', fontSize: '12px', fontWeight: '600', color: 'var(--gray)', textAlign: 'left' }}>Batches</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((item, index) => (
-                  <tr key={index} className="hover:bg-gray-50">
-                    <td className="p-2">{item.barcode}</td>
-                    <td className="p-2">{item.name}</td>
-                    <td className="p-2">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
-                    <td className="p-2">{item.outPrice?.toFixed(2) || 'N/A'} IQD</td>
-                    <td className="p-2">
-                      {item.quantities.reduce((sum, q) => sum + (q.quantity || 0), 0)}
+                  <tr key={index} style={{ transition: 'background-color 0.2s' }}>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--dark)', fontWeight: '500' }}>{item.name}</td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--gray)' }}>{item.barcode}</td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--dark)' }}>{Number(item.netPrice).toFixed(2)} IQD</td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--dark)' }}>{Number(item.outPrice).toFixed(2)} IQD</td>
+                    <td style={{ padding: '12px', fontSize: '14px', color: 'var(--dark)', fontWeight: '600' }}>
+                      <span className={`badge ${item.totalQuantity > 10 ? 'badge-received' : 'badge-rejected'}`}>
+                        {item.totalQuantity}
+                      </span>
                     </td>
-                    <td className="p-2">{item.branch}</td>
-                    <td className="p-2">
-                      <details className="text-sm">
-                        <summary className="cursor-pointer text-blue-600">View batches</summary>
-                        <div className="mt-1">
-                          {item.quantities.map((batch, i) => (
-                            <div key={i} className="p-1 border-b">
-                              <p>Qty: {batch.quantity}</p>
-                              <p>Exp: {formatDate(batch.expireDate)}</p>
+                    {user.role === "superAdmin" && (
+                      <td style={{ padding: '12px', fontSize: '14px', color: 'var(--gray)' }}>
+                        <span className="badge badge-pending">{item.branch}</span>
+                      </td>
+                    )}
+                    <td style={{ padding: '12px', fontSize: '14px' }}>
+                      <details>
+                        <summary style={{ cursor: 'pointer', color: 'var(--primary)', fontSize: '13px', fontWeight: '500' }}>
+                          View {item.batches.length} batch{item.batches.length !== 1 ? 'es' : ''}
+                        </summary>
+                        <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8fafc', borderRadius: 'var(--rounded-md)' }}>
+                          {item.batches.map((batch, i) => (
+                            <div key={i} style={{ 
+                              padding: '6px', 
+                              borderBottom: i < item.batches.length - 1 ? '1px solid var(--border)' : 'none',
+                              fontSize: '12px'
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span style={{ fontWeight: '500' }}>Qty: {batch.quantity}</span>
+                                <span style={{ color: 'var(--gray)' }}>Exp: {formatDate(batch.expireDate)}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -194,7 +302,7 @@ export default function StorePage() {
             </table>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }

@@ -9,7 +9,6 @@ export default function ItemsPage() {
     name: "",
     netPrice: 0,
     outPrice: 0,
-    expireDate: ""
   });
   const [items, setItems] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -56,7 +55,7 @@ export default function ItemsPage() {
         alert("Item added successfully!");
       }
       fetchItems();
-      setFormData({ barcode: "", name: "", netPrice: 0, outPrice: 0, expireDate: "" });
+      setFormData({ barcode: "", name: "", netPrice: 0, outPrice: 0 });
       setEditingItem(null);
     } catch (err) {
       setError(err.message);
@@ -70,7 +69,6 @@ export default function ItemsPage() {
       name: item.name,
       netPrice: item.netPrice,
       outPrice: item.outPrice,
-      expireDate: item.expireDate || ""
     });
   };
 
@@ -92,8 +90,8 @@ export default function ItemsPage() {
     <div className="container py-8">
       <h1 className="text-2xl font-bold mb-6">Item Management</h1>
       <Card title={editingItem ? "Edit Item" : "Add New Item"}>
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          {error && <div className="md:col-span-5 text-danger mb-4">{error}</div>}
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {error && <div className="md:col-span-4 text-danger mb-4">{error}</div>}
           <div>
             <label className="block mb-2">Barcode</label>
             <input
@@ -141,16 +139,7 @@ export default function ItemsPage() {
               required
             />
           </div>
-          <div>
-            <label className="block mb-2">Expire Date</label>
-            <input
-              type="date"
-              className="input w-full"
-              value={formData.expireDate}
-              onChange={(e) => setFormData({ ...formData, expireDate: e.target.value })}
-            />
-          </div>
-          <div className="md:col-span-5">
+          <div className="md:col-span-4">
             <button type="submit" className="btn btn-primary w-full mt-4">
               {editingItem ? "Update Item" : "Add Item"}
             </button>
@@ -160,7 +149,7 @@ export default function ItemsPage() {
                 className="btn btn-secondary w-full mt-2"
                 onClick={() => {
                   setEditingItem(null);
-                  setFormData({ barcode: "", name: "", netPrice: 0, outPrice: 0, expireDate: "" });
+                  setFormData({ barcode: "", name: "", netPrice: 0, outPrice: 0 });
                 }}
               >
                 Cancel
@@ -186,7 +175,6 @@ export default function ItemsPage() {
                 <th className="p-2 text-left">Name</th>
                 <th className="p-2 text-left">Net Price (IQD)</th>
                 <th className="p-2 text-left">Out Price (IQD)</th>
-                <th className="p-2 text-left">Expire Date</th>
                 <th className="p-2 text-left">Actions</th>
               </tr>
             </thead>
@@ -197,7 +185,6 @@ export default function ItemsPage() {
                   <td className="p-2">{item.name}</td>
                   <td className="p-2">{item.netPrice.toFixed(2)} IQD</td>
                   <td className="p-2">{item.outPrice.toFixed(2)} IQD</td>
-                  <td className="p-2">{item.expireDate || "N/A"}</td>
                   <td className="p-2">
                     <button
                       className="btn btn-secondary text-xs mr-2"

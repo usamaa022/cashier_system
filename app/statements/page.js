@@ -14,26 +14,37 @@ export default function StatementPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const pdfRef = useRef();
-
-  const handlePharmacySelect = async (pharmacy) => {
-    setSelectedPharmacy(pharmacy);
-    setShowModal(false);
-    setIsLoading(true);
-    setError(null);
-    try {
-      const [billsResult, returnsResult] = await Promise.all([
-        getPharmacyBills(pharmacy.id),
-        getReturnsForPharmacy(pharmacy.id)
-      ]);
-      setBills(billsResult.bills);
-      setReturns(returnsResult);
-    } catch (err) {
-      console.error("Error loading data:", err);
-      setError(err.message || "Failed to load data for this pharmacy");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+// Update the handlePharmacySelect function:
+const handlePharmacySelect = async (pharmacy) => {
+  setSelectedPharmacy(pharmacy);
+  setShowModal(false);
+  setIsLoading(true);
+  setError(null);
+  try {
+    const [billsResult, returnsResult] = await Promise.all([
+      getPharmacyBills(pharmacy.id),
+      getReturnsForPharmacy(pharmacy.id)
+    ]);
+    
+    // Filter out paid and cash bills - only show unpaid bills
+    const unpaidBills = billsResult.bills.filter(bill => 
+      bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash"
+    );
+    
+    // FIX: Filter returns to only show UNPAID returns (not based on bill status)
+    const unpaidReturns = returnsResult.filter(returnItem => 
+      returnItem.paymentStatus !== "Processed" && returnItem.paymentStatus !== "Paid"
+    );
+    
+    setBills(unpaidBills);
+    setReturns(unpaidReturns);
+  } catch (err) {
+    console.error("Error loading data:", err);
+    setError(err.message || "Failed to load data for this pharmacy");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const totalBeforeReturn = bills.reduce((sum, bill) => {
     const billTotal = bill.items.reduce((itemSum, item) =>
@@ -86,6 +97,9 @@ export default function StatementPage() {
               Print Statement
             </button>
           </div>
+          
+
+
           {isLoading && (
             <div className="mt-2 p-4 bg-blue-50 rounded-lg">
               <p className="text-center text-blue-700">Loading data...</p>
@@ -101,15 +115,16 @@ export default function StatementPage() {
             <Card>
               <div ref={pdfRef} className="p-6">
                 <div className="text-center mb-8">
-                  <h1 className="text-3xl font-bold mb-2">STATEMENT OF ACCOUNT</h1>
+                  <h1 className="text-3xl font-bold mb-2">STATEMENT OF ACCOUNT - UNPAID BILLS</h1>
                   <h2 className="text-xl font-semibold mb-1">{selectedPharmacy.name}</h2>
                   <p className="text-sm text-gray-600">
                     {format(new Date(), 'MMM dd, yyyy hh:mm a')}
                   </p>
                 </div>
+                
                 {/* Sales Bills Table */}
                 <div className="mb-8">
-                  <h2 className="text-xl font-semibold mb-4 border-b-2 border-gray-300 pb-2">SALES BILLS</h2>
+                  <h2 className="text-xl font-semibold mb-4 border-b-2 border-gray-300 pb-2">UNPAID SALES BILLS</h2>
                   <div className="overflow-x-auto">
                     <table className="table w-full">
                       <thead className="bg-gray-100">
@@ -121,28 +136,42 @@ export default function StatementPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {bills.map((bill, index) => {
-                          const billTotal = bill.items.reduce((sum, item) =>
-                            sum + (item.price * item.quantity), 0);
-                          return (
-                            <tr key={bill.id} className={`hover:bg-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                              <td className="p-2 text-center">{bill.billNumber}</td>
-                              <td className="p-2 text-center">
-                                {formatDateForDisplay(bill.date)}
-                              </td>
-                              <td className="p-2 text-center">
-                                {bill.paymentStatus}
-                              </td>
-                              <td className="p-2 text-right">
-                                {formatCurrency(billTotal)}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {bills.length > 0 ? (
+                          bills.map((bill, index) => {
+                            const billTotal = bill.items.reduce((sum, item) =>
+                              sum + (item.price * item.quantity), 0);
+                            return (
+                              <tr key={bill.id} className={`hover:bg-gray-100 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                <td className="p-2 text-center">{bill.billNumber}</td>
+                                <td className="p-2 text-center">
+                                  {formatDateForDisplay(bill.date)}
+                                </td>
+                                <td className="p-2 text-center">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    bill.paymentStatus === 'Paid' || bill.paymentStatus === 'Cash' 
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {bill.paymentStatus}
+                                  </span>
+                                </td>
+                                <td className="p-2 text-right">
+                                  {formatCurrency(billTotal)}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan="4" className="p-4 text-center text-gray-500">
+                              No unpaid sales bills found
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                       <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan="3" className="p-2 text-right font-bold">Total Sales:</td>
+                          <td colSpan="3" className="p-2 text-right font-bold">Total Unpaid Sales:</td>
                           <td className="p-2 text-right font-bold">
                             {formatCurrency(totalBeforeReturn)}
                           </td>
@@ -151,10 +180,11 @@ export default function StatementPage() {
                     </table>
                   </div>
                 </div>
+
                 {/* Returned Items Table */}
                 {returns.length > 0 && (
                   <div className="mb-8">
-                    <h2 className="text-xl font-semibold mb-4 border-b-2 border-gray-300 pb-2 text-red-600">RETURNED ITEMS</h2>
+                    <h2 className="text-xl font-semibold mb-4 border-b-2 border-gray-300 pb-2 text-red-600">RETURNED ITEMS (FROM UNPAID BILLS)</h2>
                     <div className="overflow-x-auto">
                       <table className="table w-full">
                         <thead className="bg-red-50">
@@ -198,12 +228,13 @@ export default function StatementPage() {
                     </div>
                   </div>
                 )}
+
                 {/* Summary Section */}
                 <div className="border-t-2 border-gray-300 pt-6 mt-6">
                   <h2 className="text-xl font-semibold mb-4">SUMMARY</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-gray-50 p-4 rounded-lg">
-                      <div className="text-sm font-medium text-gray-600 mb-1">Total Before Return</div>
+                      <div className="text-sm font-medium text-gray-600 mb-1">Total Unpaid Sales</div>
                       <div className="text-xl font-bold text-gray-800">
                         {formatCurrency(totalBeforeReturn)} IQD
                       </div>
@@ -215,7 +246,7 @@ export default function StatementPage() {
                       </div>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="text-sm font-medium text-green-600 mb-1">Total After Return</div>
+                      <div className="text-sm font-medium text-green-600 mb-1">Net Amount Due</div>
                       <div className="text-xl font-bold text-green-800">
                         {formatCurrency(totalAfterReturn)} IQD
                       </div>

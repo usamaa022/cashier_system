@@ -4,13 +4,14 @@ import { getCompanies, searchInitializedItems, createBoughtBill, formatDate } fr
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useLocalStorage } from "@/hooks/useLocalStorage";
+import Select from "react-select";
 
 export default function BuyingForm({ onBillCreated, editingBill }) {
-  // State declarations
   const [companyId, setCompanyId] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [companyCode, setCompanyCode] = useState("");
   const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [branch, setBranch] = useState("Slemany");
   const [billItems, setBillItems] = useState([
     { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }
   ]);
@@ -30,21 +31,35 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const router = useRouter();
   const { getItem, setItem } = useLocalStorage();
 
-  // Load data on mount
   useEffect(() => {
     if (editingBill) {
       setCompanyId(editingBill.companyId);
       setCompanySearch(editingBill.companyName || "");
       setBillDate(new Date(editingBill.date).toISOString().split('T')[0]);
+      setBranch(editingBill.branch || "Slemany");
       setBillItems(
-        editingBill.items.map((item) => ({
-          barcode: item.barcode,
-          name: item.name,
-          quantity: item.quantity,
-          netPrice: item.netPrice || 0,
-          outPrice: item.outPrice || 0,
-          expireDate: item.expireDate ? formatDate(item.expireDate.toDate()) : formatDate(new Date())
-        }))
+        editingBill.items.map((item) => {
+          let expireDate = formatDate(new Date());
+          if (item.expireDate) {
+            if (item.expireDate.toDate) {
+              expireDate = formatDate(item.expireDate.toDate());
+            } else if (item.expireDate.seconds) {
+              expireDate = formatDate(new Date(item.expireDate.seconds * 1000));
+            } else if (typeof item.expireDate === 'string') {
+              expireDate = formatDate(new Date(item.expireDate));
+            } else if (item.expireDate instanceof Date) {
+              expireDate = formatDate(item.expireDate);
+            }
+          }
+          return {
+            barcode: item.barcode,
+            name: item.name,
+            quantity: item.quantity,
+            netPrice: item.netPrice || 0,
+            outPrice: item.outPrice || 0,
+            expireDate: expireDate
+          };
+        })
       );
     } else {
       const savedData = getItem(formKey);
@@ -53,6 +68,7 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setCompanySearch(savedData.companySearch || "");
         setCompanyCode(savedData.companyCode || "");
         setBillDate(savedData.billDate || new Date().toISOString().split('T')[0]);
+        setBranch(savedData.branch || "Slemany");
         setBillItems(savedData.billItems || [
           { barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }
         ]);
@@ -60,7 +76,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [editingBill]);
 
-  // Save form data
   useEffect(() => {
     if (!editingBill) {
       const formData = {
@@ -68,13 +83,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         companySearch,
         companyCode,
         billDate,
+        branch,
         billItems
       };
       setItem(formKey, formData);
     }
-  }, [companyId, companySearch, companyCode, billDate, billItems]);
+  }, [companyId, companySearch, companyCode, billDate, branch, billItems]);
 
-  // Fetch companies
   useEffect(() => {
     const fetchCompanies = async () => {
       if (companySearch.length > 0) {
@@ -101,7 +116,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [companySearch]);
 
-  // Fetch items
   useEffect(() => {
     const fetchItems = async () => {
       if (searchQuery.length > 0) {
@@ -125,7 +139,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Focus management
   useEffect(() => {
     if (inputRefs.current["0-barcode"]) {
       inputRefs.current["0-barcode"].focus();
@@ -138,7 +151,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     }
   }, [activeField, billItems]);
 
-  // Handlers
   const handleCompanyCodeChange = (e) => {
     setCompanyCode(e.target.value);
   };
@@ -217,28 +229,24 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setError("Please select a company.");
         return;
       }
-
       const validItems = billItems.every(
         (item) => item.barcode && item.name && item.quantity > 0
       );
-
       if (!validItems) {
         setError("Please fill all item fields correctly.");
         return;
       }
-
       const itemsWithProperDates = billItems.map(item => ({
         ...item,
         expireDate: item.expireDate instanceof Date ?
           item.expireDate :
           (typeof item.expireDate === 'string' ?
            new Date(item.expireDate) :
-           new Date())
+           new Date()),
+        branch: branch
       }));
-
       const billNumber = editingBill ? editingBill.billNumber : null;
       const bill = await createBoughtBill(companyId, itemsWithProperDates, billNumber);
-
       if (onBillCreated) onBillCreated(bill);
       if (!editingBill) {
         setItem(formKey, null);
@@ -246,13 +254,13 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
         setCompanySearch("");
         setCompanyCode("");
         setBillDate(new Date().toISOString().split('T')[0]);
+        setBranch("Slemany");
         setBillItems([{ barcode: "", name: "", quantity: 1, netPrice: 0, outPrice: 0, expireDate: formatDate(new Date()) }]);
         setActiveItemIndex(0);
         setActiveField("0-barcode");
       } else {
         router.push('/buying');
       }
-
       alert(`Bill #${bill.billNumber} ${editingBill ? 'updated' : 'created'} successfully!`);
     } catch (error) {
       console.error("Error creating/updating bill:", error);
@@ -265,7 +273,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...billItems];
     if (field === 'expireDate') {
-      // For date fields, we'll keep it as a string in YYYY-MM-DD format
       updatedItems[index][field] = value;
     } else {
       updatedItems[index][field] =
@@ -300,9 +307,8 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
     <div className="container py-4">
       <Card title={editingBill ? `Edit Bill #${editingBill.billNumber}` : "Create Purchase Bill"}>
         {error && <div className="alert alert-danger mb-4">{error}</div>}
-
         <form onSubmit={handleSubmit}>
-          <div className="mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block mb-2">Company Code</label>
               <input
@@ -352,8 +358,20 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
                 disabled={isLoading}
               />
             </div>
+            <div>
+              <label className="block mb-2">Branch</label>
+              <select
+                className="select w-full"
+                value={branch}
+                onChange={(e) => setBranch(e.target.value)}
+                required
+                disabled={isLoading}
+              >
+                <option value="Slemany">Slemany</option>
+                <option value="Erbil">Erbil</option>
+              </select>
+            </div>
           </div>
-
           <div className="mb-4">
             <label className="block mb-2">Search Items</label>
             <input
@@ -378,9 +396,8 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               </ul>
             )}
           </div>
-
-          <div className="overflow-x-auto mb-4">
-            <table className="min-w-full bg-white border">
+          <div className="overflow-x-auto mb-4 table-container">
+            <table className="min-w-full bg-white border table">
               <thead>
                 <tr className="bg-gray-100">
                   <th className="p-2 text-left w-32">Barcode</th>
@@ -493,7 +510,6 @@ export default function BuyingForm({ onBillCreated, editingBill }) {
               </tbody>
             </table>
           </div>
-
           <div className="flex gap-2 mt-4">
             <button
               type="button"

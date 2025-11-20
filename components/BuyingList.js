@@ -191,7 +191,6 @@ export default function BuyingList({ refreshTrigger }) {
           </thead>
         </table>
       </div>
-
       <div className="mb-4 p-4 bg-gray-50 rounded-lg">
         <h3 className="font-medium mb-2">Filter by Items:</h3>
         <Select
@@ -200,9 +199,9 @@ export default function BuyingList({ refreshTrigger }) {
           onChange={(selected) => setItemFilters(selected.map(option => option.value))}
           placeholder="Select items..."
           className="react-select"
+          instanceId="item-filter-select"
         />
       </div>
-
       <div className="overflow-x-auto">
         <table className="table w-full">
           <tbody>
@@ -255,25 +254,23 @@ export default function BuyingList({ refreshTrigger }) {
                                 <th className="p-2 text-center">Net Price (IQD)</th>
                                 <th className="p-2 text-center">Out Price (IQD)</th>
                                 <th className="p-2 text-center">Expire Date</th>
+                                <th className="p-2 text-center">Branch</th>
                               </tr>
                             </thead>
                             <tbody>
                               {bill.items.map((item, index) => {
-                                // Format the expire date properly
                                 let expireDate = 'N/A';
                                 if (item.expireDate) {
                                   if (item.expireDate.toDate) {
-                                    // If it's a Firestore Timestamp
                                     expireDate = formatDate(item.expireDate.toDate());
-                                  } else if (item.expireDate instanceof Date) {
-                                    // If it's a Date object
-                                    expireDate = formatDate(item.expireDate);
+                                  } else if (item.expireDate.seconds) {
+                                    expireDate = formatDate(new Date(item.expireDate.seconds * 1000));
                                   } else if (typeof item.expireDate === 'string') {
-                                    // If it's a string
                                     expireDate = formatDate(new Date(item.expireDate));
+                                  } else if (item.expireDate instanceof Date) {
+                                    expireDate = formatDate(item.expireDate);
                                   }
                                 }
-
                                 return (
                                   <tr key={index} className="hover:bg-blue-50">
                                     <td className="p-2 text-center">{item.barcode}</td>
@@ -282,6 +279,7 @@ export default function BuyingList({ refreshTrigger }) {
                                     <td className="p-2 text-center">{item.netPrice?.toFixed(2) || '0.00'} IQD</td>
                                     <td className="p-2 text-center">{item.outPrice?.toFixed(2) || '0.00'} IQD</td>
                                     <td className="p-2 text-center">{expireDate}</td>
+                                    <td className="p-2 text-center">{item.branch || 'N/A'}</td>
                                   </tr>
                                 );
                               })}

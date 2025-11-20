@@ -1,4 +1,3 @@
-// components/Navbar.js
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,10 +14,14 @@ export default function Navbar() {
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isSalesOpen, setIsSalesOpen] = useState(false);
   const [isTransportOpen, setIsTransportOpen] = useState(false);
+  const [isBuyingOpen, setIsBuyingOpen] = useState(false);
+  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false); // ADD THIS STATE
   const accountsRef = useRef(null);
   const inventoryRef = useRef(null);
   const salesRef = useRef(null);
   const transportRef = useRef(null);
+  const buyingRef = useRef(null);
+  const paymentsRef = useRef(null); // ADD THIS REF
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -33,6 +36,12 @@ export default function Navbar() {
       }
       if (transportRef.current && !transportRef.current.contains(event.target)) {
         setIsTransportOpen(false);
+      }
+      if (buyingRef.current && !buyingRef.current.contains(event.target)) {
+        setIsBuyingOpen(false);
+      }
+      if (paymentsRef.current && !paymentsRef.current.contains(event.target)) { // ADD THIS
+        setIsPaymentsOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -55,7 +64,7 @@ export default function Navbar() {
       <div className="container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "100%" }}>
           <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#3b82f6", textDecoration: "none" }}>
-            MarketShop
+            Aran Med Store
           </Link>
           <div style={{ display: "flex", gap: "1rem", height: "100%", alignItems: "center" }}>
             {navLinks.map((link) => (
@@ -75,6 +84,77 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
+
+            {/* Buying Dropdown */}
+            <div ref={buyingRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setIsBuyingOpen(!isBuyingOpen)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: pathname.includes("/buying") ? "#3b82f6" : "var(--gray)",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.5rem 0",
+                  borderBottom: pathname.includes("/buying") ? "2px solid #3b82f6" : "none",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                Buying
+                <svg
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    transition: "transform 0.2s ease",
+                    transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)"
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {isBuyingOpen && (
+                <div style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "100%",
+                  width: "200px",
+                  backgroundColor: "#fff",
+                  borderRadius: "0.375rem",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                  padding: "0.5rem 0",
+                  zIndex: 50,
+                  border: "1px solid #e5e7eb"
+                }}>
+                  <Link
+                    href="/buying"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname.includes("/buying") ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                      backgroundColor: pathname.includes("/buying") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                    }}
+                    onClick={() => setIsBuyingOpen(false)}
+                  >
+                    Buying Form
+                  </Link>
+                </div>
+              )}
+            </div>
 
             {/* Inventory Dropdown */}
             <div ref={inventoryRef} style={{ position: "relative" }}>
@@ -160,7 +240,7 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-
+        
             {/* Sales Dropdown */}
             <div ref={salesRef} style={{ position: "relative" }}>
               <button
@@ -260,6 +340,91 @@ export default function Navbar() {
               )}
             </div>
 
+            {/* Payments Dropdown - ADD THIS SECTION */}
+            <div ref={paymentsRef} style={{ position: "relative" }}>
+              <button
+                onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: pathname.includes("/payments") ? "#3b82f6" : "var(--gray)",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.5rem 0",
+                  borderBottom: pathname.includes("/payments") ? "2px solid #3b82f6" : "none",
+                  transition: "all 0.2s ease"
+                }}
+              >
+                Payments
+                <svg
+                  style={{
+                    width: "16px",
+                    height: "16px",
+                    transition: "transform 0.2s ease",
+                    transform: isPaymentsOpen ? "rotate(180deg)" : "rotate(0deg)"
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+              {isPaymentsOpen && (
+                <div style={{
+                  position: "absolute",
+                  right: 0,
+                  top: "100%",
+                  width: "200px",
+                  backgroundColor: "#fff",
+                  borderRadius: "0.375rem",
+                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                  padding: "0.5rem 0",
+                  zIndex: 50,
+                  border: "1px solid #e5e7eb"
+                }}>
+                  <Link
+                    href="/payments/create"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname.includes("/payments/create") ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                      backgroundColor: pathname.includes("/payments/create") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                    }}
+                    onClick={() => setIsPaymentsOpen(false)}
+                  >
+                    Create Payment
+                  </Link>
+                  <Link
+                    href="/payments/history"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname.includes("/payments/history") ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                      backgroundColor: pathname.includes("/payments/history") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                    }}
+                    onClick={() => setIsPaymentsOpen(false)}
+                  >
+                    Payment History
+                  </Link>
+                </div>
+              )}
+            </div>
+
             {/* Transport Dropdown */}
             {user?.role !== "employee" && (
               <div ref={transportRef} style={{ position: "relative" }}>
@@ -341,6 +506,20 @@ export default function Navbar() {
                       onClick={() => setIsTransportOpen(false)}
                     >
                       Receive Transport
+                    </Link>
+                    <Link
+                      href="/transport/transportHistory"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/transport/transportHistory") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/transport/transportHistory") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsTransportOpen(false)}
+                    >
+                      Transport History
                     </Link>
                   </div>
                 )}
