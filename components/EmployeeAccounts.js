@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { getEmployees, getEmployeeAccount, sendMoneyToEmployee, addEmployeeWages, getEmployeeTransactions } from "@/lib/data";
-import { FiUser, FiDollarSign, FiSend, FiCreditCard, FiTrendingUp, FiTrendingDown, FiHistory } from "react-icons/fi";
+import { FiUser, FiDollarSign, FiSend, FiCreditCard, FiTrendingUp, FiTrendingDown, FiClock  } from "react-icons/fi";
 
 export default function EmployeeAccounts({ currentUser }) {
   const [employees, setEmployees] = useState([]);
@@ -350,7 +350,7 @@ export default function EmployeeAccounts({ currentUser }) {
                 {activeTab === "transactions" && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                      <FiHistory className="mr-2 text-purple-600" />
+                      <FiClock  className="mr-2 text-purple-600" />
                       Transaction History
                     </h3>
                     {transactions.length > 0 ? (
