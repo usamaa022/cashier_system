@@ -14,37 +14,45 @@ export default function StatementPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const pdfRef = useRef();
-// Update the handlePharmacySelect function:
-const handlePharmacySelect = async (pharmacy) => {
-  setSelectedPharmacy(pharmacy);
-  setShowModal(false);
-  setIsLoading(true);
-  setError(null);
-  try {
-    const [billsResult, returnsResult] = await Promise.all([
-      getPharmacyBills(pharmacy.id),
-      getReturnsForPharmacy(pharmacy.id)
-    ]);
-    
-    // Filter out paid and cash bills - only show unpaid bills
-    const unpaidBills = billsResult.bills.filter(bill => 
-      bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash"
-    );
-    
-    // FIX: Filter returns to only show UNPAID returns (not based on bill status)
-    const unpaidReturns = returnsResult.filter(returnItem => 
-      returnItem.paymentStatus !== "Processed" && returnItem.paymentStatus !== "Paid"
-    );
-    
-    setBills(unpaidBills);
-    setReturns(unpaidReturns);
-  } catch (err) {
-    console.error("Error loading data:", err);
-    setError(err.message || "Failed to load data for this pharmacy");
-  } finally {
-    setIsLoading(false);
-  }
-};
+
+  // Currency formatting function
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount || 0);
+  };
+
+  const handlePharmacySelect = async (pharmacy) => {
+    setSelectedPharmacy(pharmacy);
+    setShowModal(false);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [billsResult, returnsResult] = await Promise.all([
+        getPharmacyBills(pharmacy.id),
+        getReturnsForPharmacy(pharmacy.id)
+      ]);
+      
+      // Filter out paid and cash bills - only show unpaid bills
+      const unpaidBills = billsResult.bills.filter(bill => 
+        bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash"
+      );
+      
+      // FIX: Filter returns to only show UNPAID returns (not based on bill status)
+      const unpaidReturns = returnsResult.filter(returnItem => 
+        returnItem.paymentStatus !== "Processed" && returnItem.paymentStatus !== "Paid"
+      );
+      
+      setBills(unpaidBills);
+      setReturns(unpaidReturns);
+    } catch (err) {
+      console.error("Error loading data:", err);
+      setError(err.message || "Failed to load data for this pharmacy");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const totalBeforeReturn = bills.reduce((sum, bill) => {
     const billTotal = bill.items.reduce((itemSum, item) =>
@@ -61,14 +69,6 @@ const handlePharmacySelect = async (pharmacy) => {
   const formatDateForDisplay = (date) => {
     if (!date) return 'N/A';
     return format(new Date(date), 'MMM dd, yyyy');
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'decimal',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
   };
 
   const handlePrint = useReactToPrint({
@@ -98,8 +98,6 @@ const handlePharmacySelect = async (pharmacy) => {
             </button>
           </div>
           
-
-
           {isLoading && (
             <div className="mt-2 p-4 bg-blue-50 rounded-lg">
               <p className="text-center text-blue-700">Loading data...</p>
@@ -155,7 +153,7 @@ const handlePharmacySelect = async (pharmacy) => {
                                     {bill.paymentStatus}
                                   </span>
                                 </td>
-                                <td className="p-2 text-right">
+                                <td className="p-2 text-right font-medium">
                                   {formatCurrency(billTotal)}
                                 </td>
                               </tr>
@@ -172,7 +170,7 @@ const handlePharmacySelect = async (pharmacy) => {
                       <tfoot className="bg-gray-50">
                         <tr>
                           <td colSpan="3" className="p-2 text-right font-bold">Total Unpaid Sales:</td>
-                          <td className="p-2 text-right font-bold">
+                          <td className="p-2 text-right font-bold text-lg">
                             {formatCurrency(totalBeforeReturn)}
                           </td>
                         </tr>
@@ -189,6 +187,8 @@ const handlePharmacySelect = async (pharmacy) => {
                       <table className="table w-full">
                         <thead className="bg-red-50">
                           <tr>
+                            <th className="p-2 text-center">Return #</th>
+                            <th className="p-2 text-center">Original Bill #</th>
                             <th className="p-2 text-center">Item</th>
                             <th className="p-2 text-center">Barcode</th>
                             <th className="p-2 text-center">Return Qty</th>
@@ -200,6 +200,10 @@ const handlePharmacySelect = async (pharmacy) => {
                         <tbody>
                           {returns.map((returnItem, index) => (
                             <tr key={index} className={`hover:bg-red-100 ${index % 2 === 0 ? 'bg-white' : 'bg-red-50'}`}>
+                              <td className="p-2 text-center font-medium">
+                                Return #{returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A'}
+                              </td>
+                              <td className="p-2 text-center">{returnItem.billNumber || 'N/A'}</td>
                               <td className="p-2 text-center">{returnItem.name}</td>
                               <td className="p-2 text-center">{returnItem.barcode}</td>
                               <td className="p-2 text-center">{returnItem.returnQuantity}</td>
@@ -210,7 +214,7 @@ const handlePharmacySelect = async (pharmacy) => {
                                 {returnItem.returnDate ?
                                   formatDateForDisplay(returnItem.returnDate.toDate()) : 'N/A'}
                               </td>
-                              <td className="p-2 text-right">
+                              <td className="p-2 text-right font-medium">
                                 {formatCurrency(returnItem.returnQuantity * returnItem.returnPrice)}
                               </td>
                             </tr>
@@ -218,8 +222,8 @@ const handlePharmacySelect = async (pharmacy) => {
                         </tbody>
                         <tfoot className="bg-red-100">
                           <tr>
-                            <td colSpan="5" className="p-2 text-right font-bold">Total Returns:</td>
-                            <td className="p-2 text-right font-bold">
+                            <td colSpan="7" className="p-2 text-right font-bold">Total Returns:</td>
+                            <td className="p-2 text-right font-bold text-lg">
                               {formatCurrency(totalReturn)}
                             </td>
                           </tr>
@@ -233,25 +237,31 @@ const handlePharmacySelect = async (pharmacy) => {
                 <div className="border-t-2 border-gray-300 pt-6 mt-6">
                   <h2 className="text-xl font-semibold mb-4">SUMMARY</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                       <div className="text-sm font-medium text-gray-600 mb-1">Total Unpaid Sales</div>
                       <div className="text-xl font-bold text-gray-800">
                         {formatCurrency(totalBeforeReturn)} IQD
                       </div>
                     </div>
-                    <div className="bg-red-50 p-4 rounded-lg">
+                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                       <div className="text-sm font-medium text-red-600 mb-1">Total Returns</div>
                       <div className="text-xl font-bold text-red-800">
                         -{formatCurrency(totalReturn)} IQD
                       </div>
                     </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                       <div className="text-sm font-medium text-green-600 mb-1">Net Amount Due</div>
                       <div className="text-xl font-bold text-green-800">
                         {formatCurrency(totalAfterReturn)} IQD
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Footer */}
+                <div className="mt-8 pt-6 border-t border-gray-300 text-center text-sm text-gray-600">
+                  <p>Generated on {format(new Date(), 'MMMM dd, yyyy')}</p>
+                  <p className="mt-1">This statement includes only unpaid bills and returns</p>
                 </div>
               </div>
             </Card>

@@ -15,13 +15,15 @@ export default function Navbar() {
   const [isSalesOpen, setIsSalesOpen] = useState(false);
   const [isTransportOpen, setIsTransportOpen] = useState(false);
   const [isBuyingOpen, setIsBuyingOpen] = useState(false);
-  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false); // ADD THIS STATE
+  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
+  const [isEmployeeOpen, setIsEmployeeOpen] = useState(false);
   const accountsRef = useRef(null);
   const inventoryRef = useRef(null);
   const salesRef = useRef(null);
   const transportRef = useRef(null);
   const buyingRef = useRef(null);
-  const paymentsRef = useRef(null); // ADD THIS REF
+  const paymentsRef = useRef(null);
+  const employeeRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -40,8 +42,11 @@ export default function Navbar() {
       if (buyingRef.current && !buyingRef.current.contains(event.target)) {
         setIsBuyingOpen(false);
       }
-      if (paymentsRef.current && !paymentsRef.current.contains(event.target)) { // ADD THIS
+      if (paymentsRef.current && !paymentsRef.current.contains(event.target)) {
         setIsPaymentsOpen(false);
+      }
+      if (employeeRef.current && !employeeRef.current.contains(event.target)) {
+        setIsEmployeeOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -60,7 +65,17 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="navbar" style={{ backgroundColor: "#fff", boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
+    <nav
+      className="navbar"
+      style={{
+        backgroundColor: "#fff",
+        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+        position: "sticky",
+        top: 0,
+        zIndex: 1000,
+        width: "100%"
+      }}
+    >
       <div className="container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "100%" }}>
           <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#3b82f6", textDecoration: "none" }}>
@@ -85,76 +100,223 @@ export default function Navbar() {
               </Link>
             ))}
 
-            {/* Buying Dropdown */}
-            <div ref={buyingRef} style={{ position: "relative" }}>
-              <button
-                onClick={() => setIsBuyingOpen(!isBuyingOpen)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: pathname.includes("/buying") ? "#3b82f6" : "var(--gray)",
-                  fontSize: "1rem",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.25rem",
-                  padding: "0.5rem 0",
-                  borderBottom: pathname.includes("/buying") ? "2px solid #3b82f6" : "none",
-                  transition: "all 0.2s ease"
-                }}
-              >
-                Buying
-                <svg
+            {/* Employee Management Dropdown - Only for superAdmin */}
+            {user?.role === "superAdmin" && (
+              <div ref={employeeRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setIsEmployeeOpen(!isEmployeeOpen)}
                   style={{
-                    width: "16px",
-                    height: "16px",
-                    transition: "transform 0.2s ease",
-                    transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    background: "none",
+                    border: "none",
+                    color: pathname.includes("/employee") ? "#3b82f6" : "var(--gray)",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.5rem 0",
+                    borderBottom: pathname.includes("/employee") ? "2px solid #3b82f6" : "none",
+                    transition: "all 0.2s ease"
                   }}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {isBuyingOpen && (
-                <div style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "100%",
-                  width: "200px",
-                  backgroundColor: "#fff",
-                  borderRadius: "0.375rem",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                  padding: "0.5rem 0",
-                  zIndex: 50,
-                  border: "1px solid #e5e7eb"
-                }}>
-                  <Link
-                    href="/buying"
+                  Employee Management
+                  <svg
                     style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/buying") ? "#3b82f6" : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/buying") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      width: "16px",
+                      height: "16px",
+                      transition: "transform 0.2s ease",
+                      transform: isEmployeeOpen ? "rotate(180deg)" : "rotate(0deg)"
                     }}
-                    onClick={() => setIsBuyingOpen(false)}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    Buying Form
-                  </Link>
-                </div>
-              )}
-            </div>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {isEmployeeOpen && (
+                  <div style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "220px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb"
+                  }}>
+                    <Link
+                      href="/employee_accounts"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/employee_accounts") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/employee_accounts") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsEmployeeOpen(false)}
+                    >
+                      Employee Accounts
+                    </Link>
+                    <Link
+                      href="/employee_purchases"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/employee_purchases") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/employee_purchases") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsEmployeeOpen(false)}
+                    >
+                      Create Purchase
+                    </Link>
+                    <Link
+                      href="/shipment_arrivals"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/shipment_arrivals") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/shipment_arrivals") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsEmployeeOpen(false)}
+                    >
+                      Record Shipment
+                    </Link>
+                    <Link
+                      href="/employee_purchases_history"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/employee_purchases_history") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/employee_purchases_history") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsEmployeeOpen(false)}
+                    >
+                      Purchase History
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Buying Dropdown - Only for superAdmin */}
+            {user?.role === "superAdmin" && (
+              <div ref={buyingRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setIsBuyingOpen(!isBuyingOpen)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: pathname.includes("/buying") ? "#3b82f6" : "var(--gray)",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.5rem 0",
+                    borderBottom: pathname.includes("/buying") ? "2px solid #3b82f6" : "none",
+                    transition: "all 0.2s ease"
+                  }}
+                >
+                  Buying
+                  <svg
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      transition: "transform 0.2s ease",
+                      transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    }}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {isBuyingOpen && (
+                  <div style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "200px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb"
+                  }}>
+                    <Link
+                      href="/buying"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/buying") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/buying") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsBuyingOpen(false)}
+                    >
+                      Buying Form
+                    </Link>
+                    <Link
+                      href="/bought_returns"
+                      className="nav-link"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/bought_returns") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/bought_returns") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsBuyingOpen(false)}
+                    >
+                      Bought Returns
+                    </Link>
+                    <Link
+                      href="/Bought_Statement"
+                      className="nav-link"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/Bought_Statement") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/Bought_Statement") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsBuyingOpen(false)}
+                    >
+                      Bought Statement
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Inventory Dropdown */}
             <div ref={inventoryRef} style={{ position: "relative" }}>
@@ -209,20 +371,22 @@ export default function Navbar() {
                   zIndex: 50,
                   border: "1px solid #e5e7eb"
                 }}>
-                  <Link
-                    href="/items"
-                    style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/items") ? "#3b82f6" : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/items") ? "rgba(59, 130, 246, 0.1)" : "transparent"
-                    }}
-                    onClick={() => setIsInventoryOpen(false)}
-                  >
-                    Items
-                  </Link>
+                  {user?.role !== "employee" && (
+                    <Link
+                      href="/items"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/items") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/items") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsInventoryOpen(false)}
+                    >
+                      Items
+                    </Link>
+                  )}
                   <Link
                     href="/store"
                     style={{
@@ -240,7 +404,7 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-        
+
             {/* Sales Dropdown */}
             <div ref={salesRef} style={{ position: "relative" }}>
               <button
@@ -340,7 +504,7 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Payments Dropdown - ADD THIS SECTION */}
+            {/* Payments Dropdown */}
             <div ref={paymentsRef} style={{ position: "relative" }}>
               <button
                 onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
@@ -405,22 +569,24 @@ export default function Navbar() {
                     }}
                     onClick={() => setIsPaymentsOpen(false)}
                   >
-                    Create Payment
+                    Sales Payment
                   </Link>
-                  <Link
-                    href="/payments/history"
-                    style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/payments/history") ? "#3b82f6" : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/payments/history") ? "rgba(59, 130, 246, 0.1)" : "transparent"
-                    }}
-                    onClick={() => setIsPaymentsOpen(false)}
-                  >
-                    Payment History
-                  </Link>
+                  {user?.role === "superAdmin" && (
+                    <Link
+                      href="/bought_payments/"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/bought_payments/") ? "#3b82f6" : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/bought_payments/") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      }}
+                      onClick={() => setIsPaymentsOpen(false)}
+                    >
+                      Buy Payment
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

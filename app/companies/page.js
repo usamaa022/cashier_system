@@ -70,6 +70,7 @@ export default function CompaniesPage() {
       location: "",
       code: ""
     });
+    setEditing(false);
   };
 
   // Edit company
@@ -98,18 +99,20 @@ export default function CompaniesPage() {
     }
   };
 
-  if (loading) return <div className="container py-8">Loading...</div>;
-  if (error) return <div className="container py-8 text-danger">{error}</div>;
+  if (loading) return <div className="container py-8" style={{ fontFamily: "var(--font-nrt-reg)" }}>Loading...</div>;
+  if (error) return <div className="container py-8 text-danger" style={{ fontFamily: "var(--font-nrt-reg)" }}>{error}</div>;
 
   return (
-    <div className="container py-8">
-      <h1 className="text-2xl font-bold mb-6">Companies Management</h1>
+    <div className="container py-8" style={{ fontFamily: "var(--font-nrt-reg)" }}>
+      <h1 className="text-2xl font-bold mb-6" style={{ fontFamily: "var(--font-nrt-bd)" }}>
+        گۆڕانکاری کۆمپانیا
+      </h1>
 
       {/* Add/Edit Company Form */}
-      <Card title={editing ? "Edit Company" : "Add New Company"}>
+      <Card title={editing ? "گۆڕانکاری کۆمپانیا" : "دروستکردنی ئەکاونتی کۆمپانیا"}>
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block mb-2">Company Name</label>
+            <label className="block mb-2" style={{ fontFamily: "var(--font-nrt-bd)" }}>ناوی کۆمپانیا</label>
             <input
               type="text"
               name="name"
@@ -117,10 +120,11 @@ export default function CompaniesPage() {
               value={formData.name}
               onChange={handleInputChange}
               required
+              style={{ fontFamily: "var(--font-nrt-reg)" }}
             />
           </div>
           <div>
-            <label className="block mb-2">Company Code</label>
+            <label className="block mb-2" style={{ fontFamily: "var(--font-nrt-bd)" }}>کۆد</label>
             <input
               type="number"
               name="code"
@@ -129,10 +133,11 @@ export default function CompaniesPage() {
               onChange={handleInputChange}
               required
               readOnly={editing}
+              style={{ fontFamily: "var(--font-nrt-reg)" }}
             />
           </div>
           <div>
-            <label className="block mb-2">Phone Number</label>
+            <label className="block mb-2" style={{ fontFamily: "var(--font-nrt-bd)" }}>ژمارەی تەلەفون</label>
             <input
               type="text"
               name="phone"
@@ -140,10 +145,11 @@ export default function CompaniesPage() {
               value={formData.phone}
               onChange={handleInputChange}
               required
+              style={{ fontFamily: "var(--font-nrt-reg)" }}
             />
           </div>
           <div>
-            <label className="block mb-2">City</label>
+            <label className="block mb-2" style={{ fontFamily: "var(--font-nrt-bd)" }}>شار</label>
             <input
               type="text"
               name="city"
@@ -151,10 +157,11 @@ export default function CompaniesPage() {
               value={formData.city}
               onChange={handleInputChange}
               required
+              style={{ fontFamily: "var(--font-nrt-reg)" }}
             />
           </div>
           <div className="md:col-span-2">
-            <label className="block mb-2">Location</label>
+            <label className="block mb-2" style={{ fontFamily: "var(--font-nrt-bd)" }}>ناونیشان</label>
             <input
               type="text"
               name="location"
@@ -162,10 +169,15 @@ export default function CompaniesPage() {
               value={formData.location}
               onChange={handleInputChange}
               required
+              style={{ fontFamily: "var(--font-nrt-reg)" }}
             />
           </div>
           <div className="md:col-span-2 flex gap-2">
-            <button type="submit" className="btn btn-primary flex-1">
+            <button
+              type="submit"
+              className="btn btn-primary flex-1"
+              style={{ fontFamily: "var(--font-nrt-bd)" }}
+            >
               {editing ? 'Update Company' : 'Add Company'}
             </button>
             {editing && (
@@ -173,6 +185,7 @@ export default function CompaniesPage() {
                 type="button"
                 className="btn btn-secondary flex-1"
                 onClick={resetForm}
+                style={{ fontFamily: "var(--font-nrt-bd)" }}
               >
                 Cancel
               </button>
@@ -184,35 +197,37 @@ export default function CompaniesPage() {
       {/* Companies List */}
       <Card title="Companies List" className="mt-6">
         <div className="overflow-x-auto">
-          <table className="table w-full">
+          <table className="table w-full" style={{ fontFamily: "var(--font-nrt-reg)" }}>
             <thead>
               <tr className="bg-gray-100">
-                <th className="p-2 text-left">Code</th>
-                <th className="p-2 text-left">Name</th>
-                <th className="p-2 text-left">Phone</th>
-                <th className="p-2 text-left">City</th>
-                <th className="p-2 text-left">Location</th>
-                <th className="p-2 text-left">Actions</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>Code</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>Name</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>Phone</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>City</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>Location</th>
+                <th className="p-2 text-left" style={{ fontFamily: "var(--font-nrt-bd)" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {companies.map(company => (
                 <tr key={company.id} className="hover:bg-gray-50">
-                  <td className="p-2">{company.code}</td>
-                  <td className="p-2">{company.name}</td>
-                  <td className="p-2">{company.phone}</td>
-                  <td className="p-2">{company.city}</td>
-                  <td className="p-2">{company.location}</td>
+                  <td className="p-2" style={{ fontFamily: "var(--font-nrt-reg)" }}>{company.code}</td>
+                  <td className="p-2" style={{ fontFamily: "var(--font-nrt-reg)" }}>{company.name}</td>
+                  <td className="p-2" style={{ fontFamily: "var(--font-nrt-reg)" }}>{company.phone}</td>
+                  <td className="p-2" style={{ fontFamily: "var(--font-nrt-reg)" }}>{company.city}</td>
+                  <td className="p-2" style={{ fontFamily: "var(--font-nrt-reg)" }}>{company.location}</td>
                   <td className="p-2">
                     <button
                       className="btn btn-secondary text-xs mr-2"
                       onClick={() => handleEdit(company)}
+                      style={{ fontFamily: "var(--font-nrt-bd)" }}
                     >
                       Edit
                     </button>
                     <button
                       className="btn btn-danger text-xs"
                       onClick={() => handleDelete(company.id)}
+                      style={{ fontFamily: "var(--font-nrt-bd)" }}
                     >
                       Delete
                     </button>

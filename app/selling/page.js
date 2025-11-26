@@ -12,9 +12,8 @@ export default function SellingPage() {
 
   return (
     <>
-     
       <div className="container py-8">
-        <h1 className="text-2xl font-bold mb-6">Create New Sale</h1>
+        <h1 className="text-2xl font-bold mb-6" style={{fontFamily: "'NRT-Bd', sans-serif"}}>Create New Sale</h1>
         <SellingForm
           onBillCreated={handleBillCreated}
           key={refresh ? 'refresh' : 'normal'}

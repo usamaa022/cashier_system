@@ -1,548 +1,27 @@
-// "use client";
-// import { useState, useEffect } from "react";
-// import { searchInitializedItems, createSoldBill, getStoreItems, searchPharmacies, searchSoldBills } from "@/lib/data";
-// import Card from "./Card";
-
-// export default function SellingForm({ onBillCreated }) {
-//   // State for pharmacy selection
-//   const [pharmacyCode, setPharmacyCode] = useState("");
-//   const [pharmacyName, setPharmacyName] = useState("");
-//   const [pharmacyId, setPharmacyId] = useState("");
-//   const [pharmacySuggestions, setPharmacySuggestions] = useState([]);
-//   const [showPharmacySuggestions, setShowPharmacySuggestions] = useState(false);
-//   // Sale info state
-//   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
-//   const [paymentMethod, setPaymentMethod] = useState("Unpaid");
-//   // Items state
-//   const [searchQuery, setSearchQuery] = useState("");
-//   const [searchResults, setSearchResults] = useState([]);
-//   const [selectedItems, setSelectedItems] = useState([]);
-//   const [storeItems, setStoreItems] = useState([]);
-//   const [isLoading, setIsLoading] = useState(false);
-//   const [error, setError] = useState(null);
-//   // History modal state
-//   const [showHistoryModal, setShowHistoryModal] = useState(false);
-//   const [historyItems, setHistoryItems] = useState([]);
-//   const [selectedBarcode, setSelectedBarcode] = useState(null);
-
-//   // Fetch data on mount
-//   useEffect(() => {
-//     const fetchStoreItems = async () => {
-//       try {
-//         const items = await getStoreItems();
-//         setStoreItems(items);
-//       } catch (err) {
-//         console.error("Error fetching store items:", err);
-//       }
-//     };
-//     fetchStoreItems();
-//   }, []);
-
-//   // Search pharmacies
-//   useEffect(() => {
-//     if (pharmacyCode.length > 0 || pharmacyName.length > 0) {
-//       const timer = setTimeout(async () => {
-//         try {
-//           const results = await searchPharmacies(pharmacyCode || pharmacyName);
-//           setPharmacySuggestions(results);
-//           setShowPharmacySuggestions(results.length > 0);
-//         } catch (err) {
-//           console.error("Error searching pharmacies:", err);
-//         }
-//       }, 300);
-//       return () => clearTimeout(timer);
-//     } else {
-//       setPharmacySuggestions([]);
-//       setShowPharmacySuggestions(false);
-//     }
-//   }, [pharmacyCode, pharmacyName]);
-
-//   // Handle pharmacy selection
-//   const handlePharmacySelect = (pharmacy) => {
-//     setPharmacyId(pharmacy.id);
-//     setPharmacyCode(pharmacy.code);
-//     setPharmacyName(pharmacy.name);
-//     setShowPharmacySuggestions(false);
-//   };
-
-//   // Get batches for selected item
-//   const getBatchesForItem = (barcode) => {
-//     return storeItems
-//       .filter(item => item.barcode === barcode && item.quantity > 0)
-//       .map(item => ({
-//         ...item,
-//         expireDate: item.expireDate,
-//       }))
-//       .sort((a, b) => {
-//         const dateA = a.expireDate ? (a.expireDate.toDate ? a.expireDate.toDate() : new Date(a.expireDate)) : new Date(0);
-//         const dateB = b.expireDate ? (b.expireDate.toDate ? b.expireDate.toDate() : new Date(b.expireDate)) : new Date(0);
-//         return dateA - dateB;
-//       });
-//   };
-
-//   // Search items
-//   const handleSearch = async (query) => {
-//     if (query.length > 0) {
-//       try {
-//         let results = [];
-//         if (/^\d+$/.test(query)) {
-//           results = await searchInitializedItems(query, "barcode");
-//         }
-//         if (results.length === 0) {
-//           results = await searchInitializedItems(query, "name");
-//         }
-//         setSearchResults(results);
-//       } catch (err) {
-//         console.error("Error searching items:", err);
-//       }
-//     } else {
-//       setSearchResults([]);
-//     }
-//   };
-
-//   // Add item to selected items
-//   const handleSelectBatch = (batch) => {
-//     const existingItemIndex = selectedItems.findIndex(
-//       item => item.barcode === batch.barcode
-//     );
-//     if (existingItemIndex >= 0) {
-//       const updatedItems = [...selectedItems];
-//       const maxQty = batch.quantity;
-//       const newQty = Math.min(updatedItems[existingItemIndex].quantity + 1, maxQty);
-//       updatedItems[existingItemIndex].quantity = newQty;
-//       setSelectedItems(updatedItems);
-//     } else {
-//       setSelectedItems([...selectedItems, {
-//         ...batch,
-//         quantity: 1,
-//         price: parseFloat(batch.outPrice.toFixed(2)),
-//         expireDate: batch.expireDate,
-//         netPrice: parseFloat(batch.netPrice.toFixed(2)),
-//         outPrice: parseFloat(batch.outPrice.toFixed(2)),
-//         availableQuantity: batch.quantity,
-//       }]);
-//     }
-//     setSearchQuery("");
-//   };
-
-//   // Update item quantity or price
-//   const handleItemChange = (index, field, value) => {
-//     const updatedItems = [...selectedItems];
-//     if (field === 'quantity') {
-//       const maxQty = updatedItems[index].availableQuantity;
-//       updatedItems[index].quantity = Math.min(Math.max(1, parseInt(value) || 1), maxQty);
-//     } else if (field === 'price') {
-//       const price = parseFloat(value) || 0;
-//       updatedItems[index].price = price;
-//       if (price < updatedItems[index].netPrice) {
-//         alert(`Warning: Selling price (${price} IQD) is below net price (${updatedItems[index].netPrice} IQD).`);
-//       }
-//     }
-//     setSelectedItems(updatedItems);
-//   };
-
-//   // Remove item
-//   const handleRemoveItem = (index) => {
-//     const updatedItems = [...selectedItems];
-//     updatedItems.splice(index, 1);
-//     setSelectedItems(updatedItems);
-//   };
-
-//   // Fetch history for an item
-//   const fetchItemHistory = async (barcode) => {
-//     if (!pharmacyId) {
-//       setError("Please select a pharmacy first.");
-//       return;
-//     }
-//     try {
-//       const bills = await searchSoldBills("");
-//       const filteredBills = bills.filter(bill => bill.pharmacyId === pharmacyId);
-//       const itemHistory = [];
-//       filteredBills.forEach(bill => {
-//         bill.items.forEach(item => {
-//           if (item.barcode === barcode) {
-//             itemHistory.push({
-//               billNumber: bill.billNumber,
-//               soldDate: bill.date,
-//               ...item
-//             });
-//           }
-//         });
-//       });
-//       itemHistory.sort((a, b) => new Date(b.soldDate) - new Date(a.soldDate));
-//       setHistoryItems(itemHistory);
-//       setSelectedBarcode(barcode);
-//       setShowHistoryModal(true);
-//     } catch (err) {
-//       console.error("Error fetching item history:", err);
-//       setError("Failed to fetch item history.");
-//     }
-//   };
-
-//   // Submit the form
-//   const handleSubmit = async () => {
-//     if (!pharmacyId) {
-//       setError("Please select a pharmacy.");
-//       return;
-//     }
-//     if (selectedItems.length === 0) {
-//       setError("Please add at least one item.");
-//       return;
-//     }
-//     setIsLoading(true);
-//     setError(null);
-//     try {
-//       const preparedItems = selectedItems.map(item => ({
-//         barcode: item.barcode,
-//         name: item.name,
-//         quantity: item.quantity,
-//         netPrice: parseFloat(item.netPrice.toFixed(2)),
-//         outPrice: parseFloat(item.outPrice.toFixed(2)),
-//         price: parseFloat(item.price.toFixed(2)),
-//         expireDate: item.expireDate,
-//       }));
-//       const bill = await createSoldBill({
-//         items: preparedItems,
-//         pharmacyId,
-//         date: saleDate,
-//         paymentMethod
-//       });
-//       if (onBillCreated) onBillCreated(bill);
-//       alert(`Bill #${bill.billNumber} created successfully!`);
-//       // Reset form
-//       setPharmacyId("");
-//       setPharmacyCode("");
-//       setPharmacyName("");
-//       setSelectedItems([]);
-//     } catch (error) {
-//       console.error("Error creating bill:", error);
-//       setError(error.message || "Failed to create bill. Please try again.");
-//     } finally {
-//       setIsLoading(false);
-//     }
-//   };
-
-//   return (
-//     <div className="container py-4">
-//       {/* Add Tailwind CSS via CDN if not already included */}
-//       <link
-//         href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
-//         rel="stylesheet"
-//       />
-
-//       <Card title="Create New Sale">
-//         {error && (
-//           <div className="alert alert-danger mb-4">
-//             {error}
-//             <button onClick={() => setError(null)} className="ml-4 text-red-800">×</button>
-//           </div>
-//         )}
-//         {/* Pharmacy Info Section */}
-//         <div className="mb-6 space-y-4">
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//             <div>
-//               <label className="block mb-1 text-sm font-medium">Pharmacy Code</label>
-//               <input
-//                 type="text"
-//                 className="w-full p-2 border rounded"
-//                 placeholder="Enter code"
-//                 value={pharmacyCode}
-//                 onChange={(e) => {
-//                   setPharmacyCode(e.target.value);
-//                   setPharmacyName("");
-//                 }}
-//                 onFocus={() => setShowPharmacySuggestions(true)}
-//               />
-//             </div>
-//             <div className="relative">
-//               <label className="block mb-1 text-sm font-medium">Pharmacy Name</label>
-//               <input
-//                 type="text"
-//                 className="w-full p-2 border rounded"
-//                 placeholder="Enter name"
-//                 value={pharmacyName}
-//                 onChange={(e) => {
-//                   setPharmacyName(e.target.value);
-//                   setPharmacyCode("");
-//                 }}
-//                 onFocus={() => setShowPharmacySuggestions(true)}
-//               />
-//               {showPharmacySuggestions && pharmacySuggestions.length > 0 && (
-//                 <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto">
-//                   {pharmacySuggestions.map((pharmacy) => (
-//                     <div
-//                       key={pharmacy.id}
-//                       className="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
-//                       onClick={() => handlePharmacySelect(pharmacy)}
-//                     >
-//                       <div className="font-medium">{pharmacy.name}</div>
-//                       <div className="text-sm text-gray-500">Code: {pharmacy.code}</div>
-//                     </div>
-//                   ))}
-//                 </div>
-//               )}
-//             </div>
-//           </div>
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-//             <div>
-//               <label className="block mb-1 text-sm font-medium">Sale Date</label>
-//               <input
-//                 type="date"
-//                 className="w-full p-2 border rounded"
-//                 value={saleDate}
-//                 onChange={(e) => setSaleDate(e.target.value)}
-//               />
-//             </div>
-//             <div>
-//               <label className="block mb-1 text-sm font-medium">Payment Method</label>
-//               <select
-//                 className="w-full p-2 border rounded"
-//                 value={paymentMethod}
-//                 onChange={(e) => setPaymentMethod(e.target.value)}
-//               >
-//                 <option value="Cash">Cash</option>
-//                 <option value="Unpaid">Unpaid</option>
-//               </select>
-//             </div>
-//           </div>
-//         </div>
-//         {/* Item Search Section */}
-//         <div className="mb-6">
-//           <label className="block mb-1 text-sm font-medium">Search Items</label>
-//           <input
-//             type="text"
-//             className="w-full p-2 border rounded"
-//             placeholder="Search by barcode or name..."
-//             value={searchQuery}
-//             onChange={(e) => {
-//               setSearchQuery(e.target.value);
-//               handleSearch(e.target.value);
-//             }}
-//           />
-//           {/* Search Results Table */}
-//           {searchResults.length > 0 && (
-//             <div className="mt-2 bg-white border border-gray-200 rounded-lg overflow-hidden">
-//               <table className="min-w-full divide-y divide-gray-200">
-//                 <thead className="bg-gray-50">
-//                   <tr>
-//                     <th className="p-3 text-left text-sm font-medium">Name</th>
-//                     <th className="p-3 text-left text-sm font-medium">Barcode</th>
-//                     <th className="p-3 text-right text-sm font-medium">Price</th>
-//                     <th className="p-3 text-right text-sm font-medium">Available</th>
-//                     <th className="p-3 text-right text-sm font-medium">Expire Date</th>
-//                     <th className="p-3 text-center text-sm font-medium">Actions</th>
-//                   </tr>
-//                 </thead>
-//                 <tbody>
-//                   {searchResults.map((item) => {
-//                     const batches = getBatchesForItem(item.barcode);
-//                     return (
-//                       <React.Fragment key={`item-${item.id}`}>
-//                         {batches.map((batch, index) => (
-//                           <tr key={`batch-${item.id}-${index}`} className="hover:bg-gray-50">
-//                             {index === 0 && (
-//                               <>
-//                                 <td className="p-3" rowSpan={batches.length}>
-//                                   <div className="font-medium">{item.name}</div>
-//                                 </td>
-//                                 <td className="p-3" rowSpan={batches.length}>
-//                                   <div className="font-mono">{item.barcode}</div>
-//                                 </td>
-//                               </>
-//                             )}
-//                             <td className="p-3 text-right">{batch.outPrice.toFixed(2)} IQD</td>
-//                             <td className="p-3 text-right">{batch.quantity}</td>
-//                             <td className="p-3 text-right">
-//                               {batch.expireDate ? new Date(batch.expireDate).toLocaleDateString() : 'N/A'}
-//                             </td>
-//                             <td className="p-3">
-//                               {index === 0 && (
-//                                 <div className="flex flex-col space-y-2">
-//                                   <button
-//                                     className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
-//                                     onClick={() => handleSelectBatch(batch)}
-//                                   >
-//                                     Add
-//                                   </button>
-//                                 </div>
-//                               )}
-//                             </td>
-//                           </tr>
-//                         ))}
-//                         <tr className="hover:bg-gray-50">
-//                           <td colSpan="5"></td>
-//                           <td className="p-3">
-//                             <button
-//                               className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-700 transition-colors w-full"
-//                               onClick={() => fetchItemHistory(item.barcode)}
-//                             >
-//                               View History
-//                             </button>
-//                           </td>
-//                         </tr>
-//                       </React.Fragment>
-//                     );
-//                   })}
-//                 </tbody>
-//               </table>
-//             </div>
-//           )}
-//         </div>
-//         {/* Selected Items Section */}
-//         {selectedItems.length > 0 && (
-//           <div className="mb-6">
-//             <h3 className="text-lg font-medium mb-3">Selected Items</h3>
-//             <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-//               <table className="min-w-full divide-y divide-gray-200">
-//                 <thead className="bg-gray-50">
-//                   <tr>
-//                     <th className="p-3 text-left text-sm font-medium">Item</th>
-//                     <th className="p-3 text-center text-sm font-medium">Quantity</th>
-//                     <th className="p-3 text-center text-sm font-medium">Unit Price</th>
-//                     <th className="p-3 text-right text-sm font-medium">Subtotal</th>
-//                     <th className="p-3 text-center text-sm font-medium">Action</th>
-//                   </tr>
-//                 </thead>
-//                 <tbody>
-//                   {selectedItems.map((item, index) => (
-//                     <tr key={`selected-${index}`} className="hover:bg-gray-50">
-//                       <td className="p-3">
-//                         <div className="font-medium">{item.name}</div>
-//                         <div className="text-xs text-gray-500">
-//                           {item.barcode} • Exp: {item.expireDate ? new Date(item.expireDate).toLocaleDateString() : 'N/A'}
-//                         </div>
-//                       </td>
-//                       <td className="p-3">
-//                         <div className="flex items-center justify-center">
-//                           <input
-//                             type="number"
-//                             min="1"
-//                             max={item.availableQuantity}
-//                             className="w-16 text-center border rounded p-1 text-sm"
-//                             value={item.quantity}
-//                             onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-//                           />
-//                           <span className="ml-2 text-xs text-gray-500">/{item.availableQuantity}</span>
-//                         </div>
-//                       </td>
-//                       <td className="p-3">
-//                         <div className="flex justify-center">
-//                           <input
-//                             type="number"
-//                             min="0.01"
-//                             step="0.01"
-//                             className="w-20 text-center border rounded p-1 text-sm"
-//                             value={item.price}
-//                             onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-//                           />
-//                           <span className="ml-1 text-xs text-gray-500 self-center">IQD</span>
-//                         </div>
-//                       </td>
-//                       <td className="p-3 text-right text-sm font-medium">
-//                         {(item.quantity * item.price).toFixed(2)} IQD
-//                       </td>
-//                       <td className="p-3 text-center">
-//                         <button
-//                           className="px-2 py-1 bg-red-600 text-white text-xs rounded-md hover:bg-red-700 transition-colors"
-//                           onClick={() => handleRemoveItem(index)}
-//                         >
-//                           ×
-//                         </button>
-//                       </td>
-//                     </tr>
-//                   ))}
-//                   <tr className="bg-gray-50 font-medium">
-//                     <td colSpan="3" className="p-3 text-right">Total:</td>
-//                     <td className="p-3 text-right">
-//                       {selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)} IQD
-//                     </td>
-//                     <td className="p-3"></td>
-//                   </tr>
-//                 </tbody>
-//               </table>
-//             </div>
-//           </div>
-//         )}
-//         {/* Submit Button */}
-//         <div className="flex justify-end">
-//           <button
-//             type="button"
-//             className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-//             disabled={isLoading || selectedItems.length === 0 || !pharmacyId}
-//             onClick={handleSubmit}
-//           >
-//             {isLoading ? (
-//               <>
-//                 <span className="mr-2">Processing...</span>
-//                 <svg className="animate-spin h-4 w-4 inline" viewBox="0 0 24 24">
-//                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-//                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-//                 </svg>
-//               </>
-//             ) : (
-//               "Create Sale Bill"
-//             )}
-//           </button>
-//         </div>
-//       </Card>
-
-//       {/* History Modal */}
-//       {showHistoryModal && (
-//         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-//           <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] overflow-y-auto">
-//             <div className="p-6">
-//               <div className="flex justify-between items-center mb-4">
-//                 <h3 className="text-lg font-bold">Sales History for Barcode: {selectedBarcode}</h3>
-//                 <button
-//                   onClick={() => setShowHistoryModal(false)}
-//                   className="text-gray-500 hover:text-gray-700"
-//                 >
-//                   ×
-//                 </button>
-//               </div>
-//               {historyItems.length > 0 ? (
-//                 <div className="overflow-y-auto max-h-[60vh]">
-//                   <table className="min-w-full divide-y divide-gray-200">
-//                     <thead className="bg-gray-50 sticky top-0">
-//                       <tr>
-//                         <th className="p-3 text-left text-sm font-medium">Bill #</th>
-//                         <th className="p-3 text-left text-sm font-medium">Sold Date</th>
-//                         <th className="p-3 text-right text-sm font-medium">Net Price</th>
-//                         <th className="p-3 text-right text-sm font-medium">Out Price</th>
-//                         <th className="p-3 text-right text-sm font-medium">Sold Qty</th>
-//                       </tr>
-//                     </thead>
-//                     <tbody>
-//                       {historyItems.map((historyItem, index) => (
-//                         <tr key={`history-${index}`} className="hover:bg-gray-50">
-//                           <td className="p-3">{historyItem.billNumber}</td>
-//                           <td className="p-3">{new Date(historyItem.soldDate).toLocaleDateString()}</td>
-//                           <td className="p-3 text-right">{historyItem.netPrice.toFixed(2)} IQD</td>
-//                           <td className="p-3 text-right">{historyItem.outPrice.toFixed(2)} IQD</td>
-//                           <td className="p-3 text-right">{historyItem.quantity}</td>
-//                         </tr>
-//                       ))}
-//                     </tbody>
-//                   </table>
-//                 </div>
-//               ) : (
-//                 <p className="text-center text-gray-500">No sales history found for this item.</p>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-
 "use client";
-import { useState, useEffect } from "react";
-import { searchInitializedItems, createSoldBill, getStoreItems, searchPharmacies, searchSoldBills } from "@/lib/data";
-import Card from "./Card";
+import { useState, useEffect, useRef } from "react";
+import {
+  searchInitializedItems,
+  createSoldBill,
+  getStoreItems,
+  searchPharmacies,
+  searchSoldBills,
+  updateSoldBill,
+  uploadBillAttachmentWithMetadata,
+  getBillAttachmentUrlEnhanced,
+  deleteBillAttachment,
+  storeBase64Image,
+  getBase64BillAttachment,
+  deleteBase64Attachment
+} from "@/lib/data";
 import React from "react";
-export default function SellingForm({ onBillCreated }) {
+import Select from "react-select";
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { getFirestore, doc, updateDoc, getDoc, collection, getDocs, query, limit } from "firebase/firestore";
+const storage = getStorage();
+const db = getFirestore();
+
+export default function SellingForm({ onBillCreated, userRole }) {
   // State declarations
   const [pharmacyCode, setPharmacyCode] = useState("");
   const [pharmacyName, setPharmacyName] = useState("");
@@ -557,30 +36,480 @@ export default function SellingForm({ onBillCreated }) {
   const [storeItems, setStoreItems] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [historyItems, setHistoryItems] = useState([]);
-  const [selectedBarcode, setSelectedBarcode] = useState(null);
-  const [selectedItemName, setSelectedItemName] = useState("");
+  const [isConsignment, setIsConsignment] = useState(false);
+  const [showBillPreview, setShowBillPreview] = useState(false);
+  const [currentBill, setCurrentBill] = useState(null);
+  const [note, setNote] = useState("");
+  const [recentBills, setRecentBills] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [billsPerPage] = useState(10);
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingBillNumber, setEditingBillNumber] = useState(null);
+  const [editingBillDisplay, setEditingBillDisplay] = useState("");
+  const [itemFilters, setItemFilters] = useState([]);
+  const [itemOptions, setItemOptions] = useState([]);
+  const [billAttachments, setBillAttachments] = useState({});
+  const [uploadingAttachments, setUploadingAttachments] = useState({});
+  const [scannerStatus, setScannerStatus] = useState('ready');
+  const [isScanning, setIsScanning] = useState(false);
+  const [filters, setFilters] = useState({
+    billNumber: "",
+    itemName: "",
+    paymentStatus: "all",
+    pharmacyName: "",
+    consignment: "all",
+    fromDate: "",
+    toDate: "",
+    globalSearch: ""
+  });
 
-  // Format date to DD/MM/YYYY
-  const formatDate = (date) => {
-    if (!date) return 'N/A';
-    const d = new Date(date);
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  // Refs
+  const pharmacyCodeRef = useRef(null);
+  const pharmacyNameRef = useRef(null);
+  const searchQueryRef = useRef(null);
+  const billNumberRef = useRef(null);
+  const pharmacyNameFilterRef = useRef(null);
+  const billTemplateRef = useRef(null);
+
+  // File Scanner Utility Functions
+  const fileScanner = {
+    isAvailable: true,
+
+    async scanDocument() {
+      return new Promise((resolve, reject) => {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = 'image/*';
+        fileInput.capture = 'environment';
+        
+        fileInput.onchange = (event) => {
+          const file = event.target.files[0];
+          if (!file) {
+            reject(new Error('No file selected'));
+            return;
+          }
+
+          if (!file.type.startsWith('image/')) {
+            reject(new Error('Please select an image file'));
+            return;
+          }
+
+          if (file.size > 5 * 1024 * 1024) {
+            reject(new Error('File size too large. Please select an image smaller than 5MB.'));
+            return;
+          }
+
+          const reader = new FileReader();
+          reader.onload = () => {
+            resolve({
+              base64: reader.result,
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size
+            });
+          };
+          reader.onerror = () => reject(new Error('Failed to read file'));
+          reader.readAsDataURL(file);
+        };
+
+        fileInput.oncancel = () => {
+          reject(new Error('Scan cancelled by user'));
+        };
+
+        fileInput.click();
+      });
+    },
+
+    async convertToBlackAndWhite(base64Image) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          
+          for (let i = 0; i < data.length; i += 4) {
+            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            data[i] = brightness;
+            data[i + 1] = brightness;
+            data[i + 2] = brightness;
+          }
+          
+          ctx.putImageData(imageData, 0, 0);
+          const bwBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          resolve(bwBase64);
+        };
+        img.src = base64Image;
+      });
+    },
+
+    async scanAndConvertToBase64() {
+      try {
+        const scanResult = await this.scanDocument();
+        const bwImage = await this.convertToBlackAndWhite(scanResult.base64);
+        
+        return {
+          ...scanResult,
+          base64: bwImage,
+          fileName: `bw_scan_${Date.now()}.jpg`
+        };
+      } catch (error) {
+        console.error('Scan error:', error);
+        throw error;
+      }
+    },
+
+    getStatus() {
+      return {
+        available: this.isAvailable,
+        status: 'ready',
+        type: 'file_upload'
+      };
+    }
   };
 
-  // Fetch data on mount
+  const handleScanAttachment = async (billNumber) => {
+    if (!billNumber) {
+      alert('Please select a bill first');
+      return;
+    }
+  
+    setIsScanning(true);
+    setUploadingAttachments(prev => ({ ...prev, [billNumber]: true }));
+  
+    try {
+      console.log(`📷 Starting file scan for bill ${billNumber}...`);
+      
+      const scanResult = await fileScanner.scanAndConvertToBase64();
+      
+      if (scanResult && scanResult.base64) {
+        console.log('✅ File scan completed, storing image...');
+        console.log('📊 Scan result:', {
+          fileName: scanResult.fileName,
+          fileType: scanResult.fileType,
+          fileSize: scanResult.fileSize,
+          base64Length: scanResult.base64.length
+        });
+        
+        // Store base64 image in Firestore
+        const storedImage = await storeBase64Image(
+          billNumber,
+          scanResult.base64,
+          scanResult.fileName,
+          scanResult.fileType
+        );
+  
+        console.log('💾 Storage result:', storedImage);
+  
+        // Update UI state
+        setBillAttachments(prev => ({
+          ...prev,
+          [billNumber]: scanResult.base64
+        }));
+  
+        // Update recent bills state
+        setRecentBills(prevBills =>
+          prevBills.map(bill =>
+            bill.billNumber === billNumber
+              ? { 
+                  ...bill, 
+                  hasAttachment: true, 
+                  attachmentUrl: scanResult.base64 
+                }
+              : bill
+          )
+        );
+  
+        console.log(`✅ File attachment stored for bill ${billNumber}`);
+        
+        // Debug: Verify storage worked
+        setTimeout(async () => {
+          console.log('🔄 Verifying storage...');
+          await debugAttachmentStorage(billNumber);
+        }, 1000);
+        
+        alert('Document scanned and attached successfully!');
+      } else {
+        throw new Error('No image data received from file scan');
+      }
+    } catch (error) {
+      console.error("❌ Error with file scan:", error);
+      alert(`File scan failed: ${error.message}`);
+    } finally {
+      setIsScanning(false);
+      setUploadingAttachments(prev => ({ ...prev, [billNumber]: false }));
+    }
+  };
+
+  // Test Firestore connection
+  const testFirestoreConnection = async () => {
+    try {
+      console.log('🧪 Testing Firestore connection...');
+      
+      const testQuery = query(collection(db, "soldBills"), limit(1));
+      const snapshot = await getDocs(testQuery);
+      
+      console.log('✅ Firestore connection successful');
+      console.log(`📊 soldBills collection exists, contains ${snapshot.size} documents`);
+      
+      if (snapshot.size > 0) {
+        const doc = snapshot.docs[0];
+        console.log('Sample sold bill document:', {
+          id: doc.id,
+          data: doc.data()
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Firestore connection failed:', error);
+      setError(`Firestore connection failed: ${error.message}`);
+      return false;
+    }
+  };
+
+  // Load fonts
   useEffect(() => {
-    const fetchStoreItems = async () => {
+    const loadFonts = async () => {
       try {
-        const items = await getStoreItems();
-        setStoreItems(items);
-      } catch (err) {
-        console.error("Error fetching store items:", err);
+        const nrtRegular = new FontFace('NRT-Reg', 'url(/fonts/NRT-Reg.ttf)');
+        const nrtBold = new FontFace('NRT-Bd', 'url(/fonts/NRT-Bd.ttf)');
+        const fonts = await Promise.all([nrtRegular.load(), nrtBold.load()]);
+        fonts.forEach(font => document.fonts.add(font));
+        console.log('NRT fonts loaded successfully');
+      } catch (error) {
+        console.warn('Failed to load NRT fonts, using fallback fonts:', error);
       }
     };
-    fetchStoreItems();
+    loadFonts();
   }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      console.log('🔄 Starting data fetch...');
+  
+      try {
+        await testFirestoreConnection();
+        console.log('📦 Fetching store items...');
+        const items = await getStoreItems();
+        console.log(`✅ Store items loaded: ${items.length} items`);
+        setStoreItems(items);
+        console.log('🧾 Fetching sold bills...');
+        const bills = await searchSoldBills("");
+        console.log(`✅ Sold bills loaded: ${bills.length} bills`);
+  
+        const sortedBills = bills.sort((a, b) => {
+          const dateA = safeConvertToDate(a.date);
+          const dateB = safeConvertToDate(b.date);
+          return dateB - dateA;
+        });
+        setRecentBills(sortedBills);
+        const uniqueItems = Array.from(new Set(items.map(item => item.name)))
+          .map(name => {
+            const item = items.find(i => i.name === name);
+            return {
+              value: name,
+              label: `${name} (${item.barcode})`,
+              barcode: item.barcode
+            };
+          });
+        setItemOptions(uniqueItems);
+        console.log(`✅ Item options created: ${uniqueItems.length} unique items`);
+        console.log('📎 Loading attachments...');
+        await loadAllAttachments(sortedBills);
+        console.log('✅ Attachments loaded');
+        console.log('🎉 All data loaded successfully!');
+  
+      } catch (err) {
+        console.error('❌ Error fetching data:', err);
+        console.error('Error details:', {
+          name: err.name,
+          message: err.message,
+          code: err.code
+        });
+  
+        setError(`Failed to load data: ${err.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+  
+    fetchData();
+  }, []);
+  
+
+  // Add this function to debug attachment storage and retrieval
+const debugAttachmentStorage = async (billNumber) => {
+  console.log('🔍 Debugging attachment storage for bill:', billNumber);
+  
+  try {
+    // Check if we have it in local state
+    console.log('📱 Local state:', billAttachments[billNumber] ? 'Found' : 'Not found');
+    
+    // Check Firestore for base64 attachment
+    const base64Result = await getBase64BillAttachment(billNumber);
+    console.log('📦 Firestore base64:', base64Result ? `Found (${base64Result.length} chars)` : 'Not found');
+    
+    // Check Firestore for URL attachment
+    const urlResult = await getBillAttachmentUrlEnhanced(billNumber);
+    console.log('🔗 Firestore URL:', urlResult ? 'Found' : 'Not found');
+    
+    // Check recent bills state
+    const billInState = recentBills.find(bill => bill.billNumber === billNumber);
+    console.log('📄 Bill in state:', billInState ? 'Found' : 'Not found');
+    if (billInState) {
+      console.log('   - hasAttachment:', billInState.hasAttachment);
+      console.log('   - attachmentUrl:', billInState.attachmentUrl);
+    }
+    
+    return { base64Result, urlResult };
+  } catch (error) {
+    console.error('❌ Debug error:', error);
+    return { base64Result: null, urlResult: null };
+  }
+};
+const loadAllAttachments = async (bills) => {
+  console.log(`🔍 Loading attachments for ${bills.length} bills...`);
+  const attachments = {};
+  let loadedCount = 0;
+
+  const batchSize = 5;
+  for (let i = 0; i < bills.length; i += batchSize) {
+    const batch = bills.slice(i, i + batchSize);
+
+    const batchPromises = batch.map(async (bill) => {
+      try {
+        console.log(`📎 Checking attachment for bill ${bill.billNumber}...`);
+
+        // Try base64 first
+        let url = await getBase64BillAttachment(bill.billNumber);
+
+        // If no base64, try URL
+        if (!url) {
+          url = await getBillAttachmentUrlEnhanced(bill.billNumber);
+        }
+
+        if (url) {
+          attachments[bill.billNumber] = url;
+          loadedCount++;
+          console.log(`✅ Attachment loaded for bill ${bill.billNumber}`);
+        } else {
+          console.log(`❌ No attachment found for bill ${bill.billNumber}`);
+        }
+      } catch (error) {
+        console.error(`⚠️ Error loading attachment for bill ${bill.billNumber}:`, error);
+      }
+    });
+
+    await Promise.allSettled(batchPromises);
+
+    if (i + batchSize < bills.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  console.log(`✅ Loaded ${loadedCount} attachments out of ${bills.length} bills`);
+  console.log('📱 Final attachments state:', Object.keys(attachments));
+
+  setBillAttachments(attachments);
+};
+
+  // Date conversion utility
+  const safeConvertToDate = (timestamp) => {
+    if (!timestamp) return new Date();
+    if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+      return timestamp.toDate();
+    } else if (timestamp instanceof Date) {
+      return timestamp;
+    } else if (timestamp.seconds) {
+      return new Date(timestamp.seconds * 1000);
+    } else if (typeof timestamp === 'string') {
+      return new Date(timestamp);
+    } else {
+      return new Date();
+    }
+  };
+
+  // Date formatting
+  const formatDate = (date) => {
+    if (!date) return 'N/A';
+    try {
+      const dateObj = safeConvertToDate(date);
+      if (isNaN(dateObj.getTime())) return 'N/A';
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Error formatting date:', error, date);
+      return 'N/A';
+    }
+  };
+
+  // Expire date formatting
+  const formatExpireDate = (date) => {
+    if (!date) return 'N/A';
+    try {
+      let dateObj;
+      if (date.toDate && typeof date.toDate === 'function') {
+        dateObj = date.toDate();
+      } else if (date instanceof Date) {
+        dateObj = date;
+      } else if (date.seconds) {
+        dateObj = new Date(date.seconds * 1000);
+      } else if (typeof date === 'string') {
+        dateObj = new Date(date);
+        if (isNaN(dateObj.getTime())) {
+          const match = date.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/);
+          if (match) {
+            const [, day, month, year] = match;
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthIndex = monthNames.findIndex(m => m.toLowerCase() === month.toLowerCase());
+            if (monthIndex !== -1) {
+              dateObj = new Date(year, monthIndex, parseInt(day));
+            }
+          }
+          if (isNaN(dateObj.getTime())) {
+            const parts = date.split('/');
+            if (parts.length === 3) {
+              const day = parseInt(parts[0]);
+              const month = parseInt(parts[1]) - 1;
+              const year = parseInt(parts[2]);
+              dateObj = new Date(year, month, day);
+            }
+          }
+          if (isNaN(dateObj.getTime())) {
+            const parts = date.split('-');
+            if (parts.length === 3) {
+              const year = parseInt(parts[0]);
+              const month = parseInt(parts[1]) - 1;
+              const day = parseInt(parts[2]);
+              dateObj = new Date(year, month, day);
+            }
+          }
+        }
+      } else {
+        return 'N/A';
+      }
+      if (isNaN(dateObj.getTime())) return 'N/A';
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error('Error formatting expire date:', error, date);
+      return 'N/A';
+    }
+  };
 
   // Search pharmacies
   useEffect(() => {
@@ -607,34 +536,155 @@ export default function SellingForm({ onBillCreated }) {
     setPharmacyCode(pharmacy.code);
     setPharmacyName(pharmacy.name);
     setShowPharmacySuggestions(false);
+    setTimeout(() => {
+      searchQueryRef.current?.focus();
+    }, 100);
   };
 
-  // Get batches for selected item
+  // Focus handlers
+  const handleSearchInputFocus = (e) => e.target.select();
+  const handleBillNumberFocus = (e) => e.target.select();
+  const handlePharmacyNameFilterFocus = (e) => e.target.select();
+
+  // File upload handler (fallback)
+  const handleFileUpload = async (billNumber, file) => {
+    if (!file) return;
+    console.log(`📤 Starting upload for bill ${billNumber}...`);
+    setUploadingAttachments(prev => ({ ...prev, [billNumber]: true }));
+
+    try {
+      const result = await uploadBillAttachmentWithMetadata(billNumber, file);
+      
+      if (result && result.downloadURL) {
+        setBillAttachments(prev => ({
+          ...prev,
+          [billNumber]: result.downloadURL,
+        }));
+        
+        setRecentBills(prevBills =>
+          prevBills.map(bill =>
+            bill.billNumber === billNumber
+              ? { 
+                  ...bill, 
+                  hasAttachment: true, 
+                  attachmentUrl: result.downloadURL 
+                }
+              : bill
+          )
+        );
+        
+        console.log(`✅ Attachment uploaded successfully for bill ${billNumber}:`, result.downloadURL);
+        alert('Attachment uploaded successfully!');
+      } else {
+        throw new Error('No download URL returned from upload');
+      }
+    } catch (error) {
+      console.error("❌ Error uploading attachment:", error);
+      alert(`Failed to upload attachment: ${error.message}`);
+    } finally {
+      setUploadingAttachments(prev => ({ ...prev, [billNumber]: false }));
+    }
+  };
+
+  const handleAttachmentChange = (billNumber, event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      alert("Please select an image file (JPEG, PNG, GIF, etc.)");
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 1 * 1024 * 1024) {
+      alert("File size too large. Please select an image smaller than 1MB.");
+      event.target.value = '';
+      return;
+    }
+    
+    console.log(`📎 Selected file for bill ${billNumber}:`, file.name, file.size);
+    handleFileUpload(billNumber, file);
+    event.target.value = '';
+  };
+
+  const viewAttachment = async (billNumber) => {
+    try {
+      console.log(`👀 Viewing attachment for bill ${billNumber}`);
+      let url = billAttachments[billNumber];
+      
+      if (!url) {
+        url = await getBillAttachmentUrlEnhanced(billNumber);
+      }
+      
+      if (url) {
+        if (url.startsWith('data:')) {
+          const newWindow = window.open();
+          newWindow.document.write(`
+            <html>
+              <head><title>Scanned Document - Bill ${billNumber}</title></head>
+              <body style="margin: 0; padding: 20px; background: #f5f5f5;">
+                <div style="max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  <h2 style="color: #333; margin-bottom: 20px;">Scanned Document - Bill ${billNumber}</h2>
+                  <img src="${url}" style="max-width: 100%; height: auto; border: 1px solid #ddd;" alt="Scanned Document" />
+                  <div style="margin-top: 20px; text-align: center;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Print</button>
+                  </div>
+                </div>
+              </body>
+            </html>
+          `);
+          newWindow.document.close();
+        } else {
+          window.open(url, '_blank');
+        }
+      } else {
+        alert("No attachment found for this bill.");
+      }
+    } catch (error) {
+      console.error("Error viewing attachment:", error);
+      alert("Failed to load attachment. Please try again.");
+    }
+  };
+
+  // Get batches for item
   const getBatchesForItem = (barcode) => {
     return storeItems
       .filter(item => item.barcode === barcode && item.quantity > 0)
       .map(item => ({
         ...item,
         expireDate: item.expireDate,
+        batchId: item.id,
       }))
       .sort((a, b) => {
-        const dateA = a.expireDate ? (a.expireDate.toDate ? a.expireDate.toDate() : new Date(a.expireDate)) : new Date(0);
-        const dateB = b.expireDate ? (b.expireDate.toDate ? b.expireDate.toDate() : new Date(b.expireDate)) : new Date(0);
+        const dateA = safeConvertToDate(a.expireDate);
+        const dateB = safeConvertToDate(b.expireDate);
         return dateA - dateB;
       });
   };
 
   // Search items
   const handleSearch = async (query) => {
-    if (query.length > 0) {
+    if (query.trim().length > 0) {
       try {
         let results = [];
-        if (/^\d+$/.test(query)) {
-          results = await searchInitializedItems(query, "barcode");
+        const searchTerms = query.trim().toLowerCase().split(/\s+/);
+        if (/^\d+$/.test(query.trim())) {
+          results = await searchInitializedItems(query.trim(), "barcode");
         }
-        if (results.length === 0) {
-          results = await searchInitializedItems(query, "name");
+        if (results.length === 0 || !/^\d+$/.test(query.trim())) {
+          const nameResults = await searchInitializedItems(query.trim(), "name");
+          results = [...results, ...nameResults];
         }
+        if (searchTerms.length > 1) {
+          results = results.filter(item =>
+            searchTerms.every(term =>
+              item.name.toLowerCase().includes(term) ||
+              item.barcode.includes(term)
+            )
+          );
+        }
+        results = results.filter((item, index, self) =>
+          index === self.findIndex(i => i.barcode === item.barcode)
+        );
         setSearchResults(results);
       } catch (err) {
         console.error("Error searching items:", err);
@@ -644,18 +694,22 @@ export default function SellingForm({ onBillCreated }) {
     }
   };
 
-  // Add item to selected items
+  // Select batch
   const handleSelectBatch = (batch) => {
     const existingItemIndex = selectedItems.findIndex(
-      item => item.barcode === batch.barcode
+      item => item.batchId === batch.batchId
     );
     if (existingItemIndex >= 0) {
       const updatedItems = [...selectedItems];
-      const maxQty = batch.quantity;
+      const actualBatch = storeItems.find(item => item.id === batch.batchId);
+      const maxQty = actualBatch ? actualBatch.quantity : batch.quantity;
       const newQty = Math.min(updatedItems[existingItemIndex].quantity + 1, maxQty);
       updatedItems[existingItemIndex].quantity = newQty;
+      updatedItems[existingItemIndex].availableQuantity = maxQty;
       setSelectedItems(updatedItems);
     } else {
+      const actualBatch = storeItems.find(item => item.id === batch.batchId);
+      const availableQty = actualBatch ? actualBatch.quantity : batch.quantity;
       setSelectedItems([...selectedItems, {
         ...batch,
         quantity: 1,
@@ -663,23 +717,27 @@ export default function SellingForm({ onBillCreated }) {
         expireDate: batch.expireDate,
         netPrice: parseFloat(batch.netPrice.toFixed(2)),
         outPrice: parseFloat(batch.outPrice.toFixed(2)),
-        availableQuantity: batch.quantity,
+        availableQuantity: availableQty,
+        batchId: batch.batchId,
       }]);
     }
     setSearchQuery("");
   };
 
-  // Update item quantity or price
+  // Handle item change
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...selectedItems];
     if (field === 'quantity') {
-      const maxQty = updatedItems[index].availableQuantity;
-      updatedItems[index].quantity = Math.min(Math.max(1, parseInt(value) || 1), maxQty);
+      const actualBatch = storeItems.find(item => item.id === updatedItems[index].batchId);
+      const maxQty = actualBatch ? actualBatch.quantity : updatedItems[index].availableQuantity;
+      const newQty = Math.min(Math.max(1, parseInt(value) || 1), maxQty);
+      updatedItems[index].quantity = newQty;
+      updatedItems[index].availableQuantity = maxQty;
     } else if (field === 'price') {
       const price = parseFloat(value) || 0;
       updatedItems[index].price = price;
       if (price < updatedItems[index].netPrice) {
-        alert(`Warning: Selling price (${price} IQD) is below net price (${updatedItems[index].netPrice} IQD).`);
+        alert(`Warning: Selling price (${formatCurrency(price)}) is below net price (${formatCurrency(updatedItems[index].netPrice)}).`);
       }
     }
     setSelectedItems(updatedItems);
@@ -692,40 +750,15 @@ export default function SellingForm({ onBillCreated }) {
     setSelectedItems(updatedItems);
   };
 
-  // Fetch history for an item
-  const fetchItemHistory = async (barcode, name) => {
-    if (!pharmacyId) {
-      setError("Please select a pharmacy first.");
-      return;
-    }
-    try {
-      const bills = await searchSoldBills("");
-      const filteredBills = bills.filter(bill => bill.pharmacyId === pharmacyId);
-      const itemHistory = [];
-      filteredBills.forEach(bill => {
-        bill.items.forEach(item => {
-          if (item.barcode === barcode) {
-            itemHistory.push({
-              billNumber: bill.billNumber,
-              soldDate: bill.date,
-              pharmacyName: bill.pharmacyName || "N/A",
-              ...item
-            });
-          }
-        });
-      });
-      itemHistory.sort((a, b) => new Date(b.soldDate) - new Date(a.soldDate));
-      setHistoryItems(itemHistory);
-      setSelectedBarcode(barcode);
-      setSelectedItemName(name);
-      setShowHistoryModal(true);
-    } catch (err) {
-      console.error("Error fetching item history:", err);
-      setError("Failed to fetch item history.");
-    }
+  // Format currency
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-IQ', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   };
 
-  // Submit the form
+  // Submit bill
   const handleSubmit = async () => {
     if (!pharmacyId) {
       setError("Please select a pharmacy.");
@@ -735,8 +768,76 @@ export default function SellingForm({ onBillCreated }) {
       setError("Please add at least one item.");
       return;
     }
+    
     setIsLoading(true);
     setError(null);
+    
+    try {
+      console.log('🔄 Creating new sale bill...');
+      
+      const preparedItems = selectedItems.map(item => ({
+        barcode: item.barcode,
+        name: item.name,
+        quantity: item.quantity,
+        netPrice: parseFloat(item.netPrice.toFixed(2)),
+        outPrice: parseFloat(item.outPrice.toFixed(2)),
+        price: parseFloat(item.price.toFixed(2)),
+        expireDate: item.expireDate,
+        batchId: item.batchId,
+      }));
+      
+      console.log('📦 Prepared items:', preparedItems);
+      
+      const bill = await createSoldBill({
+        items: preparedItems,
+        pharmacyId,
+        pharmacyName: pharmacyName,
+        date: saleDate,
+        paymentMethod,
+        isConsignment,
+        note: note.trim(),
+      });
+      
+      console.log('✅ Bill created successfully:', bill);
+      
+      if (onBillCreated) onBillCreated(bill);
+      setCurrentBill(bill);
+      setShowBillPreview(true);
+      
+      console.log('🔄 Refreshing bills list...');
+      const bills = await searchSoldBills("");
+      const sortedBills = bills.sort((a, b) => {
+        const dateA = safeConvertToDate(a.date);
+        const dateB = safeConvertToDate(b.date);
+        return dateB - dateA;
+      });
+      setRecentBills(sortedBills);
+      await loadAllAttachments(sortedBills);
+      
+      console.log('🎉 Sale completed successfully!');
+      
+    } catch (error) {
+      console.error("❌ Error creating bill:", error);
+      setError(error.message || "Failed to create bill. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Update bill
+  const handleUpdateBill = async () => {
+    if (!pharmacyId) {
+      setError("Please select a pharmacy first.");
+      return;
+    }
+    if (!editingBillNumber) {
+      setError("No bill selected for update.");
+      return;
+    }
+    
+    setIsLoading(true);
+    setError(null);
+    
     try {
       const preparedItems = selectedItems.map(item => ({
         barcode: item.barcode,
@@ -746,160 +847,1975 @@ export default function SellingForm({ onBillCreated }) {
         outPrice: parseFloat(item.outPrice.toFixed(2)),
         price: parseFloat(item.price.toFixed(2)),
         expireDate: item.expireDate,
+        batchId: item.batchId,
       }));
-
-      const bill = await createSoldBill({
+      
+      const updatedBill = await updateSoldBill(editingBillNumber, {
         items: preparedItems,
         pharmacyId,
         pharmacyName: pharmacyName,
         date: saleDate,
-        paymentMethod
+        paymentMethod,
+        isConsignment,
+        note: note.trim(),
       });
-
-      if (onBillCreated) onBillCreated(bill);
-      alert(`Bill #${bill.billNumber} created successfully!`);
-      // Reset form
-      setPharmacyId("");
-      setPharmacyCode("");
-      setPharmacyName("");
-      setSelectedItems([]);
+      
+      if (onBillCreated) onBillCreated(updatedBill);
+      setCurrentBill(updatedBill);
+      setShowBillPreview(true);
+      
+      const bills = await searchSoldBills("");
+      const sortedBills = bills.sort((a, b) => {
+        const dateA = safeConvertToDate(a.date);
+        const dateB = safeConvertToDate(b.date);
+        return dateB - dateA;
+      });
+      setRecentBills(sortedBills);
+      await loadAllAttachments(sortedBills);
+      
+      alert(`Bill #${editingBillNumber} updated successfully!`);
+      resetForm();
+      
     } catch (error) {
-      console.error("Error creating bill:", error);
-      setError(error.message || "Failed to create bill. Please try again.");
+      console.error("Error updating bill:", error);
+      setError(error.message || "Failed to update bill. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  // CSS Styles
-  const styles = {
-    container: {
-      maxWidth: "1200px",
-      margin: "0 auto",
-      padding: "1rem",
-      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
-    },
-    card: {
-      background: "#ffffff",
-      borderRadius: "0.5rem",
-      boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-      padding: "1.5rem",
-      marginBottom: "1rem"
-    },
-    table: {
-      width: "100%",
-      borderCollapse: "separate",
-      borderSpacing: "0",
-      borderRadius: "0.5rem",
-      overflow: "hidden"
-    },
-    tableHeader: {
-      background: "#f9fafb",
-      fontWeight: "600",
-      color: "#1f2937"
-    },
-    tableRow: {
-      transition: "background-color 0.2s ease-in-out",
-      borderBottom: "1px solid #e5e7eb"
-    },
-    tableRowHover: {
-      background: "#f3f4f6"
-    },
-    buttonPrimary: {
-      background: "#3b82f6",
-      color: "#ffffff",
-      border: "none",
-      borderRadius: "0.375rem",
-      padding: "0.5rem 1rem",
-      fontSize: "0.875rem",
-      fontWeight: "500",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease-in-out"
-    },
-    buttonSecondary: {
-      background: "#8b5cf6",
-      color: "#ffffff",
-      border: "none",
-      borderRadius: "0.375rem",
-      padding: "0.5rem 1rem",
-      fontSize: "0.875rem",
-      fontWeight: "500",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease-in-out"
-    },
-    buttonDanger: {
-      background: "#ef4444",
-      color: "#ffffff",
-      border: "none",
-      borderRadius: "0.375rem",
-      padding: "0.25rem 0.5rem",
-      fontSize: "0.875rem",
-      fontWeight: "500",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease-in-out"
-    },
-    buttonSuccess: {
-      background: "#10b981",
-      color: "#ffffff",
-      border: "none",
-      borderRadius: "0.375rem",
-      padding: "0.5rem 1.5rem",
-      fontSize: "0.875rem",
-      fontWeight: "500",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease-in-out"
-    },
-    input: {
-      width: "100%",
-      padding: "0.5rem 0.75rem",
-      border: "1px solid #d1d5db",
-      borderRadius: "0.375rem",
-      fontSize: "0.875rem",
-      transition: "border-color 0.2s ease-in-out"
-    },
-    modal: {
-      position: "fixed",
-      top: "0",
-      left: "0",
-      right: "0",
-      bottom: "0",
-      background: "rgba(0, 0, 0, 0.5)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      zIndex: "50"
-    },
-    modalContent: {
-      background: "#ffffff",
-      borderRadius: "0.5rem",
-      boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-      width: "90%",
-      maxWidth: "800px",
-      maxHeight: "80vh",
-      overflowY: "auto"
+  // Load bill for editing
+  const loadBillForEditing = (bill) => {
+    setIsEditMode(true);
+    setEditingBillNumber(bill.billNumber);
+    setEditingBillDisplay(`Bill #${bill.billNumber} - ${bill.pharmacyName || 'N/A'} - ${formatDate(bill.date)}`);
+    setPharmacyId(bill.pharmacyId);
+    setPharmacyName(bill.pharmacyName || '');
+    
+    const pharmacyBill = recentBills.find(b => b.pharmacyId === bill.pharmacyId);
+    if (pharmacyBill && pharmacyBill.pharmacyCode) {
+      setPharmacyCode(pharmacyBill.pharmacyCode);
+    }
+    
+    setSaleDate(bill.date ? formatDateForInput(safeConvertToDate(bill.date)) : new Date().toISOString().split('T')[0]);
+    setPaymentMethod(bill.paymentStatus || "Unpaid");
+    setIsConsignment(bill.isConsignment || false);
+    setNote(bill.note || "");
+    
+    const itemsWithActualQuantities = bill.items.map(item => {
+      const actualBatch = storeItems.find(storeItem =>
+        storeItem.barcode === item.barcode &&
+        storeItem.id === item.batchId
+      );
+      return {
+        ...item,
+        batchId: item.batchId || `batch-${item.barcode}-${item.expireDate}`,
+        availableQuantity: actualBatch ? actualBatch.quantity : item.quantity,
+        netPrice: item.netPrice || 0,
+        outPrice: item.outPrice || item.price || 0,
+        price: item.price || 0,
+        expireDate: item.expireDate,
+      };
+    });
+    
+    setSelectedItems(itemsWithActualQuantities);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Format date for input
+  const formatDateForInput = (date) => {
+    if (!date) return new Date().toISOString().split('T')[0];
+    const dateObj = safeConvertToDate(date);
+    return dateObj.toISOString().split('T')[0];
+  };
+
+  // Reset form
+  const resetForm = () => {
+    setIsEditMode(false);
+    setEditingBillNumber(null);
+    setEditingBillDisplay("");
+    setPharmacyId("");
+    setPharmacyCode("");
+    setPharmacyName("");
+    setSelectedItems([]);
+    setIsConsignment(false);
+    setNote("");
+    setSaleDate(new Date().toISOString().split('T')[0]);
+    setPaymentMethod("Unpaid");
+    setError(null);
+  };
+
+  // Cancel edit
+  const cancelEdit = () => {
+    resetForm();
+  };
+
+  // Show bill template
+  const showBillTemplate = () => {
+    if (!pharmacyId) {
+      setError("Please select a pharmacy first.");
+      return;
+    }
+    if (selectedItems.length === 0) {
+      setError("Please add at least one item.");
+      return;
+    }
+    const tempBill = {
+      billNumber: "TEMP0000",
+      items: selectedItems,
+      date: saleDate,
+      pharmacyName: pharmacyName,
+      paymentMethod: paymentMethod,
+      note: note
+    };
+    setCurrentBill(tempBill);
+    setShowBillPreview(true);
+  };
+
+  // Print bill
+  const printBill = (bill = null) => {
+    const billToPrint = bill || currentBill;
+    if (!billToPrint) {
+      alert('No bill selected for printing');
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups for printing');
+      return;
+    }
+    const billHTML = createBillTemplateHTML(billToPrint);
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Bill #${billToPrint.billNumber}</title>
+          <meta charset="UTF-8">
+          <style>
+            @font-face {
+              font-family: 'NRT-Reg';
+              src: url('/fonts/NRT-Reg.ttf') format('truetype');
+            }
+            @font-face {
+              font-family: 'NRT-Bd';
+              src: url('/fonts/NRT-Bd.ttf') format('truetype');
+            }
+            body {
+              font-family: 'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+              margin: 0;
+              padding: 20px;
+              color: #2c3e50;
+              background: white;
+            }
+            .bill-template {
+              max-width: 800px;
+              margin: 0 auto;
+              background: white;
+            }
+            .bill-header {
+              margin-bottom: 30px;
+              padding-bottom: 20px;
+              border-bottom: 3px solid #3498db;
+            }
+            .header-content {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-start;
+            }
+            .company-info {
+              flex: 1;
+            }
+            .company-name {
+              font-size: 32px;
+              font-weight: 700;
+              margin: 0 0 10px 0;
+              color: #2c3e50;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              font-family: 'NRT-Bd', sans-serif;
+            }
+            .company-address {
+              font-size: 16px;
+              color: #34495e;
+              margin: 0 0 5px 0;
+              font-weight: 500;
+              font-family: 'NRT-Reg', sans-serif;
+            }
+            .company-phone {
+              font-size: 14px;
+              color: #34495e;
+              margin: 0;
+              font-weight: 500;
+              font-family: 'NRT-Reg', sans-serif;
+            }
+            .invoice-title-section {
+              text-align: right;
+            }
+            .invoice-title-text {
+              font-size: 24px;
+              font-weight: 700;
+              color: #2c3e50;
+              margin: 0 0 10px 0;
+              text-transform: uppercase;
+              font-family: 'NRT-Bd', sans-serif;
+            }
+            .payment-status {
+              display: inline-block;
+              padding: 8px 16px;
+              border-radius: 20px;
+              color: white;
+              font-weight: bold;
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: 1px;
+              font-family: 'NRT-Bd', sans-serif;
+            }
+            .bill-info {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 40px;
+              margin-bottom: 30px;
+            }
+            .items-table {
+              width: 100%;
+              border-collapse: collapse;
+              margin: 20px 0;
+              font-family: 'NRT-Reg', sans-serif;
+            }
+            .items-table th {
+              background-color: #34495e;
+              color: white;
+              padding: 12px;
+              text-align: left;
+              font-weight: 600;
+              font-family: 'NRT-Bd', sans-serif;
+            }
+            .items-table td {
+              padding: 12px;
+              border-bottom: 1px solid #e1e8ed;
+            }
+            .items-table tr:nth-child(even) {
+              background-color: #f8f9fa;
+            }
+            .total-row {
+              background-color: #2c3e50 !important;
+              color: white;
+              font-weight: bold;
+            }
+            @media print {
+              body { margin: 0; padding: 10px; }
+              .no-print { display: none !important; }
+              .bill-template { max-width: 100%; }
+            }
+          </style>
+        </head>
+        <body>
+          ${billHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      setTimeout(() => {
+        printWindow.close();
+      }, 1000);
+    }, 500);
+  };
+
+  // Create bill template HTML
+  const createBillTemplateHTML = (bill) => {
+    const totals = {
+      subtotal: bill.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0,
+      grandTotal: bill.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0
+    };
+    const getPaymentStatusColor = () => {
+      switch(paymentMethod) {
+        case 'Cash': return '#27ae60';
+        case 'Unpaid': return '#e74c3c';
+        default: return '#95a5a6';
+      }
+    };
+    return `
+      <div class="bill-template">
+        <div class="bill-header">
+          <div class="header-content">
+            <div class="company-info">
+              <h1 class="company-name">ARAN MED STORE</h1>
+              <p class="company-address">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
+              <p class="company-phone">+964 772 533 5252 | +964 751 741 22 41</p>
+            </div>
+            <div class="invoice-title-section">
+              <div class="invoice-title">
+                <h2 class="invoice-title-text">MEDICAL INVOICE</h2>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="bill-info">
+          <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed">
+            <h3 style="margin: 0 0 15px 0; font-family: 'NRT-Bd', sans-serif;">Bill To</h3>
+            <div style="padding: 15px; background: white; border-radius: 6px; border: 1px solid #e1e8ed">
+              <p style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">${bill.pharmacyName}</p>
+              <p style="font-size: 14px; color: #7f8c8d; margin: 0; font-family: 'NRT-Reg', sans-serif;">Code: ${pharmacyCode}</p>
+            </div>
+          </div>
+          <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed">
+            <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
+              <tr>
+                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice #:</td>
+                <td style="padding: 5px 0; font-size: 14px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
+                  ${bill.billNumber === "TEMP0000" ? "TEMP0000" : bill.billNumber?.toString().padStart(7, '0')}
+                </td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice Date:</td>
+                <td style="padding: 5px 0; font-size: 14px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">${formatDate(saleDate)}</td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Payment:</td>
+                <td style="padding: 5px 0;">
+                  <div class="payment-status" style="background-color: ${getPaymentStatusColor()}">
+                    ${paymentMethod.toUpperCase()}
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item Details</th>
+              <th style="text-align: center;">Barcode</th>
+              <th style="text-align: center;">Quantity</th>
+              <th style="text-align: right;">Unit Price (IQD)</th>
+              <th style="text-align: right;">Total Amount (IQD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bill.items?.map((item, index) => `
+              <tr>
+                <td style="text-align: center; font-weight: 600;">${index + 1}</td>
+                <td>
+                  <div style="font-weight: 600; margin-bottom: 4px; font-family: 'NRT-Bd', sans-serif;">${item.name}</div>
+                  <div style="font-size: 12px; color: #7f8c8d;">
+                    Exp: ${formatExpireDate(item.expireDate)}
+                  </div>
+                </td>
+                <td style="text-align: center; font-family: 'NRT-Reg', monospace;">${item.barcode}</td>
+                <td style="text-align: center; font-weight: 600;">${item.quantity}</td>
+                <td style="text-align: right; font-weight: 600;">${formatCurrency(item.price)}</td>
+                <td style="text-align: right; font-weight: 600;">${formatCurrency(item.quantity * item.price)}</td>
+              </tr>
+            `).join('')}
+            <tr class="total-row">
+              <td colspan="5" style="text-align: right; font-weight: 600;">GRAND TOTAL:</td>
+              <td style="text-align: right; font-weight: 600; font-size: 16px;">${formatCurrency(totals.grandTotal)} IQD</td>
+            </tr>
+          </tbody>
+        </table>
+        ${bill.note ? `
+          <div style="margin-bottom: 20px; padding: 10px; background-color: #fff9e6; border-radius: 8px;">
+            <h4 style="font-weight: 600; margin-bottom: 10px; color: #e67e22; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
+            <p style="font-size: 14px; color: #2c3e50; line-height: 1.5; margin: 0; font-family: 'NRT-Reg', sans-serif;">${bill.note}</p>
+          </div>
+        ` : ''}
+        <div style="margin-top: 30px; text-align: right;">
+          <div style="width: 300px; height: 1px; background-color: #3498db; margin: 20px 0 8px auto"></div>
+          <p style="font-size: 12px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif;">Receiver Signature (Stamp)</p>
+        </div>
+      </div>
+    `;
+  };
+
+  // Close bill preview
+  const closeBillPreview = () => {
+    setShowBillPreview(false);
+    setCurrentBill(null);
+    if (currentBill && currentBill.billNumber !== "TEMP0000") {
+      resetForm();
     }
   };
 
+  // Group search results
+  const groupSearchResults = (results) => {
+    const grouped = {};
+    results.forEach(item => {
+      if (!grouped[item.barcode]) {
+        grouped[item.barcode] = {
+          ...item,
+          batches: getBatchesForItem(item.barcode)
+        };
+      }
+    });
+    return Object.values(grouped);
+  };
+
+  // Filter input handlers
+  const handleFilterInputFocus = (e) => e.target.select();
+  const handleFilterInputChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+    setCurrentPage(1);
+  };
+
+  // Filter bills
+  const filteredBills = recentBills.filter(bill => {
+    const matchesBillNumber = !filters.billNumber ||
+      bill.billNumber.toString().includes(filters.billNumber);
+    const matchesPharmacy = !filters.pharmacyName ||
+      (bill.pharmacyName && bill.pharmacyName.toLowerCase().includes(filters.pharmacyName.toLowerCase()));
+    const matchesPaymentStatus = filters.paymentStatus === "all" ||
+      bill.paymentStatus === filters.paymentStatus;
+    const matchesConsignment = filters.consignment === "all" ||
+      (filters.consignment === "yes" && bill.isConsignment) ||
+      (filters.consignment === "no" && !bill.isConsignment);
+    const matchesItemName = !filters.itemName ||
+      bill.items.some(item => item.name.toLowerCase().includes(filters.itemName.toLowerCase()));
+    const matchesSpecificItems = itemFilters.length === 0 ||
+      bill.items.some(item => itemFilters.includes(item.name));
+    const matchesGlobalSearch = !filters.globalSearch ||
+      bill.billNumber.toString().includes(filters.globalSearch) ||
+      (bill.pharmacyName && bill.pharmacyName.toLowerCase().includes(filters.globalSearch.toLowerCase())) ||
+      bill.items.some(item =>
+        item.name.toLowerCase().includes(filters.globalSearch.toLowerCase()) ||
+        item.barcode.includes(filters.globalSearch)
+      );
+    let matchesDateRange = true;
+    if (filters.fromDate || filters.toDate) {
+      const billDate = safeConvertToDate(bill.date);
+      if (filters.fromDate) {
+        const startDate = new Date(filters.fromDate);
+        matchesDateRange = matchesDateRange && billDate >= startDate;
+      }
+      if (filters.toDate) {
+        const endDate = new Date(filters.toDate);
+        endDate.setHours(23, 59, 59, 999);
+        matchesDateRange = matchesDateRange && billDate <= endDate;
+      }
+    }
+    return matchesBillNumber && matchesPharmacy && matchesPaymentStatus &&
+           matchesDateRange && matchesConsignment && matchesItemName &&
+           matchesGlobalSearch && matchesSpecificItems;
+  });
+
+  // Pagination
+  const indexOfLastBill = currentPage * billsPerPage;
+  const indexOfFirstBill = indexOfLastBill - billsPerPage;
+  const currentBills = filteredBills.slice(indexOfFirstBill, indexOfLastBill);
+  const totalPages = Math.ceil(filteredBills.length / billsPerPage);
+  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+  // Clear filters
+  const clearFilters = () => {
+    setFilters({
+      billNumber: "",
+      itemName: "",
+      paymentStatus: "all",
+      pharmacyName: "",
+      consignment: "all",
+      fromDate: "",
+      toDate: "",
+      globalSearch: ""
+    });
+    setItemFilters([]);
+  };
+
+  // Scanner Status Component
+  const ScannerStatus = () => {
+    const getStatusColor = () => {
+      switch(scannerStatus) {
+        case 'ready': return '#27ae60';
+        case 'initializing': return '#f39c12';
+        case 'error': return '#e74c3c';
+        default: return '#95a5a6';
+      }
+    };
+
+    const getStatusText = () => {
+      switch(scannerStatus) {
+        case 'ready': return 'Click "Scan Document" to upload signature image';
+        case 'initializing': return 'Initializing scanner...';
+        case 'error': return 'Scanner not available - Using file upload';
+        default: return 'Scanner not connected';
+      }
+    };
+
+    // return (
+    //   <div style={{
+    //     padding: '10px',
+    //     backgroundColor: '#f8f9fa',
+    //     border: `2px solid ${getStatusColor()}`,
+    //     borderRadius: '8px',
+    //     margin: '10px 0',
+    //     textAlign: 'center'
+    //    }}>
+    //     <div style={{ fontWeight: '600', color: getStatusColor(), marginBottom: '5px' }}>
+    //       Document Scanner Status: {scannerStatus.toUpperCase()}
+    //     </div>
+    //     <div style={{ fontSize: '12px', color: '#7f8c8d' }}>
+    //       {getStatusText()}
+    //     </div>
+    //     {scannerStatus === 'error' && (
+    //       <div style={{ fontSize: '11px', color: '#e74c3c', marginTop: '5px' }}>
+    //         Using file upload as fallback
+    //       </div>
+    //     )}
+    //    </div>
+    // );
+  };
+
+  // Scanner Attachment Button Component
+  const ScannerAttachmentButton = ({ bill, isUploading }) => {
+    const hasAttachment = billAttachments[bill.billNumber];
+    
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+        {hasAttachment ? (
+          <button
+            style={styles.viewAttachmentButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              viewAttachment(bill.billNumber);
+            }}
+            title="View Scanned Document"
+          >
+            📄 View Scan
+          </button>
+        ) : (
+          <button
+            style={isUploading ? { ...styles.attachButton, opacity: 0.6 } : styles.attachButton}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleScanAttachment(bill.billNumber);
+            }}
+            disabled={isUploading}
+            title="Upload Signature Image"
+          >
+            {isUploading ? '⏳ Scanning...' : '📷 Scan Document'}
+          </button>
+        )}
+        
+        {/* Scanner status indicator */}
+        <div style={{
+          fontSize: '10px',
+          color: scannerStatus === 'ready' ? '#27ae60' : 
+                 scannerStatus === 'initializing' ? '#f39c12' : 
+                 scannerStatus === 'error' ? '#e74c3c' : '#95a5a6',
+          fontWeight: 'bold'
+        }}>
+          {scannerStatus === 'ready' ? 'Scanner ✓' :
+           scannerStatus === 'initializing' ? 'Scanner ⚡' :
+           scannerStatus === 'error' ? 'Scanner ✗' : 'Scanner'}
+        </div>
+      </div>
+    );
+  };
+
+  // Styles
+  const styles = {
+    container: {
+      maxWidth: "75%",
+      margin: "0 auto",
+      padding: "20px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      backgroundColor: "#f5f6fa",
+      minHeight: "100vh"
+    },
+    header: {
+      fontSize: "32px",
+      fontWeight: "700",
+      marginBottom: "30px",
+      color: "#2c3e50",
+      textAlign: "center",
+      textTransform: "uppercase",
+      letterSpacing: "1px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    formContainer: {
+      backgroundColor: "white",
+      padding: "25px",
+      borderRadius: "12px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+      border: "1px solid #e1e8ed",
+      marginBottom: "30px"
+    },
+    grid: {
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: "20px",
+      marginBottom: "20px"
+    },
+    inputGroup: {
+      marginBottom: "20px",
+      position: 'relative'
+    },
+    label: {
+      display: "block",
+      marginBottom: "8px",
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontSize: "14px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    input: {
+      width: "100%",
+      padding: "12px 15px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "8px",
+      fontSize: "14px",
+      boxSizing: "border-box",
+      backgroundColor: "white",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      outline: "none"
+    },
+    textarea: {
+      width: "100%",
+      padding: "12px 15px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "8px",
+      fontSize: "14px",
+      boxSizing: "border-box",
+      backgroundColor: "white",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      outline: "none",
+      resize: "vertical",
+      minHeight: "80px"
+    },
+    select: {
+      width: "100%",
+      padding: "12px 15px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "8px",
+      fontSize: "14px",
+      boxSizing: "border-box",
+      backgroundColor: "white",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      outline: "none"
+    },
+    checkboxContainer: {
+      display: "flex",
+      alignItems: "center",
+      marginBottom: "20px",
+      padding: "15px",
+      backgroundColor: "#f8f9fa",
+      borderRadius: "8px",
+      border: "1px solid #e1e8ed"
+    },
+    checkbox: {
+      marginRight: "12px",
+      width: "18px",
+      height: "18px",
+      accentColor: "#3498db"
+    },
+    checkboxLabel: {
+      fontSize: "14px",
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    searchSection: {
+      marginBottom: "20px"
+    },
+    suggestionsDropdown: {
+      position: "absolute",
+      width: "100%",
+      backgroundColor: "white",
+      border: "2px solid #3498db",
+      borderRadius: "8px",
+      marginTop: "2px",
+      maxHeight: "200px",
+      overflowY: "auto",
+      zIndex: "1000",
+      boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    suggestionItem: {
+      padding: "12px 15px",
+      cursor: "pointer",
+      borderBottom: "1px solid #e1e8ed",
+      fontSize: "14px",
+      transition: "background-color 0.2s ease",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    searchResults: {
+      marginTop: "10px",
+      backgroundColor: "white",
+      border: "2px solid #e1e8ed",
+      borderRadius: "8px",
+      overflow: "hidden"
+    },
+    itemGroup: {
+      border: "2px solid #e1e8ed",
+      marginBottom: "15px",
+      borderRadius: "8px",
+      overflow: "hidden",
+      backgroundColor: "white"
+    },
+    itemGroupHeader: {
+      backgroundColor: "#34495e",
+      padding: "12px 15px",
+      fontWeight: "600",
+      color: "white",
+      fontSize: "14px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    table: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "13px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableHeader: {
+      backgroundColor: "#34495e",
+      fontWeight: "600",
+      color: "white",
+      padding: "12px 10px",
+      textAlign: "left",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableCell: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #e1e8ed",
+      fontSize: "13px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    addButton: {
+      backgroundColor: "#27ae60",
+      color: "white",
+      border: "none",
+      padding: "8px 16px",
+      borderRadius: "6px",
+      fontSize: "12px",
+      cursor: "pointer",
+      marginRight: "5px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    historyButton: {
+      backgroundColor: "#8e44ad",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "6px",
+      fontSize: "12px",
+      fontWeight: "600",
+      cursor: "pointer",
+      marginTop: "10px",
+      width: "100%",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    selectedItems: {
+      marginTop: "25px"
+    },
+    selectedItem: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "15px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "8px",
+      marginBottom: "10px",
+      backgroundColor: "#f8f9fa",
+      transition: "all 0.3s ease"
+    },
+    itemDetails: {
+      flex: 1
+    },
+    itemName: {
+      fontWeight: "600",
+      fontSize: "14px",
+      marginBottom: "4px",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    itemMeta: {
+      fontSize: "12px",
+      color: "#7f8c8d",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    quantityInput: {
+      width: "70px",
+      padding: "8px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "6px",
+      textAlign: "center",
+      marginRight: "8px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    priceInput: {
+      width: "100px",
+      padding: "8px",
+      border: "2px solid #e1e8ed",
+      borderRadius: "6px",
+      textAlign: "center",
+      marginRight: "8px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    removeButton: {
+      backgroundColor: "#e74c3c",
+      color: "white",
+      border: "none",
+      padding: "8px 12px",
+      borderRadius: "6px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    total: {
+      textAlign: "right",
+      fontSize: "16px",
+      fontWeight: "600",
+      marginTop: "15px",
+      padding: "15px",
+      backgroundColor: "#34495e",
+      color: "white",
+      borderRadius: "8px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    buttonContainer: {
+      display: "flex",
+      gap: "15px",
+      marginTop: "20px"
+    },
+    editModeButtons: {
+      display: "flex",
+      gap: "15px",
+      marginTop: "20px"
+    },
+    button: {
+      backgroundColor: "#3498db",
+      color: "white",
+      padding: "14px 30px",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "pointer",
+      width: "100%",
+      marginTop: "10px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    updateButton: {
+      backgroundColor: "#f39c12",
+      color: "white",
+      padding: "14px 30px",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "pointer",
+      width: "100%",
+      marginTop: "10px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    previewButton: {
+      backgroundColor: "#95a5a6",
+      color: "white",
+      padding: "14px 30px",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "pointer",
+      width: "100%",
+      marginTop: "10px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    cancelButton: {
+      backgroundColor: "#95a5a6",
+      color: "white",
+      padding: "14px 30px",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "pointer",
+      width: "100%",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    buttonDisabled: {
+      backgroundColor: "#bdc3c7",
+      color: "#7f8c8d",
+      padding: "14px 30px",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "not-allowed",
+      width: "100%",
+      marginTop: "10px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    },
+    error: {
+      backgroundColor: "#ffeaa7",
+      color: "#d63031",
+      padding: "15px",
+      borderRadius: "8px",
+      marginBottom: "20px",
+      border: "1px solid #fab1a0",
+      fontSize: "14px",
+      position: "relative",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    recentBillsSection: {
+      backgroundColor: "white",
+      padding: "25px",
+      borderRadius: "12px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+      border: "1px solid #e1e8ed"
+    },
+    sectionHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "20px"
+    },
+    sectionTitle: {
+      fontSize: "20px",
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    advancedSearchButton: {
+      backgroundColor: "#3498db",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "6px",
+      fontSize: "14px",
+      fontWeight: "600",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease"
+    },
+    searchFilters: {
+      backgroundColor: "#f8f9fa",
+      padding: "20px",
+      borderRadius: "8px",
+      border: "1px solid #e1e8ed",
+      marginBottom: "20px"
+    },
+    filterSectionTitle: {
+      fontSize: "16px",
+      fontWeight: "600",
+      marginBottom: "15px",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    filterRow: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+      gap: "15px",
+      marginBottom: "15px"
+    },
+    filterGroup: {
+      display: "flex",
+      flexDirection: "column"
+    },
+    filterLabel: {
+      fontSize: "12px",
+      fontWeight: "600",
+      marginBottom: "5px",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    filterInput: {
+      padding: "8px 12px",
+      border: "1px solid #e1e8ed",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    filterSelect: {
+      padding: "8px 12px",
+      border: "1px solid #e1e8ed",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      backgroundColor: "white"
+    },
+    globalSearchGroup: {
+      width: "100%"
+    },
+    globalSearchInput: {
+      width: "100%",
+      padding: "10px 15px",
+      border: "1px solid #e1e8ed",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    specificItemsGroup: {
+      width: "100%"
+    },
+    filterActions: {
+      display: "flex",
+      justifyContent: "flex-end"
+    },
+    clearFiltersButton: {
+      backgroundColor: "#95a5a6",
+      color: "white",
+      border: "none",
+      padding: "8px 16px",
+      borderRadius: "4px",
+      fontSize: "14px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    billsTable: {
+      width: "100%",
+      borderCollapse: "collapse",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableCellCenter: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #e1e8ed",
+      textAlign: "center",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableCellCenterdatee: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #e1e8ed",
+      textAlign: "left",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableCellRight: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #e1e8ed",
+      textAlign: "right",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableCellRightttt: {
+      padding: "12px 10px",
+      borderBottom: "1px solid #e1e8ed",
+      textAlign: "left",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    tableRowEven: {
+      backgroundColor: "#f8f9fa"
+    },
+    tableRowOdd: {
+      backgroundColor: "white"
+    },
+    selectedRow: {
+      backgroundColor: "#e3f2fd",
+      borderLeft: "4px solid #2196f3"
+    },
+    detailCell: {
+      padding: "0",
+      borderBottom: "1px solid #e1e8ed"
+    },
+    paymentBadge: {
+      padding: "4px 8px",
+      borderRadius: "12px",
+      fontSize: "11px",
+      fontWeight: "600",
+      color: "white",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    actionButtons: {
+      display: "flex",
+      gap: "5px",
+      justifyContent: "center"
+    },
+    editButton: {
+      backgroundColor: "#f39c12",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    printSmallButton: {
+      backgroundColor: "#27ae60",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    attachButton: {
+      backgroundColor: "#9b59b6",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      display: "flex",
+      alignItems: "center",
+      gap: "5px"
+    },
+    viewAttachmentButton: {
+      backgroundColor: "#27ae60",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease"
+    },
+    billDetails: {
+      backgroundColor: "#f8f9fa",
+      padding: "20px",
+      borderRadius: "8px",
+      margin: "10px 0",
+      border: "1px solid #e1e8ed"
+    },
+    billDetailsHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "15px"
+    },
+    billDetailsTitle: {
+      fontSize: "18px",
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    billDetailsActions: {
+      display: "flex",
+      gap: "10px",
+      alignItems: "center"
+    },
+    closeDetailsButton: {
+      backgroundColor: "#e74c3c",
+      color: "white",
+      border: "none",
+      padding: "5px 10px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    billInfoGrid: {
+      display: "grid",
+      gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+      gap: "10px",
+      marginBottom: "20px"
+    },
+    billInfoItem: {
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    itemsTableContainer: {
+      borderRadius: "8px",
+      overflow: "hidden",
+      border: "1px solid #e1e8ed"
+    },
+    pagination: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      marginTop: "20px",
+      gap: "5px"
+    },
+    paginationButton: {
+      padding: "8px 12px",
+      border: "1px solid #e1e8ed",
+      backgroundColor: "white",
+      color: "#2c3e50",
+      cursor: "pointer",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease"
+    },
+    paginationButtonActive: {
+      backgroundColor: "#3498db",
+      color: "white",
+      borderColor: "#3498db"
+    },
+    noBills: {
+      textAlign: "center",
+      color: "#7f8c8d",
+      fontSize: "16px",
+      padding: "40px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    modalOverlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.8)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+      padding: "20px"
+    },
+    modalContent: {
+      backgroundColor: "white",
+      borderRadius: "12px",
+      width: "100%",
+      maxWidth: "900px",
+      maxHeight: "95vh",
+      overflow: "auto",
+      boxShadow: "0 20px 40px rgba(0,0,0,0.3)"
+    },
+    modalHeader: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "20px",
+      borderBottom: "1px solid #e1e8ed",
+      backgroundColor: "#f8f9fa"
+    },
+    modalTitle: {
+      fontSize: "20px",
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    modalActions: {
+      display: "flex",
+      gap: "10px"
+    },
+    printButton: {
+      backgroundColor: "#27ae60",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontWeight: "600",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease"
+    },
+    closeButton: {
+      backgroundColor: "#95a5a6",
+      color: "white",
+      border: "none",
+      padding: "10px 20px",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontWeight: "600",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease"
+    },
+    billTemplate: {
+      padding: "40px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      color: "#2c3e50",
+      lineHeight: "1.6",
+      backgroundColor: "white"
+    },
+    editingBillDisplay: {
+      backgroundColor: "#fff3cd",
+      border: "1px solid #ffeaa7",
+      borderRadius: "8px",
+      padding: "15px",
+      marginBottom: "20px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      color: "#856404",
+      fontSize: "16px",
+      textAlign: "center"
+    },
+    dateInput: {
+      flex: 1,
+      padding: "8px",
+      border: "1px solid #e1e8ed",
+      borderRadius: "4px",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    enhancedItemsTable: {
+      width: "100%",
+      borderCollapse: "separate",
+      borderSpacing: "0",
+      borderRadius: "12px",
+      overflow: "hidden",
+      boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      fontSize: "14px"
+    },
+    enhancedTableHeader: {
+      backgroundColor: "#34495e",
+      color: "white",
+      padding: "16px 12px",
+      textAlign: "left",
+      fontWeight: "600",
+      fontSize: "14px",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      border: "none"
+    },
+    enhancedTableCell: {
+      padding: "14px 12px",
+      borderBottom: "1px solid #e8ecef",
+      fontSize: "14px",
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    enhancedTableRow: {
+      transition: "background-color 0.2s ease",
+    },
+    enhancedTableRowEven: {
+      backgroundColor: "#f8f9fa",
+    },
+    enhancedTableRowOdd: {
+      backgroundColor: "white",
+    },
+    amountCell: {
+      fontWeight: "600",
+      color: "#2c3e50",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+    },
+    reactSelectControl: {
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      fontSize: '14px',
+      border: '2px solid #e1e8ed',
+      borderRadius: '8px',
+      minHeight: '44px',
+    },
+    reactSelectMenu: {
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      fontSize: '14px',
+    },
+    reactSelectOption: {
+      fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      fontSize: '14px',
+    },
+  };
+
+  // BillPreview component
+  const BillPreview = ({ bill }) => {
+    const totals = {
+      subtotal: selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0),
+      totalReturn: 0,
+      totalUnpaid: paymentMethod === "Unpaid" ? selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0) : 0,
+      grandTotal: selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
+    };
+    const getPaymentStatusColor = () => {
+      switch(paymentMethod) {
+        case 'Cash': return '#27ae60';
+        case 'Unpaid': return '#e74c3c';
+        default: return '#95a5a6';
+      }
+    };
+    const EnhancedBillDetailsTable = ({ items }) => {
+      const totalAmount = items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+      return (
+        <div style={styles.itemsTableContainer}>
+          <table style={styles.enhancedItemsTable}>
+            <thead>
+              <tr>
+                <th style={styles.enhancedTableHeader}>#</th>
+                <th style={styles.enhancedTableHeader}>Item Details</th>
+                <th style={{...styles.enhancedTableHeader, textAlign: 'center'}}>Barcode</th>
+                <th style={{...styles.enhancedTableHeader, textAlign: 'center'}}>Quantity</th>
+                <th style={{...styles.enhancedTableHeader, textAlign: 'right'}}>Unit Price (IQD)</th>
+                <th style={{...styles.enhancedTableHeader, textAlign: 'right'}}>Total Amount (IQD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items?.map((item, index) => (
+                <tr
+                  key={index}
+                  style={{
+                    ...styles.enhancedTableRow,
+                    ...(index % 2 === 0 ? styles.enhancedTableRowEven : styles.enhancedTableRowOdd)
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e3f2fd';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#f8f9fa' : 'white';
+                  }}
+                >
+                  <td style={{...styles.enhancedTableCell, textAlign: 'center', fontWeight: '600'}}>
+                    {index + 1}
+                  </td>
+                  <td style={styles.enhancedTableCell}>
+                    <div style={{fontWeight: '600', marginBottom: '4px', fontFamily: "'NRT-Bd', sans-serif"}}>
+                      {item.name}
+                    </div>
+                    <div style={{fontSize: '12px', color: '#7f8c8d'}}>
+                      Exp: {formatExpireDate(item.expireDate)}
+                      {item.batchId && ` • Batch: ${item.batchId.slice(-6)}`}
+                    </div>
+                  </td>
+                  <td style={{...styles.enhancedTableCell, textAlign: 'center', fontFamily: "'NRT-Reg', monospace"}}>
+                    {item.barcode}
+                  </td>
+                  <td style={{...styles.enhancedTableCell, textAlign: 'center', fontWeight: '600'}}>
+                    {item.quantity}
+                  </td>
+                  <td style={{...styles.enhancedTableCell, textAlign: 'right', ...styles.amountCell}}>
+                    {formatCurrency(item.price)}
+                  </td>
+                  <td style={{...styles.enhancedTableCell, textAlign: 'right', ...styles.amountCell}}>
+                    {formatCurrency(item.quantity * item.price)}
+                  </td>
+                </tr>
+              ))}
+              <tr style={{backgroundColor: "#2c3e50", color: "white"}}>
+                <td colSpan="5" style={{...styles.enhancedTableCell, textAlign: 'right', fontWeight: '600', color: 'white'}}>
+                  GRAND TOTAL:
+                </td>
+                <td style={{...styles.enhancedTableCell, textAlign: 'right', fontWeight: '600', color: 'white', fontSize: '16px'}}>
+                  {formatCurrency(totalAmount)} IQD
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      );
+    };
+    return (
+      <div style={styles.modalOverlay}>
+        <div style={styles.modalContent}>
+          <div style={styles.modalHeader}>
+            <h2 style={styles.modalTitle}>Bill Preview</h2>
+            <div style={styles.modalActions}>
+              <button style={styles.printButton} onClick={() => printBill(bill)}>
+                Print Bill
+              </button>
+              <button style={styles.closeButton} onClick={closeBillPreview}>
+                Close
+              </button>
+            </div>
+          </div>
+          <div style={styles.billTemplate}>
+            <div style={{marginBottom: "30px", paddingBottom: "20px", borderBottom: "3px solid #3498db"}}>
+              <div style={{display: "flex", justifyContent: "space-between", alignItems: "flex-start"}}>
+                <div style={{flex: 1}}>
+                  <h1 style={{fontSize: "32px", fontWeight: "700", margin: "0 0 10px 0", color: "#2c3e50", textTransform: "uppercase", letterSpacing: "1px", fontFamily: "'NRT-Bd', sans-serif"}}>
+                    ARAN MED STORE
+                  </h1>
+                  <p style={{fontSize: "16px", color: "#34495e", margin: "0 0 5px 0", fontWeight: "500", fontFamily: "'NRT-Reg', sans-serif"}}>
+                    سلێمانی - بەرامبەر تاوەری تەندروستی سمارت
+                  </p>
+                  <p style={{fontSize: "14px", color: "#34495e", margin: 0, fontWeight: "500", fontFamily: "'NRT-Reg', sans-serif"}}>
+                    +964 772 533 5252 | +964 751 741 22 41
+                  </p>
+                </div>
+                <div style={{textAlign: "right"}}>
+                  <div style={{marginBottom: "10px"}}>
+                    <h2 style={{fontSize: "24px", fontWeight: "700", color: "#2c3e50", margin: "0 0 10px 0", textTransform: "uppercase", fontFamily: "'NRT-Bd', sans-serif"}}>
+                      MEDICAL INVOICE
+                    </h2>
+                    <div style={{display: "inline-block", padding: "8px 16px", borderRadius: "20px", color: "white", fontWeight: "bold", fontSize: "12px", textTransform: "uppercase", letterSpacing: "1px", fontFamily: "'NRT-Bd', sans-serif", backgroundColor: getPaymentStatusColor()}}>
+                      {paymentMethod.toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "40px", marginBottom: "30px"}}>
+              <div style={{padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #e1e8ed"}}>
+                <h3 style={{margin: "0 0 15px 0", fontFamily: "'NRT-Bd', sans-serif"}}>Bill To</h3>
+                <div style={{padding: "15px", backgroundColor: "white", borderRadius: "6px", border: "1px solid #e1e8ed"}}>
+                  <p style={{fontSize: "16px", fontWeight: "600", margin: "0 0 8px 0", color: "#2c3e50", fontFamily: "'NRT-Bd', sans-serif"}}>{pharmacyName}</p>
+                  <p style={{fontSize: "14px", color: "#7f8c8d", margin: 0, fontFamily: "'NRT-Reg', sans-serif"}}>Code: {pharmacyCode}</p>
+                </div>
+              </div>
+              <div style={{padding: "20px", backgroundColor: "#f8f9fa", borderRadius: "8px", border: "1px solid #e1e8ed"}}>
+                <table style={{width: "100%", fontFamily: "'NRT-Reg', sans-serif"}}>
+                  <tbody>
+                    <tr>
+                      <td style={{fontWeight: "600", padding: "5px 15px 5px 0", fontSize: "14px", color: "#2c3e50", textAlign: "left", fontFamily: "'NRT-Bd', sans-serif"}}>Invoice #:</td>
+                      <td style={{padding: "5px 0", fontSize: "14px", color: "#34495e", fontWeight: "500", fontFamily: "'NRT-Reg', sans-serif"}}>
+                        {bill.billNumber === "TEMP0000" ? "TEMP0000" : bill.billNumber?.toString().padStart(7, '0')}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{fontWeight: "600", padding: "5px 15px 5px 0", fontSize: "14px", color: "#2c3e50", textAlign: "left", fontFamily: "'NRT-Bd', sans-serif"}}>Invoice Date:</td>
+                      <td style={{padding: "5px 0", fontSize: "14px", color: "#34495e", fontWeight: "500", fontFamily: "'NRT-Reg', sans-serif"}}>{formatDate(saleDate)}</td>
+                    </tr>
+                    <tr>
+                      <td style={{fontWeight: "600", padding: "5px 15px 5px 0", fontSize: "14px", color: "#2c3e50", textAlign: "left", fontFamily: "'NRT-Bd', sans-serif"}}>Due Date:</td>
+                      <td style={{padding: "5px 0", fontSize: "14px", color: "#34495e", fontWeight: "500", fontFamily: "'NRT-Reg', sans-serif"}}>{formatDate(new Date(new Date(saleDate).setDate(new Date(saleDate).getDate() + 14)))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div style={styles.tableContainer}>
+              <EnhancedBillDetailsTable items={bill.items} />
+            </div>
+            {note && (
+              <div style={{marginBottom: "25px", padding: "20px", backgroundColor: "#fff9e6", borderRadius: "8px", border: "1px solid #ffeaa7"}}>
+                <h4 style={{fontWeight: "600", marginBottom: "10px", color: "#e67e22", fontSize: "14px", fontFamily: "'NRT-Bd', sans-serif"}}>Note:</h4>
+                <p style={{fontSize: "14px", color: "#2c3e50", lineHeight: "1.5", margin: 0, fontFamily: "'NRT-Reg', sans-serif"}}>{note}</p>
+              </div>
+            )}
+            <div style={{marginTop: "30px", textAlign: "right"}}>
+              <div style={{width: "300px", height: "1px", backgroundColor: "#3498db", margin: "20px 0 8px auto"}}></div>
+              <p style={{fontSize: "12px", color: "#7f8c8d", fontStyle: "italic", fontFamily: "'NRT-Reg', sans-serif"}}>Authorized Signature</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // AdvancedSearchFilters component
+  const AdvancedSearchFilters = () => {
+    return (
+      <div style={styles.searchFilters}>
+        <div style={styles.filterSection}>
+          <h4 style={styles.filterSectionTitle}>Search Filters</h4>
+          <div style={styles.filterRow}>
+            <div style={styles.globalSearchGroup}>
+              <label style={styles.filterLabel}>Global Search</label>
+              <input
+                type="text"
+                style={styles.globalSearchInput}
+                placeholder="Search bill #, item, barcode, pharmacy..."
+                value={filters.globalSearch}
+                onChange={(e) => handleFilterInputChange('globalSearch', e.target.value)}
+                onFocus={handleFilterInputFocus}
+              />
+            </div>
+          </div>
+          <div style={styles.filterRow}>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>Bill Number</label>
+              <input
+                type="text"
+                style={styles.filterInput}
+                placeholder="Enter bill number"
+                value={filters.billNumber}
+                onChange={(e) => handleFilterInputChange('billNumber', e.target.value)}
+                onFocus={handleFilterInputFocus}
+              />
+            </div>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>Item Name</label>
+              <input
+                type="text"
+                style={styles.filterInput}
+                placeholder="Search item name"
+                value={filters.itemName}
+                onChange={(e) => handleFilterInputChange('itemName', e.target.value)}
+                onFocus={handleFilterInputFocus}
+              />
+            </div>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>Pharmacy Name</label>
+              <input
+                type="text"
+                style={styles.filterInput}
+                placeholder="Search pharmacy"
+                value={filters.pharmacyName}
+                onChange={(e) => handleFilterInputChange('pharmacyName', e.target.value)}
+                onFocus={handleFilterInputFocus}
+              />
+            </div>
+          </div>
+          <div style={styles.filterRow}>
+            <div style={styles.specificItemsGroup}>
+              <label style={styles.filterLabel}>Specific Items</label>
+              <Select
+                isMulti
+                options={itemOptions}
+                value={itemOptions.filter(option => itemFilters.includes(option.value))}
+                onChange={(selected) => setItemFilters(selected.map(option => option.value))}
+                placeholder="Select specific items..."
+                className="react-select"
+                classNamePrefix="react-select"
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    ...styles.reactSelectControl
+                  }),
+                  menu: (base) => ({
+                    ...base,
+                    ...styles.reactSelectMenu
+                  }),
+                  option: (base) => ({
+                    ...base,
+                    ...styles.reactSelectOption
+                  })
+                }}
+              />
+            </div>
+          </div>
+          <div style={styles.filterRow}>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>Payment Status</label>
+              <select
+                style={styles.filterSelect}
+                value={filters.paymentStatus}
+                onChange={(e) => handleFilterInputChange('paymentStatus', e.target.value)}
+              >
+                <option value="all">All Payments</option>
+                <option value="Cash">Cash</option>
+                <option value="Unpaid">Unpaid</option>
+                <option value="Paid">Paid</option>
+              </select>
+            </div>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>Consignment</label>
+              <select
+                style={styles.filterSelect}
+                value={filters.consignment}
+                onChange={(e) => handleFilterInputChange('consignment', e.target.value)}
+              >
+                <option value="all">All Types</option>
+                <option value="yes">Consignment</option>
+                <option value="no">Owned</option>
+              </select>
+            </div>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>From Date</label>
+              <input
+                type="date"
+                style={styles.dateInput}
+                value={filters.fromDate}
+                onChange={(e) => handleFilterInputChange('fromDate', e.target.value)}
+              />
+            </div>
+            <div style={styles.filterGroup}>
+              <label style={styles.filterLabel}>To Date</label>
+              <input
+                type="date"
+                style={styles.dateInput}
+                value={filters.toDate}
+                onChange={(e) => handleFilterInputChange('toDate', e.target.value)}
+              />
+            </div>
+          </div>
+          <div style={styles.filterActions}>
+            <button style={styles.clearFiltersButton} onClick={() => {
+              clearFilters();
+              setItemFilters([]);
+            }}>
+              Clear All Filters
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // EnhancedBillDetailsTable component
+  const EnhancedBillDetailsTable = ({ items }) => {
+    const totalAmount = items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0;
+    return (
+      <div style={styles.itemsTableContainer}>
+        <table style={styles.enhancedItemsTable}>
+          <thead>
+            <tr>
+              <th style={styles.enhancedTableHeader}>#</th>
+              <th style={styles.enhancedTableHeader}>Item Details</th>
+              <th style={{...styles.enhancedTableHeader, textAlign: 'center'}}>Barcode</th>
+              <th style={{...styles.enhancedTableHeader, textAlign: 'center'}}>Quantity</th>
+              <th style={{...styles.enhancedTableHeader, textAlign: 'right'}}>Unit Price (IQD)</th>
+              <th style={{...styles.enhancedTableHeader, textAlign: 'right'}}>Total Amount (IQD)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items?.map((item, index) => (
+              <tr
+                key={index}
+                style={{
+                  ...styles.enhancedTableRow,
+                  ...(index % 2 === 0 ? styles.enhancedTableRowEven : styles.enhancedTableRowOdd)
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e3f2fd';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = index % 2 === 0 ? '#f8f9fa' : 'white';
+                }}
+              >
+                <td style={{...styles.enhancedTableCell, textAlign: 'center', fontWeight: '600'}}>
+                  {index + 1}
+                </td>
+                <td style={styles.enhancedTableCell}>
+                  <div style={{fontWeight: '600', marginBottom: '4px', fontFamily: "'NRT-Bd', sans-serif"}}>
+                    {item.name}
+                  </div>
+                  <div style={{fontSize: '12px', color: '#7f8c8d'}}>
+                    Exp: {formatExpireDate(item.expireDate)}
+          
+                  </div>
+                </td>
+                <td style={{...styles.enhancedTableCell, textAlign: 'center', fontFamily: "'NRT-Reg', monospace"}}>
+                  {item.barcode}
+                </td>
+                <td style={{...styles.enhancedTableCell, textAlign: 'center', fontWeight: '600'}}>
+                  {item.quantity}
+                </td>
+                <td style={{...styles.enhancedTableCell, textAlign: 'right', ...styles.amountCell}}>
+                  {formatCurrency(item.price)}
+                </td>
+                <td style={{...styles.enhancedTableCell, textAlign: 'right', ...styles.amountCell}}>
+                  {formatCurrency(item.quantity * item.price)}
+                </td>
+              </tr>
+            ))}
+            <tr style={{backgroundColor: "#2c3e50", color: "white"}}>
+              <td colSpan="5" style={{...styles.enhancedTableCell, textAlign: 'right', fontWeight: '600', color: 'white'}}>
+                GRAND TOTAL:
+              </td>
+              <td style={{...styles.enhancedTableCell, textAlign: 'right', fontWeight: '600', color: 'white', fontSize: '16px'}}>
+                {formatCurrency(totalAmount)} IQD
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // RecentBills component
+  const RecentBills = () => {
+    return (
+      <div style={styles.recentBillsSection}>
+        <ScannerStatus />
+        <div style={styles.sectionHeader}>
+          <h3 style={styles.sectionTitle}>Recent Sales Bills</h3>
+          <button
+            style={styles.advancedSearchButton}
+            onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+          >
+            {showAdvancedSearch ? 'Hide Search' : 'Advanced Search'}
+          </button>
+        </div>
+        {showAdvancedSearch && <AdvancedSearchFilters />}
+        {filteredBills.length === 0 ? (
+          <p style={styles.noBills}>No bills found matching your criteria.</p>
+        ) : (
+          <>
+            <div style={styles.tableContainer}>
+              <table style={styles.billsTable}>
+                <thead>
+                  <tr>
+                    <th style={styles.tableHeader}>Bill #</th>
+                    <th style={styles.tableHeader}>Pharmacy</th>
+                    <th style={styles.tableHeader}>Date</th>
+                    <th style={styles.tableHeader}>Total Amount</th>
+                    <th style={styles.tableHeader}>Payment</th>
+                    <th style={styles.tableHeader}>Signature</th>
+                    <th style={styles.tableHeader}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentBills.map((bill, index) => (
+                    <React.Fragment key={bill.billNumber}>
+                      <tr
+                        style={{
+                          ...(index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd),
+                          ...(selectedBill?.billNumber === bill.billNumber ? styles.selectedRow : {}),
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setSelectedBill(selectedBill?.billNumber === bill.billNumber ? null : bill)}
+                      >
+                        <td style={styles.tableCellCenter}>{bill.billNumber}</td>
+                        <td style={styles.tableCell}>{bill.pharmacyName || 'N/A'}</td>
+                        <td style={styles.tableCellCenterdatee}>{formatDate(bill.date)}</td>
+                        <td style={styles.tableCellRightttt}>
+                          {formatCurrency(bill.items?.reduce((sum, item) => sum + (item.price * item.quantity), 0) || 0)} IQD
+                        </td>
+                        <td style={styles.tableCellCenter}>
+                          <span style={{
+                            ...styles.paymentBadge,
+                            backgroundColor: bill.paymentStatus === 'Cash' ? '#27ae60' :
+                                           bill.paymentStatus === 'Paid' ? '#3498db' : '#e74c3c'
+                          }}>
+                            {bill.paymentStatus}
+                          </span>
+                        </td>
+                        <td style={styles.tableCellCenter}>
+                          <ScannerAttachmentButton 
+                            bill={bill} 
+                            isUploading={uploadingAttachments[bill.billNumber]} 
+                          />
+                        </td>
+                        <td style={styles.tableCellCenter}>
+                          <div style={styles.actionButtons}>
+                            <button
+                              style={styles.editButton}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                loadBillForEditing(bill);
+                              }}
+                              title="Edit Bill"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              style={styles.printSmallButton}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                printBill(bill);
+                              }}
+                              title="Print Bill"
+                            >
+                              Print
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {selectedBill?.billNumber === bill.billNumber && (
+                        <tr>
+                          <td colSpan="8" style={styles.detailCell}>
+                            <div style={styles.billDetails}>
+                              <div style={styles.billDetailsHeader}>
+                                <h4 style={styles.billDetailsTitle}>Bill #{bill.billNumber} Details</h4>
+                                <div style={styles.billDetailsActions}>
+                                  <button
+                                    style={styles.printButton}
+                                    onClick={() => printBill(bill)}
+                                  >
+                                    Print Bill
+                                  </button>
+                               
+                                  <button
+                                    style={styles.closeDetailsButton}
+                                    onClick={() => setSelectedBill(null)}
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              </div>
+                              <div style={styles.billInfoGrid}>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Pharmacy:</strong> {bill.pharmacyName || 'N/A'}
+                                </div>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Date:</strong> {formatDate(bill.date)}
+                                </div>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Payment Status:</strong>
+                                  <span style={{
+                                    ...styles.paymentBadge,
+                                    backgroundColor: bill.paymentStatus === 'Cash' ? '#27ae60' :
+                                                   bill.paymentStatus === 'Paid' ? '#3498db' : '#e74c3c'
+                                  }}>
+                                    {bill.paymentStatus}
+                                  </span>
+                                </div>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Consignment:</strong>
+                                  <span style={{
+                                    ...styles.paymentBadge,
+                                    backgroundColor: bill.isConsignment ? '#f39c12' : '#2ecc71'
+                                  }}>
+                                    {bill.isConsignment ? 'تحت صرف' : 'Owned'}
+                                  </span>
+                                </div>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Note:</strong> {bill.note}
+                                </div>
+                               
+                          
+                              </div>
+                              <EnhancedBillDetailsTable items={bill.items} />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {totalPages > 1 && (
+              <div style={styles.pagination}>
+                <button
+                  style={styles.paginationButton}
+                  onClick={() => paginate(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    style={{
+                      ...styles.paginationButton,
+                      ...(page === currentPage ? styles.paginationButtonActive : {})
+                    }}
+                    onClick={() => paginate(page)}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  style={styles.paginationButton}
+                  onClick={() => paginate(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Main render
   return (
     <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 className="text-xl font-semibold text-gray-800 mb-6">Create New Sale</h2>
-
+      <div style={styles.header}>
+        {isEditMode ? `Edit Bill #${editingBillNumber}` : 'Create New Sale'}
+      </div>
+      <div style={styles.formContainer}>
         {error && (
-          <div style={{background: "#fee2e2", color: "#991b1b", padding: "0.75rem", borderRadius: "0.375rem", marginBottom: "1rem"}}>
+          <div style={styles.error}>
             {error}
-            <button onClick={() => setError(null)} style={{marginLeft: "1rem", color: "#991b1b"}}>×</button>
+            <button
+              onClick={() => setError(null)}
+              style={{float: 'right', background: 'none', border: 'none', color: '#d63031', cursor: 'pointer', fontSize: '16px'}}
+            >
+              ×
+            </button>
           </div>
         )}
-
-        {/* Pharmacy Info Section */}
-        <div style={{marginBottom: "1.5rem", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem"}}>
-          <div>
-            <label style={{display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: "500"}}>Pharmacy Code</label>
+        {isEditMode && (
+          <div style={styles.editingBillDisplay}>
+            📝 Editing: {editingBillDisplay}
+          </div>
+        )}
+        <div style={styles.grid}>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Pharmacy Code</label>
             <input
+              ref={pharmacyCodeRef}
               type="text"
               style={styles.input}
-              placeholder="Enter code"
+              placeholder="Enter pharmacy code"
               value={pharmacyCode}
               onChange={(e) => {
                 setPharmacyCode(e.target.value);
@@ -908,12 +2824,13 @@ export default function SellingForm({ onBillCreated }) {
               onFocus={() => setShowPharmacySuggestions(true)}
             />
           </div>
-          <div style={{position: "relative"}}>
-            <label style={{display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: "500"}}>Pharmacy Name</label>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Pharmacy Name</label>
             <input
+              ref={pharmacyNameRef}
               type="text"
               style={styles.input}
-              placeholder="Enter name"
+              placeholder="Enter pharmacy name"
               value={pharmacyName}
               onChange={(e) => {
                 setPharmacyName(e.target.value);
@@ -922,328 +2839,219 @@ export default function SellingForm({ onBillCreated }) {
               onFocus={() => setShowPharmacySuggestions(true)}
             />
             {showPharmacySuggestions && pharmacySuggestions.length > 0 && (
-              <div style={{
-                position: "absolute",
-                width: "100%",
-                background: "#ffffff",
-                border: "1px solid #d1d5db",
-                borderRadius: "0.375rem",
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-                marginTop: "0.25rem",
-                maxHeight: "15rem",
-                overflowY: "auto",
-                zIndex: "10"
-              }}>
+              <div style={styles.suggestionsDropdown}>
                 {pharmacySuggestions.map((pharmacy) => (
                   <div
                     key={pharmacy.id}
-                    style={{
-                      padding: "0.5rem 0.75rem",
-                      cursor: "pointer",
-                      borderBottom: "1px solid #e5e7eb",
-                      transition: "background-color 0.2s ease-in-out"
-                    }}
+                    style={styles.suggestionItem}
                     onClick={() => handlePharmacySelect(pharmacy)}
-                    onMouseEnter={(e) => e.currentTarget.style.background = "#f3f4f6"}
-                    onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#3498db1a'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
                   >
-                    <div style={{fontWeight: "500"}}>{pharmacy.name}</div>
-                    <div style={{fontSize: "0.875rem", color: "#6b7280"}}>Code: {pharmacy.code}</div>
+                    <div style={{fontWeight: '600', color: '#2c3e50'}}>{pharmacy.name}</div>
+                    <div style={{fontSize: '12px', color: '#7f8c8d'}}>Code: {pharmacy.code}</div>
                   </div>
                 ))}
               </div>
             )}
           </div>
-          <div style={{display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem"}}>
-            <div>
-              <label style={{display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: "500"}}>Sale Date</label>
-              <input
-                type="date"
-                style={styles.input}
-                value={saleDate}
-                onChange={(e) => setSaleDate(e.target.value)}
-              />
-            </div>
-            <div>
-              <label style={{display: "block", marginBottom: "0.25rem", fontSize: "0.875rem", fontWeight: "500"}}>Payment Method</label>
-              <select
-                style={styles.input}
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              >
-                <option value="Cash">Cash</option>
-                <option value="Unpaid">Unpaid</option>
-              </select>
-            </div>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Sale Date</label>
+            <input
+              type="date"
+              style={styles.input}
+              value={saleDate}
+              onChange={(e) => setSaleDate(e.target.value)}
+            />
+          </div>
+          <div style={styles.inputGroup}>
+            <label style={styles.label}>Payment Method</label>
+            <select
+              style={styles.select}
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+            >
+              <option value="Unpaid">Unpaid</option>
+              <option value="Cash">Cash</option>
+            </select>
           </div>
         </div>
-
-        {/* Item Search Section */}
-        <div style={{marginBottom: "1.5rem"}}>
-          <label style={{display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "500"}}>Search Items</label>
+        <div style={styles.inputGroup}>
+          <label style={styles.label}>Bill Note (Optional)</label>
+          <textarea
+            style={styles.textarea}
+            placeholder="Add any special notes or instructions for this bill..."
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows="3"
+          />
+        </div>
+        <div style={styles.checkboxContainer}>
           <input
+            type="checkbox"
+            style={styles.checkbox}
+            checked={isConsignment}
+            onChange={(e) => setIsConsignment(e.target.checked)}
+          />
+          <label style={styles.checkboxLabel}>تحت صرف (Consignment)</label>
+        </div>
+        <div style={styles.searchSection}>
+          <label style={styles.label}>Search Items</label>
+          <input
+            ref={searchQueryRef}
             type="text"
             style={styles.input}
-            placeholder="Search by barcode or name..."
+            placeholder="Search by barcode or name (supports multiple terms)"
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
               handleSearch(e.target.value);
             }}
+            onFocus={(e) => e.target.select()}
           />
-
-          {/* Search Results Table */}
-          {searchResults.length > 0 && (
-            <div style={{marginTop: "0.5rem", background: "#ffffff", border: "1px solid #d1d5db", borderRadius: "0.375rem", overflow: "hidden"}}>
-              <table style={styles.table}>
-                <thead style={styles.tableHeader}>
-                  <tr>
-                    <th style={{padding: "0.75rem", textAlign: "left", fontSize: "0.875rem"}}>Name</th>
-                    <th style={{padding: "0.75rem", textAlign: "left", fontSize: "0.875rem"}}>Barcode</th>
-                    <th style={{padding: "0.75rem", textAlign: "right", fontSize: "0.875rem"}}>Price</th>
-                    <th style={{padding: "0.75rem", textAlign: "right", fontSize: "0.875rem"}}>Available</th>
-                    <th style={{padding: "0.75rem", textAlign: "right", fontSize: "0.875rem"}}>Expire Date</th>
-                    <th style={{padding: "0.75rem", textAlign: "center", fontSize: "0.875rem"}}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {searchResults.map((item) => {
-                    const batches = getBatchesForItem(item.barcode);
-                    return (
-                      <React.Fragment key={`item-${item.id}`}>
-                        {batches.map((batch, index) => (
-                          <tr
-                            key={`batch-${item.id}-${index}`}
-                            style={index % 2 === 0 ? styles.tableRow : {...styles.tableRow, background: "#f9fafb"}}
-                            onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.tableRowHover)}
-                            onMouseLeave={(e) => index % 2 === 0 ? e.currentTarget.style.background = "" : e.currentTarget.style.background = "#f9fafb"}
-                          >
-                            {index === 0 && (
-                              <>
-                                <td style={{padding: "0.75rem"}} rowSpan={batches.length}>
-                                  <div style={{fontWeight: "500"}}>{item.name}</div>
-                                </td>
-                                <td style={{padding: "0.75rem"}} rowSpan={batches.length}>
-                                  <div style={{fontFamily: "'Courier New', monospace"}}>{item.barcode}</div>
-                                </td>
-                              </>
-                            )}
-                            <td style={{padding: "0.75rem", textAlign: "right"}}>{batch.outPrice.toFixed(2)} IQD</td>
-                            <td style={{padding: "0.75rem", textAlign: "right"}}>{batch.quantity}</td>
-                            <td style={{padding: "0.75rem", textAlign: "right"}}>{formatDate(batch.expireDate)}</td>
-                            <td style={{padding: "0.75rem", textAlign: "center"}}>
-                              <button
-                                style={styles.buttonPrimary}
-                                onMouseEnter={(e) => e.currentTarget.style.background = "#2563eb"}
-                                onMouseLeave={(e) => e.currentTarget.style.background = "#3b82f6"}
-                                onClick={() => handleSelectBatch(batch)}
-                              >
-                                Add
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        <tr style={{background: "#f3f4f6"}}>
-                          <td colSpan="5"></td>
-                          <td style={{padding: "0.75rem", textAlign: "center"}}>
-                            <button
-                              style={styles.buttonSecondary}
-                              onMouseEnter={(e) => e.currentTarget.style.background = "#7c3aed"}
-                              onMouseLeave={(e) => e.currentTarget.style.background = "#8b5cf6"}
-                              onClick={() => fetchItemHistory(item.barcode, item.name)}
-                            >
-                              View History
-                            </button>
-                          </td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Selected Items Section */}
-        {selectedItems.length > 0 && (
-          <div style={{marginBottom: "1.5rem"}}>
-            <h3 style={{fontSize: "1.125rem", fontWeight: "600", marginBottom: "0.75rem"}}>Selected Items</h3>
-            <div style={{background: "#ffffff", border: "1px solid #d1d5db", borderRadius: "0.375rem", overflow: "hidden"}}>
-              <table style={styles.table}>
-                <thead style={styles.tableHeader}>
-                  <tr>
-                    <th style={{padding: "0.75rem", textAlign: "left", fontSize: "0.875rem"}}>Item</th>
-                    <th style={{padding: "0.75rem", textAlign: "center", fontSize: "0.875rem"}}>Quantity</th>
-                    <th style={{padding: "0.75rem", textAlign: "center", fontSize: "0.875rem"}}>Unit Price</th>
-                    <th style={{padding: "0.75rem", textAlign: "right", fontSize: "0.875rem"}}>Subtotal</th>
-                    <th style={{padding: "0.75rem", textAlign: "center", fontSize: "0.875rem"}}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {selectedItems.map((item, index) => (
-                    <tr
-                      key={`selected-${index}`}
-                      style={index % 2 === 0 ? styles.tableRow : {...styles.tableRow, background: "#f9fafb"}}
-                      onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.tableRowHover)}
-                      onMouseLeave={(e) => index % 2 === 0 ? e.currentTarget.style.background = "" : e.currentTarget.style.background = "#f9fafb"}
-                    >
-                      <td style={{padding: "0.75rem"}}>
-                        <div style={{fontWeight: "500"}}>{item.name}</div>
-                        <div style={{fontSize: "0.75rem", color: "#6b7280"}}>
-                          {item.barcode} • Exp: {formatDate(item.expireDate)}
-                        </div>
-                      </td>
-                      <td style={{padding: "0.75rem", textAlign: "center"}}>
-                        <div style={{display: "flex", alignItems: "center", justifyContent: "center"}}>
-                          <input
-                            type="number"
-                            min="1"
-                            max={item.availableQuantity}
-                            style={{
-                              width: "4rem",
-                              textAlign: "center",
-                              border: "1px solid #d1d5db",
-                              borderRadius: "0.25rem",
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.875rem"
-                            }}
-                            value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
-                          />
-                          <span style={{marginLeft: "0.5rem", fontSize: "0.75rem", color: "#6b7280"}}>/{item.availableQuantity}</span>
-                        </div>
-                      </td>
-                      <td style={{padding: "0.75rem", textAlign: "center"}}>
-                        <div style={{display: "flex", justifyContent: "center"}}>
-                          <input
-                            type="number"
-                            min="0.01"
-                            step="0.01"
-                            style={{
-                              width: "5rem",
-                              textAlign: "center",
-                              border: "1px solid #d1d5db",
-                              borderRadius: "0.25rem",
-                              padding: "0.25rem 0.5rem",
-                              fontSize: "0.875rem"
-                            }}
-                            value={item.price}
-                            onChange={(e) => handleItemChange(index, 'price', e.target.value)}
-                          />
-                          <span style={{marginLeft: "0.25rem", fontSize: "0.75rem", color: "#6b7280", alignSelf: "center"}}>IQD</span>
-                        </div>
-                      </td>
-                      <td style={{padding: "0.75rem", textAlign: "right", fontWeight: "500"}}>
-                        {(item.quantity * item.price).toFixed(2)} IQD
-                      </td>
-                      <td style={{padding: "0.75rem", textAlign: "center"}}>
-                        <button
-                          style={styles.buttonDanger}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "#dc2626"}
-                          onMouseLeave={(e) => e.currentTarget.style.background = "#ef4444"}
-                          onClick={() => handleRemoveItem(index)}
-                        >
-                          ×
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr style={{background: "#f3f4f6", fontWeight: "600"}}>
-                    <td colSpan="3" style={{padding: "0.75rem", textAlign: "right"}}>Total:</td>
-                    <td style={{padding: "0.75rem", textAlign: "right"}}>
-                      {selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0).toFixed(2)} IQD
-                    </td>
-                    <td style={{padding: "0.75rem"}}></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-        {/* Submit Button */}
-        <div style={{display: "flex", justifyContent: "flex-end"}}>
-          <button
-            style={styles.buttonSuccess}
-            onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "#059669")}
-            onMouseLeave={(e) => !e.currentTarget.disabled && (e.currentTarget.style.background = "#10b981")}
-            disabled={isLoading || selectedItems.length === 0 || !pharmacyId}
-            onClick={handleSubmit}
-          >
-            {isLoading ? (
-              <>
-                <span style={{marginRight: "0.5rem"}}>Processing...</span>
-                <svg style={{display: "inline-block", width: "1rem", height: "1rem", verticalAlign: "middle"}} viewBox="0 0 24 24">
-                  <circle style={{opacity: "0.25"}} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path style={{opacity: "0.75"}} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-              </>
-            ) : (
-              "Create Sale Bill"
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* History Modal */}
-      {showHistoryModal && (
-        <div style={styles.modal}>
-          <div style={styles.modalContent}>
-            <div style={{padding: "1.5rem"}}>
-              <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem"}}>
-                <div>
-                  <h3 style={{fontSize: "1.25rem", fontWeight: "600"}}>Sales History</h3>
-                  <p style={{fontSize: "0.875rem", color: "#6b7280"}}>Barcode: {selectedBarcode}</p>
-                  <p style={{fontSize: "0.875rem", color: "#6b7280"}}>Item: {selectedItemName}</p>
-                </div>
-                <button
-                  onClick={() => setShowHistoryModal(false)}
-                  style={{color: "#6b7280", fontSize: "1.25rem", background: "none", border: "none", cursor: "pointer"}}
-                >
-                  ×
-                </button>
-              </div>
-              {historyItems.length > 0 ? (
-                <div style={{overflowY: "auto", maxHeight: "60vh"}}>
+          {groupSearchResults(searchResults).length > 0 && (
+            <div style={styles.searchResults}>
+              {groupSearchResults(searchResults).map((item) => (
+                <div key={item.barcode} style={styles.itemGroup}>
+                  <div style={styles.itemGroupHeader}>
+                    {item.name} - {item.barcode}
+                  </div>
                   <table style={styles.table}>
                     <thead style={styles.tableHeader}>
                       <tr>
-                        <th style={{padding: "1.75rem", textAlign: "left", fontSize: "0.875rem"}}>Bill #</th>
-                        <th style={{padding: "1.75rem", textAlign: "left", fontSize: "0.875rem"}}>Sold Date</th>
-                        {/* <th style={{padding: "1.75rem", textAlign: "left", fontSize: "0.875rem"}}>Pharmacy</th> */}
-                        <th style={{padding: "1.75rem", textAlign: "right", fontSize: "0.875rem"}}>Net Price</th>
-                        <th style={{padding: "1.75rem", textAlign: "right", fontSize: "0.875rem"}}>Out Price</th>
-                        <th style={{padding: "1.75rem", textAlign: "right", fontSize: "0.875rem"}}>Sold Qty</th>
-                        <th style={{padding: "0.75rem", textAlign: "right", fontSize: "0.875rem"}}>Expire Date</th>
+                        <th style={styles.tableCell}>Expire Date</th>
+                        {userRole !== 'admin' && (
+                          <th style={{...styles.tableCell, textAlign: 'right'}}>Net Price</th>
+                        )}
+                        <th style={{...styles.tableCell, textAlign: 'right'}}>Price</th>
+                        <th style={{...styles.tableCell, textAlign: 'right'}}>Available</th>
+                        <th style={{...styles.tableCell, textAlign: 'center'}}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {historyItems.map((historyItem, index) => (
-                        <tr
-                          key={`history-${index}`}
-                          style={index % 2 === 0 ? styles.tableRow : {...styles.tableRow, background: "#f9fafb"}}
-                          onMouseEnter={(e) => Object.assign(e.currentTarget.style, styles.tableRowHover)}
-                          onMouseLeave={(e) => index % 2 === 0 ? e.currentTarget.style.background = "" : e.currentTarget.style.background = "#f9fafb"}
-                        >
-                          <td style={{padding: "0.75rem"}}>{historyItem.billNumber}</td>
-                          <td style={{padding: "0.75rem"}}>{formatDate(historyItem.soldDate)}</td>
-                          {/* <td style={{padding: "0.75rem"}}>{historyItem.pharmacyName}</td> */}
-                          <td style={{padding: "0.75rem", textAlign: "right"}}>{historyItem.netPrice.toFixed(2)} IQD</td>
-                          <td style={{padding: "0.75rem", textAlign: "right"}}>{historyItem.outPrice.toFixed(2)} IQD</td>
-                          <td style={{padding: "0.75rem", textAlign: "right"}}>{historyItem.quantity}</td>
-                          <td style={{padding: "0.75rem", textAlign: "right"}}>{formatDate(historyItem.expireDate)}</td>
+                      {item.batches.map((batch, batchIndex) => (
+                        <tr key={`${item.id}-${batchIndex}`}>
+                          <td style={styles.tableCell}>{formatExpireDate(batch.expireDate)}</td>
+                          {userRole !== 'admin' && (
+                            <td style={{...styles.tableCell, textAlign: 'right'}}>
+                              {formatCurrency(batch.netPrice)} IQD
+                            </td>
+                          )}
+                          <td style={{...styles.tableCell, textAlign: 'right'}}>
+                            {formatCurrency(batch.outPrice)} IQD
+                          </td>
+                          <td style={{...styles.tableCell, textAlign: 'right'}}>
+                            {batch.quantity}
+                          </td>
+                          <td style={{...styles.tableCell, textAlign: 'center'}}>
+                            <button
+                              style={styles.addButton}
+                              onClick={() => handleSelectBatch(batch)}
+                            >
+                              Add
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <p style={{textAlign: "center", color: "#6b7280"}}>No sales history found for this item.</p>
-              )}
+              ))}
+            </div>
+          )}
+        </div>
+        {selectedItems.length > 0 && (
+          <div style={styles.selectedItems}>
+            <h3 style={{marginBottom: '15px', fontSize: '18px', fontWeight: '600', color: '#2c3e50'}}>Selected Items</h3>
+            {selectedItems.map((item, index) => (
+              <div key={index} style={styles.selectedItem}>
+                <div style={styles.itemDetails}>
+                  <div style={styles.itemName}>{item.name}</div>
+                  <div style={styles.itemMeta}>
+                    {item.barcode} • Exp: {formatExpireDate(item.expireDate)}
+                    {item.netPrice !== item.outPrice && ` • Net: ${formatCurrency(item.netPrice)} IQD`}
+                    {isEditMode && ` • Available in store: ${item.availableQuantity}`}
+                  </div>
+                </div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+                  <div>
+                    <input
+                      type="number"
+                      min="1"
+                      max={item.availableQuantity}
+                      style={styles.quantityInput}
+                      value={item.quantity}
+                      onChange={(e) => handleItemChange(index, 'quantity', e.target.value)}
+                    />
+                    <span style={{fontSize: '12px', color: '#7f8c8d'}}>/ {item.availableQuantity}</span>
+                  </div>
+                  <div>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      style={styles.priceInput}
+                      value={item.price}
+                      onChange={(e) => handleItemChange(index, 'price', e.target.value)}
+                    />
+                    <span style={{fontSize: '12px', color: '#7f8c8d'}}>IQD</span>
+                  </div>
+                  <div style={{fontWeight: '600', minWidth: '100px', textAlign: 'right', color: '#2c3e50'}}>
+                    {formatCurrency(item.quantity * item.price)} IQD
+                  </div>
+                  <button
+                    style={styles.removeButton}
+                    onClick={() => handleRemoveItem(index)}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ))}
+            <div style={styles.total}>
+              Total: {formatCurrency(selectedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0))} IQD
             </div>
           </div>
+        )}
+        <div style={isEditMode ? styles.editModeButtons : styles.buttonContainer}>
+          {isEditMode ? (
+            <>
+              <button
+                style={isLoading || selectedItems.length === 0 || !pharmacyId ? styles.buttonDisabled : styles.updateButton}
+                disabled={isLoading || selectedItems.length === 0 || !pharmacyId}
+                onClick={handleUpdateBill}
+              >
+                {isLoading ? "Updating..." : "Update Bill"}
+              </button>
+              <button
+                style={styles.cancelButton}
+                onClick={cancelEdit}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                style={isLoading || selectedItems.length === 0 || !pharmacyId ? styles.buttonDisabled : styles.button}
+                disabled={isLoading || selectedItems.length === 0 || !pharmacyId}
+                onClick={handleSubmit}
+              >
+                {isLoading ? "Processing..." : "Create Sale Bill"}
+              </button>
+              <button
+                style={selectedItems.length === 0 || !pharmacyId ? styles.buttonDisabled : styles.previewButton}
+                disabled={selectedItems.length === 0 || !pharmacyId}
+                onClick={showBillTemplate}
+              >
+                Show Bill Preview
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
+      <RecentBills />
+      {showBillPreview && currentBill && <BillPreview bill={currentBill} />}
     </div>
   );
 }

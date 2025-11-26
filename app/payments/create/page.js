@@ -1,20 +1,23 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { 
-  createPayment, 
-  getPharmacies, 
-  getPharmacySoldBills, 
+import {
+  createPayment,
+  getPharmacies,
+  getPharmacySoldBills,
   getPharmacyReturns,
   formatDate,
-  getPaymentDetails
+  getPaymentDetails,
+  updatePayment,
+  getPayments,
+  getSoldBills,
+  getReturnsForPharmacy
 } from "@/lib/data";
 
-export default function CreatePaymentPage() {
+export default function PaymentManagementPage() {
   const { user } = useAuth();
   const router = useRouter();
-  
   const [pharmacies, setPharmacies] = useState([]);
   const [selectedPharmacy, setSelectedPharmacy] = useState("");
   const [soldBills, setSoldBills] = useState([]);
@@ -28,68 +31,135 @@ export default function CreatePaymentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
-  
-  // Check if we're in edit mode
   const [isEditMode, setIsEditMode] = useState(false);
   const [editPaymentId, setEditPaymentId] = useState(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [paymentDetails, setPaymentDetails] = useState({});
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [advancedSearch, setAdvancedSearch] = useState({
+    pharmacyName: "",
+    hardcopyBillNumber: "",
+    soldBillNumber: "",
+    returnedBillNumber: "",
+    notes: "",
+    dateFrom: "",
+    dateTo: "",
+    amountFrom: "",
+    amountTo: ""
+  });
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [amountRange, setAmountRange] = useState([0, 50000000]);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const hardcopyBillNumberRef = useRef(null);
+  const pharmacySelectRef = useRef(null);
 
+  // Format currency with commas and IQD
+  const formatCurrency = (amount) => {
+    return new Intl.NumberFormat('en-US').format(amount || 0) + " IQD";
+  };
+
+  // Format date to dd/mm/yyyy
+  const formatDateToDMY = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  // Parse date from dd/mm/yyyy to Date object
+  const parseDMYToDate = (dateString) => {
+    if (!dateString) return null;
+    const [day, month, year] = dateString.split('/');
+    return new Date(year, month - 1, day);
+  };
+
+  // Load data on mount
   useEffect(() => {
-    // Check for edit mode in URL
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
-    
     if (editId) {
       setIsEditMode(true);
       setEditPaymentId(editId);
     }
-  }, []);
-
-  useEffect(() => {
-    const loadPharmacies = async () => {
-      try {
-        const pharmaciesData = await getPharmacies();
-        setPharmacies(pharmaciesData);
-      } catch (error) {
-        console.error("Error loading pharmacies:", error);
-        setError("Failed to load pharmacies");
-      }
-    };
+    loadPaymentHistory();
     loadPharmacies();
   }, []);
 
-  // Load payment data for editing
+  // Load pharmacies
+  const loadPharmacies = async () => {
+    try {
+      const pharmaciesData = await getPharmacies();
+      setPharmacies(pharmaciesData);
+    } catch (error) {
+      console.error("Error loading pharmacies:", error);
+      setError("Failed to load pharmacies");
+    }
+  };
+
+  // Load payment history
+  const loadPaymentHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const paymentsData = await getPayments();
+      setPaymentHistory(paymentsData);
+      if (paymentsData.length > 0) {
+        const amounts = paymentsData.map(p => p.netAmount || 0);
+        const maxAmount = Math.max(...amounts);
+        setAmountRange([0, Math.ceil(maxAmount / 1000000) * 1000000]);
+      }
+    } catch (error) {
+      console.error("Error loading payments:", error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Load payment for edit
   useEffect(() => {
     const loadPaymentForEdit = async () => {
       if (!isEditMode || !editPaymentId) return;
-      
       try {
         setLoading(true);
         setError(null);
-        
-        // Fetch the payment details to edit
         const paymentToEdit = await getPaymentDetails(editPaymentId);
-        
         if (paymentToEdit) {
-          // Set all the form fields with the payment data
           setSelectedPharmacy(paymentToEdit.pharmacyId);
           setHardcopyBillNumber(paymentToEdit.hardcopyBillNumber);
-          setPaymentDate(paymentToEdit.paymentDate.toISOString().split("T")[0]);
+          let paymentDateValue;
+          if (paymentToEdit.paymentDate) {
+            if (paymentToEdit.paymentDate.toDate) {
+              paymentDateValue = paymentToEdit.paymentDate.toDate();
+            } else if (paymentToEdit.paymentDate instanceof Date) {
+              paymentDateValue = paymentToEdit.paymentDate;
+            } else {
+              paymentDateValue = new Date(paymentToEdit.paymentDate);
+            }
+          } else {
+            paymentDateValue = new Date();
+          }
+          setPaymentDate(paymentDateValue.toISOString().split("T")[0]);
           setNotes(paymentToEdit.notes || "");
-          
-          // Note: The bills and returns will be loaded automatically when pharmacy is selected
-          // We'll set the selected items after the data loads
+          setSelectedSoldBills(paymentToEdit.selectedSoldBills || []);
+          setSelectedReturns(paymentToEdit.selectedReturns || []);
         }
       } catch (error) {
         console.error("Error loading payment for edit:", error);
         setError("Failed to load payment for editing");
       } finally {
         setLoading(false);
+        setInitialLoadComplete(true);
       }
     };
-    
     loadPaymentForEdit();
   }, [isEditMode, editPaymentId]);
 
+  // Load pharmacy data
   useEffect(() => {
     if (!selectedPharmacy) {
       setSoldBills([]);
@@ -99,56 +169,16 @@ export default function CreatePaymentPage() {
       }
       return;
     }
-    
     const loadPharmacyData = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        // Get ALL bills and returns first
         const [allSoldBills, allReturns] = await Promise.all([
-          getPharmacySoldBills(selectedPharmacy),
-          getPharmacyReturns(selectedPharmacy)
+          getPharmacySoldBills(selectedPharmacy, isEditMode ? selectedSoldBills : []),
+          getPharmacyReturns(selectedPharmacy, isEditMode ? selectedReturns : [])
         ]);
-        
-        // Filter out paid bills - only show unpaid ones
-        const unpaidSoldBills = allSoldBills.filter(bill => 
-          bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash"
-        );
-        
-        // Filter out processed returns - only show unpaid ones
-        const unpaidReturns = allReturns.filter(returnBill => 
-          returnBill.paymentStatus !== "Processed"
-        );
-        
-        setSoldBills(unpaidSoldBills);
-        setReturns(unpaidReturns);
-        
-        // If we're in edit mode, select the previously selected items
-        if (isEditMode && editPaymentId) {
-          try {
-            const paymentToEdit = await getPaymentDetails(editPaymentId);
-            if (paymentToEdit) {
-              // Only select items that are still available (unpaid)
-              const availableSoldBills = paymentToEdit.selectedSoldBills?.filter(billId =>
-                unpaidSoldBills.some(bill => bill.id === billId)
-              ) || [];
-              
-              const availableReturns = paymentToEdit.selectedReturns?.filter(returnId =>
-                unpaidReturns.some(returnBill => returnBill.id === returnId)
-              ) || [];
-              
-              setSelectedSoldBills(availableSoldBills);
-              setSelectedReturns(availableReturns);
-            }
-          } catch (error) {
-            console.error("Error setting selected items for edit:", error);
-          }
-        } else {
-          setSelectedSoldBills([]);
-          setSelectedReturns([]);
-        }
-        
+        setSoldBills(allSoldBills);
+        setReturns(allReturns);
       } catch (error) {
         console.error("Error loading pharmacy data:", error);
         setError("Failed to load pharmacy data");
@@ -156,30 +186,46 @@ export default function CreatePaymentPage() {
         setLoading(false);
       }
     };
-    
     loadPharmacyData();
-  }, [selectedPharmacy, isEditMode, editPaymentId]);
+  }, [selectedPharmacy, isEditMode, initialLoadComplete]);
 
+  // Load payment details
+  const loadPaymentDetails = async (paymentId) => {
+    try {
+      const payment = paymentHistory.find(p => p.id === paymentId);
+      if (!payment) return;
+      const soldBills = await getSoldBills();
+      const returns = await getReturnsForPharmacy(payment.pharmacyId);
+      const soldDetails = soldBills.filter(bill => payment.selectedSoldBills?.includes(bill.id));
+      const returnDetails = returns.filter(r => payment.selectedReturns?.includes(r.id));
+      setPaymentDetails(prev => ({
+        ...prev,
+        [paymentId]: { soldBills: soldDetails, returns: returnDetails }
+      }));
+    } catch (error) {
+      console.error("Error loading payment details:", error);
+    }
+  };
+
+  // Calculate totals
   const soldTotal = selectedSoldBills.reduce((total, billId) => {
     const bill = soldBills.find(b => b.id === billId);
     return total + (bill?.totalAmount || 0);
   }, 0);
-
   const returnTotal = selectedReturns.reduce((total, returnId) => {
     const returnBill = returns.find(r => r.id === returnId);
     return total + (returnBill?.totalReturn || 0);
   }, 0);
-
   const totalAfterReturn = soldTotal - returnTotal;
 
+  // Toggle bill/return selection
   const toggleSoldBill = (billId) => {
-    setSelectedSoldBills(prev => 
-      prev.includes(billId) 
+    setSelectedSoldBills(prev =>
+      prev.includes(billId)
         ? prev.filter(id => id !== billId)
         : [...prev, billId]
     );
   };
-
   const toggleReturn = (returnId) => {
     setSelectedReturns(prev =>
       prev.includes(returnId)
@@ -188,6 +234,7 @@ export default function CreatePaymentPage() {
     );
   };
 
+  // Select all bills/returns
   const selectAllSoldBills = () => {
     if (selectedSoldBills.length === soldBills.length) {
       setSelectedSoldBills([]);
@@ -195,7 +242,6 @@ export default function CreatePaymentPage() {
       setSelectedSoldBills(soldBills.map(bill => bill.id));
     }
   };
-
   const selectAllReturns = () => {
     if (selectedReturns.length === returns.length) {
       setSelectedReturns([]);
@@ -204,27 +250,35 @@ export default function CreatePaymentPage() {
     }
   };
 
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    let hasError = false;
+
     if (!selectedPharmacy) {
       setError("Please select a pharmacy");
-      return;
+      pharmacySelectRef.current?.focus();
+      hasError = true;
     }
+
     if (!hardcopyBillNumber.trim()) {
-      setError("Please enter hardcopy bill number");
-      return;
+      setError("Hardcopy Bill Number is required");
+      hardcopyBillNumberRef.current?.focus();
+      hasError = true;
     }
+
     if (selectedSoldBills.length === 0 && selectedReturns.length === 0) {
       setError("Please select at least one bill or return to process");
-      return;
+      hasError = true;
     }
+
+    if (hasError) return;
+
     try {
       setSubmitting(true);
       setError(null);
       const selectedPharmacyData = pharmacies.find(p => p.id === selectedPharmacy);
       const userDisplayName = user?.name || user?.email || 'Unknown User';
-      
       const paymentData = {
         pharmacyId: selectedPharmacy,
         pharmacyName: selectedPharmacyData?.name || 'Unknown Pharmacy',
@@ -239,36 +293,22 @@ export default function CreatePaymentPage() {
         createdBy: user.uid,
         createdByName: userDisplayName
       };
-      
       let result;
       if (isEditMode) {
-        // Update existing payment
-        // You'll need to implement updatePayment function in data.js
-        // For now, we'll show an alert and create a new payment
-        alert("Update payment functionality will be implemented soon. Creating a new payment instead.");
-        
-        // Create new payment as fallback
-        result = await createPayment(paymentData);
-        setSuccess(`New payment ${result.paymentNumber} created successfully! (Update feature coming soon)`);
+        result = await updatePayment(editPaymentId, paymentData);
+        setSuccess(`Payment ${result.paymentNumber} updated successfully!`);
       } else {
-        // Create new payment
         result = await createPayment(paymentData);
         setSuccess(`Payment ${result.paymentNumber} created successfully!`);
       }
-      
-      // Reset form only for new payments
+
       if (!isEditMode) {
-        setSelectedPharmacy("");
         setSelectedSoldBills([]);
         setSelectedReturns([]);
         setHardcopyBillNumber("");
         setNotes("");
       }
-      
-      setTimeout(() => {
-        router.push("/payments/history");
-      }, 2000);
-      
+      await loadPaymentHistory();
     } catch (error) {
       console.error(`Error ${isEditMode ? 'updating' : 'creating'} payment:`, error);
       setError(error.message);
@@ -277,31 +317,191 @@ export default function CreatePaymentPage() {
     }
   };
 
+  // Cancel edit mode
   const handleCancelEdit = () => {
-    // Go back to payment history
-    router.push("/payments/history");
+    setIsEditMode(false);
+    setEditPaymentId(null);
+    setSelectedSoldBills([]);
+    setSelectedReturns([]);
+    setHardcopyBillNumber("");
+    setNotes("");
+    window.history.replaceState({}, '', '/payments/create');
   };
 
+  // Update payment
+  const handleUpdatePayment = (payment) => {
+    setIsEditMode(true);
+    setEditPaymentId(payment.id);
+    setSelectedPharmacy(payment.pharmacyId);
+    setHardcopyBillNumber(payment.hardcopyBillNumber);
+    let paymentDateValue;
+    if (payment.paymentDate) {
+      if (payment.paymentDate.toDate) {
+        paymentDateValue = payment.paymentDate.toDate();
+      } else if (payment.paymentDate instanceof Date) {
+        paymentDateValue = payment.paymentDate;
+      } else {
+        paymentDateValue = new Date(payment.paymentDate);
+      }
+    } else {
+      paymentDateValue = new Date();
+    }
+    setPaymentDate(paymentDateValue.toISOString().split("T")[0]);
+    setNotes(payment.notes || "");
+    setSelectedSoldBills(payment.selectedSoldBills || []);
+    setSelectedReturns(payment.selectedReturns || []);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // View payment details
+  const handleViewPayment = async (payment) => {
+    setSelectedPayment(payment);
+    await loadPaymentDetails(payment.id);
+    setShowPaymentModal(true);
+  };
+
+  // Close modal
+  const closePaymentModal = () => {
+    setShowPaymentModal(false);
+    setSelectedPayment(null);
+  };
+
+  // Advanced search
+  const handleAdvancedSearchChange = (field, value) => {
+    setAdvancedSearch(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Amount range
+  const handleAmountRangeChange = (values) => {
+    setAmountRange(values);
+    setAdvancedSearch(prev => ({
+      ...prev,
+      amountFrom: values[0],
+      amountTo: values[1]
+    }));
+  };
+
+  // Reset advanced search
+  const resetAdvancedSearch = () => {
+    setAdvancedSearch({
+      pharmacyName: "",
+      hardcopyBillNumber: "",
+      soldBillNumber: "",
+      returnedBillNumber: "",
+      notes: "",
+      dateFrom: "",
+      dateTo: "",
+      amountFrom: "",
+      amountTo: ""
+    });
+    setAmountRange([0, 50000000]);
+  };
+
+  // Filter payments
+  const filteredPayments = paymentHistory.filter(payment => {
+    const basicSearch = searchTerm === "" ||
+      payment.paymentNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.pharmacyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.createdByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.hardcopyBillNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const statusFilter = filterStatus === "all" || payment.status === filterStatus;
+
+    let advancedFilter = true;
+    if (showAdvancedSearch) {
+      if (advancedSearch.pharmacyName && !payment.pharmacyName?.toLowerCase().includes(advancedSearch.pharmacyName.toLowerCase())) {
+        advancedFilter = false;
+      }
+      if (advancedSearch.hardcopyBillNumber && !payment.hardcopyBillNumber?.toLowerCase().includes(advancedSearch.hardcopyBillNumber.toLowerCase())) {
+        advancedFilter = false;
+      }
+      if (advancedSearch.soldBillNumber) {
+        const hasSoldBill = paymentDetails[payment.id]?.soldBills?.some(bill =>
+          bill.billNumber?.toLowerCase().includes(advancedSearch.soldBillNumber.toLowerCase())
+        );
+        if (!hasSoldBill) advancedFilter = false;
+      }
+      if (advancedSearch.returnedBillNumber) {
+        const hasReturnBill = paymentDetails[payment.id]?.returns?.some(returnBill =>
+          returnBill.returnNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase()) ||
+          returnBill.billNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase())
+        );
+        if (!hasReturnBill) advancedFilter = false;
+      }
+      if (advancedSearch.notes && !payment.notes?.toLowerCase().includes(advancedSearch.notes.toLowerCase())) {
+        advancedFilter = false;
+      }
+      if (advancedSearch.dateFrom) {
+        const paymentDate = new Date(payment.paymentDate);
+        const fromDate = parseDMYToDate(advancedSearch.dateFrom);
+        if (fromDate && paymentDate < fromDate) advancedFilter = false;
+      }
+      if (advancedSearch.dateTo) {
+        const paymentDate = new Date(payment.paymentDate);
+        const toDate = parseDMYToDate(advancedSearch.dateTo);
+        if (toDate) {
+          toDate.setHours(23, 59, 59, 999);
+          if (paymentDate > toDate) advancedFilter = false;
+        }
+      }
+      const paymentAmount = payment.netAmount || 0;
+      if (advancedSearch.amountFrom && paymentAmount < advancedSearch.amountFrom) {
+        advancedFilter = false;
+      }
+      if (advancedSearch.amountTo && paymentAmount > advancedSearch.amountTo) {
+        advancedFilter = false;
+      }
+    }
+    return basicSearch && statusFilter && advancedFilter;
+  });
+
+  // Total amount
+  const totalAmount = filteredPayments.reduce((sum, payment) => sum + payment.netAmount, 0);
+
+  // Redirect if not logged in
   if (!user) {
     router.push("/login");
     return null;
   }
 
   return (
-    <div className="payment-container bg-gradient-blue" style={{ minHeight: '100vh', padding: '1rem' }}>
+    <div
+      className="payment-container bg-gradient-blue"
+      style={{
+        minHeight: '100vh',
+        padding: '1rem',
+        fontFamily: "var(--font-nrt-reg)"
+      }}
+    >
       {/* Header */}
       <div className="payment-header">
-        <h1 className="text-4xl font-bold">
-          {isEditMode ? 'Update Payment' : 'Create Payment'}
+        <h1
+          style={{
+            fontSize: "2rem",
+            fontWeight: "bold",
+            marginBottom: "1rem",
+            color: "#1e293b",
+            fontFamily: "var(--font-nrt-bd)"
+          }}
+        >
+          {isEditMode ? 'Update Payment' : 'Payment Management'}
         </h1>
-        <p className="text-xl text-gray-600">
-          {isEditMode ? 'Update existing payment details' : 'Process payments for unpaid bills and returns'}
-        </p>
+
         {isEditMode && (
-          <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-sm">
-              <strong>Edit Mode:</strong> You are updating an existing payment. 
-              Only unpaid bills and returns are available for selection.
+          <div style={{
+            marginTop: "0.5rem",
+            padding: "0.75rem",
+            backgroundColor: "#fef3c7",
+            border: "1px solid #fde68a",
+            borderRadius: "0.375rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <p style={{ color: "#92400e", fontSize: "0.875rem", margin: 0 }}>
+              <strong>Edit Mode:</strong> You are updating an existing payment. Previously selected items are shown and can be modified.
             </p>
           </div>
         )}
@@ -309,220 +509,245 @@ export default function CreatePaymentPage() {
 
       {/* Success/Error Messages */}
       {error && (
-        <div className="alert alert-error fade-in">
-          <div className="flex items-center">
-            <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.75rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div style={{
+          padding: "1rem",
+          backgroundColor: "#fca5a5",
+          color: "#991b1b",
+          borderRadius: "0.375rem",
+          marginBottom: "1rem",
+          fontFamily: "var(--font-nrt-reg)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <svg
+              style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.75rem' }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <h3 style={{ fontWeight: '600', color: '#dc2626' }}>Error</h3>
-              <p style={{ color: '#dc2626', marginTop: '0.25rem' }}>{error}</p>
+              <h3 style={{ fontWeight: '600', color: '#dc2626', margin: 0, fontFamily: "var(--font-nrt-bd)" }}>Error</h3>
+              <p style={{ color: '#dc2626', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>{error}</p>
             </div>
           </div>
         </div>
       )}
+
       {success && (
-        <div className="alert alert-success fade-in">
-          <div className="flex items-center">
-            <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.75rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div style={{
+          padding: "1rem",
+          backgroundColor: "#dcfce7",
+          color: "#166534",
+          borderRadius: "0.375rem",
+          marginBottom: "1rem",
+          fontFamily: "var(--font-nrt-reg)"
+        }}>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <svg
+              style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.75rem' }}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
             </svg>
             <div>
-              <h3 style={{ fontWeight: '600', color: '#16a34a' }}>Success!</h3>
-              <p style={{ color: '#16a34a', marginTop: '0.25rem' }}>{success}</p>
+              <h3 style={{ fontWeight: '600', color: '#16a34a', margin: 0, fontFamily: "var(--font-nrt-bd)" }}>Success!</h3>
+              <p style={{ color: '#16a34a', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>{success}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="payment-grid" style={{ gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
-        {/* Left Column - Form and Summary */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Pharmacy Selection */}
-          <div className="payment-card">
-            <h2 className="payment-card-header">
-              <svg style={{ width: '1.5rem', height: '1.5rem', color: '#2563eb' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              Pharmacy Information
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.25rem' }}>
-                  Select Pharmacy
-                </label>
-                <select
-                  value={selectedPharmacy}
-                  onChange={(e) => setSelectedPharmacy(e.target.value)}
-                  className="payment-select"
-                  required
-                  disabled={isEditMode} // Disable pharmacy change in edit mode
-                >
-                  <option value="">Choose a pharmacy...</option>
-                  {pharmacies.map(pharmacy => (
-                    <option key={pharmacy.id} value={pharmacy.id}>
-                      {pharmacy.name} ({pharmacy.code})
-                    </option>
-                  ))}
-                </select>
-                {isEditMode && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Pharmacy cannot be changed in edit mode
-                  </p>
-                )}
-              </div>
-              
-              {/* Hardcopy Bill Number */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.25rem' }}>
-                  Hardcopy Bill Number *
-                </label>
-                <input
-                  type="text"
-                  value={hardcopyBillNumber}
-                  onChange={(e) => setHardcopyBillNumber(e.target.value)}
-                  className="payment-input"
-                  placeholder="Enter hardcopy bill number (e.g., BILL-001, INV-2024-001)"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '0.25rem' }}>
-                  Payment Date
-                </label>
-                <input
-                  type="date"
-                  value={paymentDate}
-                  onChange={(e) => setPaymentDate(e.target.value)}
-                  className="payment-input"
-                  required
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Summary */}
-          <div className="payment-card">
-            <h2 className="payment-card-header">
-              <svg style={{ width: '1.5rem', height: '1.5rem', color: '#059669' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Payment Summary
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0' }}>
-                <span style={{ color: '#4b5563', fontSize: '0.875rem' }}>Sold Bills:</span>
-                <span style={{ fontWeight: '600', color: '#059669' }}>
-                  {soldTotal.toFixed(2)} IQD
-                </span>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0' }}>
-                <span style={{ color: '#4b5563', fontSize: '0.875rem' }}>Returns:</span>
-                <span style={{ fontWeight: '600', color: '#dc2626' }}>
-                  -{returnTotal.toFixed(2)} IQD
-                </span>
-              </div>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem' }}>
-                <span style={{ fontWeight: 'bold', color: '#1f2937' }}>Net Amount:</span>
-                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#2563eb' }}>
-                  {totalAfterReturn.toFixed(2)} IQD
-                </span>
-              </div>
-
-              {/* Additional Info */}
-              <div style={{ marginTop: '0.5rem', padding: '0.75rem', backgroundColor: '#f8fafc', borderRadius: '0.375rem', border: '1px solid #e2e8f0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Selected Bills:</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>
-                    {selectedSoldBills.length} of {soldBills.length}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Selected Returns:</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: '#475569' }}>
-                    {selectedReturns.length} of {returns.length}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div className="payment-card">
-            <h2 className="payment-card-header">
-              <svg style={{ width: '1.5rem', height: '1.5rem', color: '#7c3aed' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Notes
-            </h2>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              className="payment-textarea"
-              placeholder="Add any notes about this payment..."
-            />
-          </div>
-
-          {/* Action Buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {isEditMode && (
-              <button
-                onClick={handleCancelEdit}
-                className="payment-btn payment-btn-secondary"
-                style={{ flex: 1, padding: '0.75rem' }}
+      {/* Create/Update Payment Section */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr",
+        gap: "1rem",
+        marginBottom: "2rem"
+      }}>
+        {/* Pharmacy Information - Full Width */}
+        <div style={{
+          width: "100%",
+          backgroundColor: "#fff",
+          borderRadius: "0.5rem",
+          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          padding: "1.5rem",
+          fontFamily: "var(--font-nrt-reg)"
+        }}>
+          <h2 style={{
+            fontSize: "1.25rem",
+            fontWeight: "bold",
+            marginBottom: "1rem",
+            color: "#1e293b",
+            fontFamily: "var(--font-nrt-bd)"
+          }}>
+            Pharmacy Information
+          </h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
+            <div style={{ width: "100%" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "0.25rem",
+                fontFamily: "var(--font-nrt-bd)"
+              }}>
+                Select Pharmacy
+              </label>
+              <select
+                ref={pharmacySelectRef}
+                value={selectedPharmacy}
+                onChange={(e) => setSelectedPharmacy(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: !selectedPharmacy ? "1px solid #ef4444" : "1px solid #e2e8f0",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.875rem",
+                  fontFamily: "var(--font-nrt-reg)"
+                }}
+                required
               >
-                Cancel
-              </button>
-            )}
-            <button
-              onClick={handleSubmit}
-              disabled={submitting || !selectedPharmacy || !hardcopyBillNumber.trim() || (selectedSoldBills.length === 0 && selectedReturns.length === 0)}
-              className="payment-btn payment-btn-primary"
-              style={{ flex: 2, padding: '0.75rem' }}
-            >
-              {submitting ? (
-                <>
-                  <div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', borderTopColor: 'white' }}></div>
-                  {isEditMode ? 'Updating...' : 'Processing...'}
-                </>
-              ) : (
-                `${isEditMode ? 'Update' : 'Create'} Payment - ${totalAfterReturn.toFixed(2)} IQD`
+                <option value="">Choose a pharmacy...</option>
+                {pharmacies.map(pharmacy => (
+                  <option key={pharmacy.id} value={pharmacy.id}>
+                    {pharmacy.name} ({pharmacy.code})
+                  </option>
+                ))}
+              </select>
+              {isEditMode && (
+                <p style={{
+                  fontSize: "0.75rem",
+                  color: "#6b7280",
+                  marginTop: "0.25rem",
+                  fontFamily: "var(--font-nrt-reg)"
+                }}>
+                  Pharmacy cannot be changed in edit mode
+                </p>
               )}
-            </button>
+            </div>
+
+            <div style={{ width: "100%" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "0.25rem",
+                fontFamily: "var(--font-nrt-bd)"
+              }}>
+                Hardcopy Bill Number *
+              </label>
+              <input
+                ref={hardcopyBillNumberRef}
+                type="text"
+                value={hardcopyBillNumber}
+                onChange={(e) => setHardcopyBillNumber(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: !hardcopyBillNumber.trim() ? "1px solid #ef4444" : "1px solid #e2e8f0",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.875rem",
+                  fontFamily: "var(--font-nrt-reg)"
+                }}
+                placeholder="Enter hardcopy bill number (e.g., BILL-001, INV-2024-001)"
+                required
+              />
+            </div>
+
+            <div style={{ width: "100%" }}>
+              <label style={{
+                display: "block",
+                fontSize: "0.875rem",
+                fontWeight: "600",
+                color: "#374151",
+                marginBottom: "0.25rem",
+                fontFamily: "var(--font-nrt-bd)"
+              }}>
+                Payment Date
+              </label>
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.875rem",
+                  fontFamily: "var(--font-nrt-reg)"
+                }}
+                required
+              />
+            </div>
           </div>
         </div>
 
-        {/* Right Column - Bills and Returns in 2 columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', height: 'fit-content' }}>
+        {/* Sold Bills and Returns - Next Row */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "1rem",
+          width: "100%"
+        }}>
           {/* Sold Bills Section */}
-          <div className="payment-card" style={{ overflow: 'hidden' }}>
-            <div style={{ backgroundColor: '#10b981', padding: '0.75rem 1rem' }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "0.5rem",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+            padding: "1.5rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <div style={{
+              backgroundColor: '#10b981',
+              padding: '0.75rem 1rem',
+              borderRadius: '0.375rem',
+              marginBottom: "1rem"
+            }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', margin: 0 }}>
-                  Unpaid Bills ({soldBills.length})
+                <h2 style={{
+                  fontSize: '1.125rem',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  margin: 0,
+                  fontFamily: "var(--font-nrt-bd)"
+                }}>
+                  Sold Bills ({soldBills.length})
                 </h2>
-                <button
-                  onClick={selectAllSoldBills}
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.75rem', border: 'none', cursor: 'pointer' }}
-                >
-                  {selectedSoldBills.length === soldBills.length ? "Deselect All" : "Select All"}
-                </button>
+                {!isEditMode && (
+                  <button
+                    onClick={selectAllSoldBills}
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.75rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  >
+                    {selectedSoldBills.length === soldBills.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ padding: '1rem', maxHeight: '500px', overflowY: 'auto' }}>
+            <div style={{ padding: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
               {loading ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
                   <div className="loading-spinner" style={{ width: '2rem', height: '2rem', borderTopColor: '#10b981', margin: '0 auto' }}></div>
-                  <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.875rem' }}>Loading bills...</p>
+                  <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>Loading bills...</p>
                 </div>
               ) : soldBills.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
                   <div style={{ fontSize: '2rem', color: '#9ca3af', marginBottom: '0.5rem' }}>📄</div>
-                  <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>
                     {selectedPharmacy ? "No unpaid bills available" : "Select pharmacy"}
                   </p>
                 </div>
@@ -531,34 +756,34 @@ export default function CreatePaymentPage() {
                   {soldBills.map((bill) => (
                     <div
                       key={bill.id}
-                      className={`selectable-item ${selectedSoldBills.includes(bill.id) ? 'selected' : ''}`}
                       onClick={() => toggleSoldBill(bill.id)}
-                      style={{ 
-                        padding: '0.75rem', 
+                      style={{
+                        padding: '0.75rem',
                         marginBottom: '0',
                         border: selectedSoldBills.includes(bill.id) ? '2px solid #10b981' : '1px solid #e5e7eb',
                         backgroundColor: selectedSoldBills.includes(bill.id) ? '#f0fdf4' : 'white',
-                        borderRadius: '0.5rem',
+                        borderRadius: '0.375rem',
                         cursor: 'pointer',
-                        transition: 'all 0.2s ease'
+                        transition: 'all 0.2s ease',
+                        fontFamily: "var(--font-nrt-reg)"
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem' }}>Bill #{bill.billNumber}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                          <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>Bill #{bill.billNumber}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
                             {formatDate(bill.date)} • {bill.items.length} items
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.25rem', fontWeight: '500' }}>
-                            Unpaid
+                          <div style={{ fontSize: '0.75rem', color: selectedSoldBills.includes(bill.id) ? '#10b981' : '#dc2626', marginTop: '0.25rem', fontWeight: '500', fontFamily: "var(--font-nrt-reg)" }}>
+                            {selectedSoldBills.includes(bill.id) ? 'Selected for Payment' : 'Unpaid'}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right', marginLeft: '0.5rem' }}>
-                          <div style={{ fontWeight: 'bold', color: '#059669', fontSize: '0.875rem' }}>
-                            {bill.totalAmount.toFixed(2)} IQD
+                          <div style={{ fontWeight: 'bold', color: '#059669', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                            {formatCurrency(bill.totalAmount)}
                           </div>
                           {selectedSoldBills.includes(bill.id) && (
-                            <div style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.25rem' }}>
+                            <div style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
                               ✓ Selected
                             </div>
                           )}
@@ -572,84 +797,983 @@ export default function CreatePaymentPage() {
           </div>
 
           {/* Returns Section */}
-          <div className="payment-card" style={{ overflow: 'hidden' }}>
-            <div style={{ backgroundColor: '#f59e0b', padding: '0.75rem 1rem' }}>
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "0.5rem",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+            padding: "1.5rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <div style={{
+              backgroundColor: '#f59e0b',
+              padding: '0.75rem 1rem',
+              borderRadius: '0.375rem',
+              marginBottom: "1rem"
+            }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: 'white', margin: 0 }}>
+                <h2 style={{
+                  fontSize: '1.125rem',
+                  fontWeight: 'bold',
+                  color: 'white',
+                  margin: 0,
+                  fontFamily: "var(--font-nrt-bd)"
+                }}>
                   Returns ({returns.length})
                 </h2>
-                <button
-                  onClick={selectAllReturns}
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', color: 'white', padding: '0.25rem 0.5rem', borderRadius: '0.5rem', fontSize: '0.75rem', border: 'none', cursor: 'pointer' }}
-                >
-                  {selectedReturns.length === returns.length ? "Deselect All" : "Select All"}
-                </button>
+                {!isEditMode && (
+                  <button
+                    onClick={selectAllReturns}
+                    style={{
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: 'white',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.75rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  >
+                    {selectedReturns.length === returns.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
               </div>
             </div>
-            <div style={{ padding: '1rem', maxHeight: '500px', overflowY: 'auto' }}>
+            <div style={{ padding: '0.5rem', maxHeight: '400px', overflowY: 'auto' }}>
               {loading ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
                   <div className="loading-spinner" style={{ width: '2rem', height: '2rem', borderTopColor: '#f59e0b', margin: '0 auto' }}></div>
-                  <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.875rem' }}>Loading returns...</p>
+                  <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>Loading returns...</p>
                 </div>
               ) : returns.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem 0' }}>
                   <div style={{ fontSize: '2rem', color: '#9ca3af', marginBottom: '0.5rem' }}>🔄</div>
-                  <p style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>
                     {selectedPharmacy ? "No returns available" : "Select pharmacy"}
                   </p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  {returns.map((returnBill) => (
-                    <div
-                      key={returnBill.id}
-                      className={`selectable-item ${selectedReturns.includes(returnBill.id) ? 'selected' : ''}`}
-                      onClick={() => toggleReturn(returnBill.id)}
-                      style={{ 
-                        padding: '0.75rem', 
-                        marginBottom: '0',
-                        border: selectedReturns.includes(returnBill.id) ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                        backgroundColor: selectedReturns.includes(returnBill.id) ? '#fffbeb' : 'white',
-                        borderRadius: '0.5rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem' }}>Return #{returnBill.id.slice(-6)}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem' }}>
-                            {formatDate(returnBill.date)} • {returnBill.items?.length || 0} items
-                          </div>
-                          <div style={{ 
-                            fontSize: '0.75rem', 
-                            marginTop: '0.25rem', 
-                            fontWeight: '500',
-                            color: returnBill.paymentStatus === 'Processed' ? '#059669' : '#dc2626'
-                          }}>
-                            {returnBill.paymentStatus === 'Processed' ? 'Paid' : 'Unpaid'}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', marginLeft: '0.5rem' }}>
-                          <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '0.875rem' }}>
-                            -{returnBill.totalReturn.toFixed(2)} IQD
-                          </div>
-                          {selectedReturns.includes(returnBill.id) && (
-                            <div style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '0.25rem' }}>
-                              ✓ Selected
+                  {returns.map((returnBill) => {
+                    const returnId = returnBill.id;
+                    const returnNumber = returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A';
+                    const itemCount = returnBill.items ? returnBill.items.length : 1;
+                    const returnAmount = returnBill.totalReturn || 0;
+
+                    return (
+                      <div
+                        key={returnBill.id}
+                        onClick={() => toggleReturn(returnBill.id)}
+                        style={{
+                          padding: '0.75rem',
+                          marginBottom: '0',
+                          border: selectedReturns.includes(returnBill.id) ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                          backgroundColor: selectedReturns.includes(returnBill.id) ? '#fffbeb' : 'white',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          fontFamily: "var(--font-nrt-reg)"
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                              {returnNumber}
                             </div>
-                          )}
+                            <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                              {formatDate(returnBill.date)} • {itemCount} items
+                            </div>
+                            {returnBill.items && returnBill.items.length > 0 && (
+                              <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                Items: {returnBill.items.map(item => item.name).join(', ')}
+                              </div>
+                            )}
+                            <div style={{ fontSize: '0.75rem', color: selectedReturns.includes(returnBill.id) ? '#f59e0b' : '#dc2626', marginTop: '0.25rem', fontWeight: '500', fontFamily: "var(--font-nrt-reg)" }}>
+                              {selectedReturns.includes(returnBill.id) ? 'Selected for Processing' : 'Unprocessed'}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', marginLeft: '0.5rem' }}>
+                            <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                              -{formatCurrency(returnAmount)}
+                            </div>
+                            {selectedReturns.includes(returnBill.id) && (
+                              <div style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                ✓ Selected
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
         </div>
+
+        {/* Payment Summary and Notes - Same Row */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "1rem",
+          width: "100%"
+        }}>
+          {/* Payment Summary */}
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "0.5rem",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+            padding: "1.5rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <h2 style={{
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              marginBottom: "1rem",
+              color: "#1e293b",
+              fontFamily: "var(--font-nrt-bd)"
+            }}>
+              Payment Summary
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', width: '100%' }}>
+                <span style={{ color: '#4b5563', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>Sold Bills:</span>
+                <span style={{ fontWeight: '600', color: '#059669', fontFamily: "var(--font-nrt-bd)" }}>
+                  {formatCurrency(soldTotal)} ({selectedSoldBills.length} bill(s))
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', width: '100%' }}>
+                <span style={{ color: '#4b5563', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>Returns:</span>
+                <span style={{ fontWeight: '600', color: '#dc2626', fontFamily: "var(--font-nrt-bd)" }}>
+                  -{formatCurrency(returnTotal)} ({selectedReturns.length} return(s))
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', width: '100%' }}>
+                <span style={{ fontWeight: 'bold', color: '#1f2937', fontFamily: "var(--font-nrt-bd)" }}>Net Amount:</span>
+                <span style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#2563eb', fontFamily: "var(--font-nrt-bd)" }}>
+                  {formatCurrency(totalAfterReturn)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div style={{
+            backgroundColor: "#fff",
+            borderRadius: "0.5rem",
+            boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+            padding: "1.5rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <h2 style={{
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              marginBottom: "1rem",
+              color: "#1e293b",
+              fontFamily: "var(--font-nrt-bd)"
+            }}>
+              Notes
+            </h2>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+              placeholder="Add any notes about this payment..."
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                minHeight: '80px',
+                padding: '0.75rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontFamily: "var(--font-nrt-reg)"
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div style={{
+          display: "flex",
+          gap: "0.5rem",
+          width: "100%"
+        }}>
+          {isEditMode && (
+            <button
+              onClick={handleCancelEdit}
+              style={{
+                flex: 1,
+                padding: '0.75rem',
+                backgroundColor: '#9ca3af',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontFamily: "var(--font-nrt-bd)"
+              }}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !selectedPharmacy || !hardcopyBillNumber.trim() || (selectedSoldBills.length === 0 && selectedReturns.length === 0)}
+            style={{
+              flex: 2,
+              padding: '0.75rem',
+              backgroundColor: submitting ? '#93c5fd' : '#2563eb',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: submitting ? 'not-allowed' : 'pointer',
+              fontSize: '0.875rem',
+              fontFamily: "var(--font-nrt-bd)"
+            }}
+          >
+            {submitting ? (
+              <>
+                <div className="loading-spinner" style={{ width: '1.25rem', height: '1.25rem', marginRight: '0.5rem', borderTopColor: 'white' }}></div>
+                {isEditMode ? 'Updating...' : 'Processing...'}
+              </>
+            ) : (
+              `${isEditMode ? 'Update' : 'Create'} Payment - ${formatCurrency(totalAfterReturn)}`
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Payment History Section */}
+      <div style={{
+        backgroundColor: "#fff",
+        borderRadius: "0.5rem",
+        boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+        padding: "1.5rem",
+        fontFamily: "var(--font-nrt-reg)"
+      }}>
+        <div style={{
+          backgroundColor: '#3b82f6',
+          padding: '0.75rem 1rem',
+          borderRadius: '0.5rem 0.5rem 0 0',
+          margin: '-1rem -1rem 1rem -1rem'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              color: 'white',
+              margin: 0,
+              fontFamily: "var(--font-nrt-bd)"
+            }}>
+              Payment History
+            </h2>
+            <p style={{ color: '#bfdbfe', fontSize: '1rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>View and manage all payment records</p>
+          </div>
+        </div>
+
+        {/* Stats and Actions */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{
+              backgroundColor: "#fff",
+              borderRadius: "0.5rem",
+              boxShadow: "0 2px 4px -1px rgba(0, 0, 0, 0.1)",
+              padding: '0.75rem 1rem',
+              minWidth: '120px',
+              fontFamily: "var(--font-nrt-reg)"
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>Total Processed</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#059669', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(totalAmount)}</div>
+            </div>
+            <div style={{
+              backgroundColor: "#fff",
+              borderRadius: "0.5rem",
+              boxShadow: "0 2px 4px -1px rgba(0, 0, 0, 0.1)",
+              padding: '0.75rem 1rem',
+              minWidth: '120px',
+              fontFamily: "var(--font-nrt-reg)"
+            }}>
+              <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>Total Payments</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#2563eb', fontFamily: "var(--font-nrt-bd)" }}>{filteredPayments.length}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Search payments..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '200px',
+                padding: '0.5rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.375rem',
+                fontSize: '0.875rem',
+                fontFamily: "var(--font-nrt-reg)"
+              }}
+            />
+
+            <button
+              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#e5e7eb',
+                color: '#374151',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontFamily: "var(--font-nrt-bd)"
+              }}
+            >
+              {showAdvancedSearch ? 'Hide' : 'Advanced'} Search
+            </button>
+          </div>
+        </div>
+
+        {/* Advanced Search Panel */}
+        {showAdvancedSearch && (
+          <div style={{
+            backgroundColor: "#f8fafc",
+            borderRadius: "0.5rem",
+            padding: "1.5rem",
+            marginBottom: "1.5rem",
+            fontFamily: "var(--font-nrt-reg)"
+          }}>
+            <h3 style={{
+              fontSize: "1.25rem",
+              fontWeight: "600",
+              marginBottom: "1rem",
+              color: "#1e293b",
+              fontFamily: "var(--font-nrt-bd)"
+            }}>
+              Advanced Search
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Pharmacy Name</label>
+                <input
+                  type="text"
+                  value={advancedSearch.pharmacyName}
+                  onChange={(e) => handleAdvancedSearchChange('pharmacyName', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter pharmacy name"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Hardcopy Bill #</label>
+                <input
+                  type="text"
+                  value={advancedSearch.hardcopyBillNumber}
+                  onChange={(e) => handleAdvancedSearchChange('hardcopyBillNumber', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter bill number"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Sold Bill #</label>
+                <input
+                  type="text"
+                  value={advancedSearch.soldBillNumber}
+                  onChange={(e) => handleAdvancedSearchChange('soldBillNumber', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter sold bill number"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Returned Bill #</label>
+                <input
+                  type="text"
+                  value={advancedSearch.returnedBillNumber}
+                  onChange={(e) => handleAdvancedSearchChange('returnedBillNumber', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter returned bill number"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Notes</label>
+                <input
+                  type="text"
+                  value={advancedSearch.notes}
+                  onChange={(e) => handleAdvancedSearchChange('notes', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Search in notes"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date From (dd/mm/yyyy)</label>
+                <input
+                  type="text"
+                  value={advancedSearch.dateFrom}
+                  onChange={(e) => handleAdvancedSearchChange('dateFrom', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="dd/mm/yyyy"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date To (dd/mm/yyyy)</label>
+                <input
+                  type="text"
+                  value={advancedSearch.dateTo}
+                  onChange={(e) => handleAdvancedSearchChange('dateTo', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="dd/mm/yyyy"
+                />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '1rem', fontFamily: "var(--font-nrt-bd)" }}>
+                  Amount Range: {formatCurrency(amountRange[0])} - {formatCurrency(amountRange[1])}
+                </label>
+                <div style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type="range"
+                    min="0"
+                    max="50000000"
+                    step="10000"
+                    value={amountRange[0]}
+                    onChange={(e) => handleAmountRangeChange([parseInt(e.target.value), amountRange[1]])}
+                    style={{
+                      position: 'absolute',
+                      width: '100%',
+                      height: '6px',
+                      background: `linear-gradient(to right, #e5e7eb 0%, #e5e7eb ${(amountRange[0] / 50000000) * 100}%, #3b82f6 ${(amountRange[0] / 50000000) * 100}%, #3b82f6 ${(amountRange[1] / 50000000) * 100}%, #e5e7eb ${(amountRange[1] / 50000000) * 100}%, #e5e7eb 100%)`,
+                      borderRadius: '3px',
+                      outline: 'none',
+                    }}
+                  />
+                  <input
+                    type="range"
+                    min="0"
+                    max="50000000"
+                    step="10000"
+                    value={amountRange[1]}
+                    onChange={(e) => handleAmountRangeChange([amountRange[0], parseInt(e.target.value)])}
+                    style={{
+                      position: 'absolute',
+                      width: '100%',
+                      height: '6px',
+                      background: 'transparent',
+                      outline: 'none',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>0 IQD</span>
+                  <span style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>50,000,000 IQD</span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                  <input
+                    type="number"
+                    value={advancedSearch.amountFrom}
+                    onChange={(e) => handleAdvancedSearchChange('amountFrom', e.target.value)}
+                    placeholder="From"
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  />
+                  <input
+                    type="number"
+                    value={advancedSearch.amountTo}
+                    onChange={(e) => handleAdvancedSearchChange('amountTo', e.target.value)}
+                    placeholder="To"
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+              <button
+                onClick={resetAdvancedSearch}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#e5e7eb',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontFamily: "var(--font-nrt-bd)"
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content Area */}
+        <div>
+          {historyLoading ? (
+            <div style={{ textAlign: 'center', padding: '3rem 2rem', fontFamily: "var(--font-nrt-reg)" }}>
+              <div className="loading-spinner" style={{ width: '3rem', height: '3rem', borderTopColor: '#2563eb', margin: '0 auto' }}></div>
+              <p style={{ color: '#6b7280', marginTop: '1rem' }}>Loading payments...</p>
+            </div>
+          ) : filteredPayments.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem 2rem', fontFamily: "var(--font-nrt-reg)" }}>
+              <div style={{ fontSize: '3rem', color: '#9ca3af', marginBottom: '1rem' }}>💸</div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', color: '#4b5563', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>No payments found</h3>
+              <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+                {paymentHistory.length === 0 ? "Get started by creating your first payment" : "No payments match your search criteria"}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', gap: '1rem' }}>
+              {filteredPayments.map((payment) => (
+                <div key={payment.id}>
+                  <div
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      padding: '1rem',
+                      transition: 'all 0.2s ease',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  >
+                    {/* Payment Header */}
+                    <div style={{
+                      backgroundColor: '#3b82f6',
+                      padding: '0.75rem 1rem',
+                      borderRadius: '0.5rem 0.5rem 0 0',
+                      margin: '-1rem -1rem 1rem -1rem',
+                      color: 'white'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <h3 style={{ fontSize: '1rem', fontWeight: 'bold', margin: '0 0 0.25rem 0', fontFamily: "var(--font-nrt-bd)" }}>{payment.paymentNumber}</h3>
+                          <p style={{ color: '#bfdbfe', fontSize: '0.875rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>{payment.pharmacyName}</p>
+                          {payment.hardcopyBillNumber && (
+                            <p style={{ color: '#bfdbfe', fontSize: '0.75rem', margin: '0.25rem 0 0 0', fontFamily: "var(--font-nrt-reg)" }}>Bill: {payment.hardcopyBillNumber}</p>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.25rem', fontWeight: 'bold', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(payment.netAmount)}</div>
+                          <div style={{ color: '#bfdbfe', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>{formatDateToDMY(payment.createdAt)}</div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Payment Details */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: '500', fontFamily: "var(--font-nrt-bd)" }}>Sold</div>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#047857', fontFamily: "var(--font-nrt-bd)" }}>+{formatCurrency(payment.soldTotal)}</div>
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: '500', fontFamily: "var(--font-nrt-bd)" }}>Returns</div>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#b91c1c', fontFamily: "var(--font-nrt-bd)" }}>-{formatCurrency(payment.returnTotal)}</div>
+                      </div>
+                    </div>
+                    {/* Summary */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>
+                      <div>
+                        <div>Bills: {payment.selectedSoldBills?.length || 0}</div>
+                        <div>Returns: {payment.selectedReturns?.length || 0}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div>By: {payment.createdByName}</div>
+                      </div>
+                    </div>
+                    {/* Notes Preview */}
+                    {payment.notes && (
+                      <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: '#fef3c7', borderRadius: '0.25rem', border: '1px solid #f59e0b' }}>
+                        <p style={{ fontSize: '0.75rem', color: '#92400e', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "var(--font-nrt-reg)" }}>{payment.notes}</p>
+                      </div>
+                    )}
+                    {/* Action Buttons */}
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
+                      <button
+                        onClick={() => handleViewPayment(payment)}
+                        style={{
+                          flex: 1,
+                          padding: '0.5rem',
+                          fontSize: '0.875rem',
+                          backgroundColor: '#e5e7eb',
+                          color: '#374151',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontFamily: "var(--font-nrt-bd)"
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View Details
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUpdatePayment(payment);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '0.5rem',
+                          fontSize: '0.875rem',
+                          backgroundColor: '#f59e0b',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontFamily: "var(--font-nrt-bd)"
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Update
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Payment Details Modal */}
+      {showPaymentModal && selectedPayment && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          fontFamily: "var(--font-nrt-reg)"
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            width: '90%',
+            maxWidth: '1200px',
+            maxHeight: '90vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{
+              padding: '1.5rem',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h2 style={{
+                fontSize: '1.5rem',
+                fontWeight: 'bold',
+                color: '#1e293b',
+                margin: 0,
+                fontFamily: "var(--font-nrt-bd)"
+              }}>
+                Payment Details - {selectedPayment.paymentNumber}
+              </h2>
+              <button
+                onClick={closePaymentModal}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '1.5rem',
+                  color: '#6b7280'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '1.5rem' }}>
+              {/* Header Section */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1e293b', margin: '0 0 0.5rem 0', fontFamily: "var(--font-nrt-bd)" }}>{selectedPayment.pharmacyName}</h3>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0 0 0.25rem 0', fontFamily: "var(--font-nrt-reg)" }}>Hardcopy Bill: {selectedPayment.hardcopyBillNumber}</p>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>Date: {formatDateToDMY(selectedPayment.paymentDate)}</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2563eb', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(selectedPayment.netAmount)}</div>
+                </div>
+              </div>
+
+              {/* Summary Cards in Horizontal Layout */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  border: '1px solid #bbf7d0'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#059669', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Sold Bills</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#047857', marginBottom: '0.25rem', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(selectedPayment.soldTotal)}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{selectedPayment.selectedSoldBills?.length || 0} bills</div>
+                </div>
+                <div style={{
+                  backgroundColor: '#fef2f2',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  border: '1px solid #fee2e2'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Returns</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#b91c1c', marginBottom: '0.25rem', fontFamily: "var(--font-nrt-bd)" }}>-{formatCurrency(selectedPayment.returnTotal)}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{selectedPayment.selectedReturns?.length || 0} returns</div>
+                </div>
+                <div style={{
+                  backgroundColor: '#f3f4f6',
+                  borderRadius: '0.5rem',
+                  padding: '1rem',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Created By</div>
+                  <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.25rem', fontFamily: "var(--font-nrt-bd)" }}>{selectedPayment.createdByName || 'Unknown'}</div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{formatDateToDMY(selectedPayment.createdAt)}</div>
+                </div>
+              </div>
+
+              {/* Bills and Returns in Horizontal Layout */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                {/* Sold Bills Section */}
+                {paymentDetails[selectedPayment.id]?.soldBills?.length > 0 && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1e293b', fontFamily: "var(--font-nrt-bd)" }}>Sold Bills ({paymentDetails[selectedPayment.id].soldBills.length})</h4>
+                      <span style={{ fontSize: '0.875rem', color: '#059669', fontFamily: "var(--font-nrt-reg)" }}>
+                        Total: {formatCurrency(selectedPayment.soldTotal)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      {paymentDetails[selectedPayment.id].soldBills.map(bill => {
+                        const billTotal = bill.totalAmount || bill.items?.reduce((sum, item) =>
+                          sum + ((item.price || 0) * (item.quantity || 0)), 0) || 0;
+
+                        return (
+                          <div key={bill.id} style={{
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            backgroundColor: '#f8fafc'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>Bill #{bill.billNumber}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  {formatDate(bill.date)} • {bill.items.length} items
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 'bold', color: '#059669', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                                  {formatCurrency(billTotal)}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: '0.5rem' }}>
+                              {bill.items?.slice(0, 3).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  <span>{item.name}</span>
+                                  <span>x{item.quantity} • {formatCurrency(item.price || 0)}</span>
+                                </div>
+                              ))}
+                              {bill.items?.length > 3 && (
+                                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  +{bill.items.length - 3} more items
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.75rem', color: '#059669', fontFamily: "var(--font-nrt-reg)" }}>
+                              Paid in this payment
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Returns Section */}
+                {paymentDetails[selectedPayment.id]?.returns?.length > 0 && (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <h4 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1e293b', fontFamily: "var(--font-nrt-bd)" }}>Returns ({paymentDetails[selectedPayment.id].returns.length})</h4>
+                      <span style={{ fontSize: '0.875rem', color: '#dc2626', fontFamily: "var(--font-nrt-reg)" }}>
+                        Total: -{formatCurrency(selectedPayment.returnTotal)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.75rem' }}>
+                      {paymentDetails[selectedPayment.id].returns.map(r => {
+                        const returnTotal = r.totalReturn ||
+                          (r.items ? r.items.reduce((sum, item) =>
+                            sum + ((item.returnPrice || 0) * (item.returnQuantity || 0)), 0) :
+                          (r.returnPrice || 0) * (r.returnQuantity || 0));
+
+                        return (
+                          <div key={r.id} style={{
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '0.5rem',
+                            padding: '1rem',
+                            backgroundColor: '#f8fafc'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                              <div>
+                                <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                                  Return #{r.returnNumber || r.id?.slice(-6) || 'N/A'}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  {formatDate(r.date)}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
+                                  -{formatCurrency(returnTotal)}
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ marginTop: '0.5rem' }}>
+                              {r.items?.slice(0, 3).map((item, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  <span>{item.name}</span>
+                                  <span style={{ color: '#dc2626' }}>x{item.returnQuantity} • -{formatCurrency(item.returnPrice || 0)}</span>
+                                </div>
+                              ))}
+                              {r.items?.length > 3 && (
+                                <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  +{r.items.length - 3} more items
+                                </div>
+                              )}
+                              {!r.items && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>
+                                  <span>{r.name}</span>
+                                  <span style={{ color: '#dc2626' }}>x{r.returnQuantity} • -{formatCurrency(r.returnPrice || 0)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.75rem', color: '#059669', fontFamily: "var(--font-nrt-reg)" }}>
+                              Processed in this payment
+                            </div>
+                            {r.billNumber && (
+                              <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>
+                                From Bill: {r.billNumber}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Notes Section */}
+              {selectedPayment.notes && (
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Notes</h4>
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: '#fef3c7',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #fde68a',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}>
+                    {selectedPayment.notes}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div style={{
+              padding: '1rem',
+              borderTop: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={closePaymentModal}
+                style={{
+                  padding: '0.5rem 1rem',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontFamily: "var(--font-nrt-bd)"
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,17 +1,18 @@
+// app/bought_returns/page.js
 "use client";
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { getReturnsForPharmacy, getPharmacies, getSoldBills, returnItemsToStore, deleteReturnBill, getPayments } from "@/lib/data";
+import { getReturnsForCompany, getCompanies, getBoughtBills, returnBoughtItemsToStore, deleteBoughtReturn, getPayments } from "@/lib/data";
 import Card from "@/components/Card";
 import Select from "react-select";
 import { useRouter } from "next/navigation";
 
-export default function ReturnHistory() {
+export default function BoughtReturnHistory() {
   const [returns, setReturns] = useState([]);
-  const [pharmacies, setPharmacies] = useState([]);
-  const [soldBills, setSoldBills] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [boughtBills, setBoughtBills] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [selectedPharmacy, setSelectedPharmacy] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [filters, setFilters] = useState({
@@ -40,25 +41,25 @@ export default function ReturnHistory() {
     const fetchData = async () => {
       try {
         setIsLoading(true);
-        const [pharmaciesData, soldBillsData, paymentsData] = await Promise.all([
-          getPharmacies(),
-          getSoldBills(),
+        const [companiesData, boughtBillsData, paymentsData] = await Promise.all([
+          getCompanies(),
+          getBoughtBills(),
           getPayments()
         ]);
         
-        // Filter out null pharmacies
-        const validPharmacies = pharmaciesData.filter(pharmacy => pharmacy && pharmacy.id);
-        setPharmacies(validPharmacies);
+        // Filter out null companies
+        const validCompanies = companiesData.filter(company => company && company.id);
+        setCompanies(validCompanies);
         
-        // Filter out null sold bills
-        const validSoldBills = soldBillsData.filter(bill => bill && bill.id);
-        setSoldBills(validSoldBills);
+        // Filter out null bought bills
+        const validBoughtBills = boughtBillsData.filter(bill => bill && bill.id);
+        setBoughtBills(validBoughtBills);
         
         setPayments(paymentsData);
 
         // Extract unique items for the multi-select dropdown from all bills
         const items = new Set();
-        validSoldBills.forEach((bill) => {
+        validBoughtBills.forEach((bill) => {
           if (bill.items && Array.isArray(bill.items)) {
             bill.items.forEach((item) => {
               if (item && item.name) {
@@ -79,11 +80,11 @@ export default function ReturnHistory() {
   }, []);
 
   useEffect(() => {
-    if (selectedPharmacy?.id) {
+    if (selectedCompany?.id) {
       const fetchReturns = async () => {
         try {
           setIsLoading(true);
-          const returnsData = await getReturnsForPharmacy(selectedPharmacy.id);
+          const returnsData = await getReturnsForCompany(selectedCompany.id);
           
           // Filter out null returns and ensure proper structure
           const validReturns = returnsData.filter(returnItem => 
@@ -93,16 +94,11 @@ export default function ReturnHistory() {
           // Get all payments to check which returns are paid
           const allPayments = await getPayments();
           
-          // Find payments for this pharmacy
-          const pharmacyPayments = allPayments.filter(payment => 
-            payment && payment.pharmacyId === selectedPharmacy.id
-          );
-          
           // Create a set of paid return IDs
           const paidReturnIds = new Set();
-          pharmacyPayments.forEach(payment => {
-            if (payment.selectedReturns && Array.isArray(payment.selectedReturns)) {
-              payment.selectedReturns.forEach(returnId => {
+          allPayments.forEach(payment => {
+            if (payment.selectedBoughtReturns && Array.isArray(payment.selectedBoughtReturns)) {
+              payment.selectedBoughtReturns.forEach(returnId => {
                 paidReturnIds.add(returnId);
               });
             }
@@ -113,11 +109,11 @@ export default function ReturnHistory() {
             ...returnItem,
             isPaid: paidReturnIds.has(returnItem.id),
             paymentStatus: paidReturnIds.has(returnItem.id) ? "Paid" : "Unpaid",
-            paymentNumber: pharmacyPayments.find(payment => 
-              payment.selectedReturns?.includes(returnItem.id)
+            paymentNumber: allPayments.find(payment => 
+              payment.selectedBoughtReturns?.includes(returnItem.id)
             )?.paymentNumber || null,
-            paymentDate: pharmacyPayments.find(payment => 
-              payment.selectedReturns?.includes(returnItem.id)
+            paymentDate: allPayments.find(payment => 
+              payment.selectedBoughtReturns?.includes(returnItem.id)
             )?.paymentDate || null
           }));
           
@@ -133,14 +129,14 @@ export default function ReturnHistory() {
     } else {
       setReturns([]);
     }
-  }, [selectedPharmacy]);
+  }, [selectedCompany]);
 
-  const handlePharmacySelect = (selectedOption) => {
+  const handleCompanySelect = (selectedOption) => {
     if (!selectedOption?.value?.id) {
-      setError("Invalid pharmacy selected");
+      setError("Invalid company selected");
       return;
     }
-    setSelectedPharmacy(selectedOption.value);
+    setSelectedCompany(selectedOption.value);
     setSelectedBill(null);
     setSelectedReturn(null);
     setReturns([]);
@@ -161,7 +157,7 @@ export default function ReturnHistory() {
     
     try {
       // Fetch existing returns for this bill
-      const existingReturns = await getReturnsForPharmacy(selectedPharmacy.id);
+      const existingReturns = await getReturnsForCompany(selectedCompany.id);
       const existingReturnItems = existingReturns.filter(item => 
         item && item.billNumber === bill.billNumber
       );
@@ -184,7 +180,7 @@ export default function ReturnHistory() {
         .map((item) => ({
           ...item,
           returnQuantity: 0,
-          returnPrice: item.outPrice || item.price || 0,
+          returnPrice: item.netPrice || item.price || 0, // Use net price for returns
           remainingQuantity: remainingQty[item.barcode] || 0,
         }));
       
@@ -219,8 +215,8 @@ export default function ReturnHistory() {
   };
 
   const handleSubmitReturn = async () => {
-    if (!selectedPharmacy?.id || !selectedBill) {
-      setError("Please select a pharmacy and bill");
+    if (!selectedCompany?.id || !selectedBill) {
+      setError("Please select a company and bill");
       return;
     }
     
@@ -253,22 +249,19 @@ export default function ReturnHistory() {
         expireDate: item.expireDate || null,
       }));
       
-      await returnItemsToStore(selectedPharmacy.id, preparedItems);
+      await returnBoughtItemsToStore(selectedCompany.id, preparedItems);
       alert("Return processed successfully!");
       setSelectedBill(null);
       setReturnItems([]);
       
       // Refresh returns data
-      const returnsData = await getReturnsForPharmacy(selectedPharmacy.id);
+      const returnsData = await getReturnsForCompany(selectedCompany.id);
       const allPayments = await getPayments();
-      const pharmacyPayments = allPayments.filter(payment => 
-        payment && payment.pharmacyId === selectedPharmacy.id
-      );
       
       const paidReturnIds = new Set();
-      pharmacyPayments.forEach(payment => {
-        if (payment.selectedReturns && Array.isArray(payment.selectedReturns)) {
-          payment.selectedReturns.forEach(returnId => {
+      allPayments.forEach(payment => {
+        if (payment.selectedBoughtReturns && Array.isArray(payment.selectedBoughtReturns)) {
+          payment.selectedBoughtReturns.forEach(returnId => {
             paidReturnIds.add(returnId);
           });
         }
@@ -278,11 +271,11 @@ export default function ReturnHistory() {
         ...returnItem,
         isPaid: paidReturnIds.has(returnItem.id),
         paymentStatus: paidReturnIds.has(returnItem.id) ? "Paid" : "Unpaid",
-        paymentNumber: pharmacyPayments.find(payment => 
-          payment.selectedReturns?.includes(returnItem.id)
+        paymentNumber: allPayments.find(payment => 
+          payment.selectedBoughtReturns?.includes(returnItem.id)
         )?.paymentNumber || null,
-        paymentDate: pharmacyPayments.find(payment => 
-          payment.selectedReturns?.includes(returnItem.id)
+        paymentDate: allPayments.find(payment => 
+          payment.selectedBoughtReturns?.includes(returnItem.id)
         )?.paymentDate || null
       }));
       
@@ -307,20 +300,17 @@ export default function ReturnHistory() {
     
     if (confirm("Are you sure you want to delete this return?")) {
       try {
-        await deleteReturnBill(returnItem.id);
+        await deleteBoughtReturn(returnItem.id);
         alert("Return deleted successfully!");
         
         // Refresh returns data
-        const returnsData = await getReturnsForPharmacy(selectedPharmacy.id);
+        const returnsData = await getReturnsForCompany(selectedCompany.id);
         const allPayments = await getPayments();
-        const pharmacyPayments = allPayments.filter(payment => 
-          payment && payment.pharmacyId === selectedPharmacy.id
-        );
         
         const paidReturnIds = new Set();
-        pharmacyPayments.forEach(payment => {
-          if (payment.selectedReturns && Array.isArray(payment.selectedReturns)) {
-            payment.selectedReturns.forEach(returnId => {
+        allPayments.forEach(payment => {
+          if (payment.selectedBoughtReturns && Array.isArray(payment.selectedBoughtReturns)) {
+            payment.selectedBoughtReturns.forEach(returnId => {
               paidReturnIds.add(returnId);
             });
           }
@@ -330,11 +320,11 @@ export default function ReturnHistory() {
           ...returnItem,
           isPaid: paidReturnIds.has(returnItem.id),
           paymentStatus: paidReturnIds.has(returnItem.id) ? "Paid" : "Unpaid",
-          paymentNumber: pharmacyPayments.find(payment => 
-            payment.selectedReturns?.includes(returnItem.id)
+          paymentNumber: allPayments.find(payment => 
+            payment.selectedBoughtReturns?.includes(returnItem.id)
           )?.paymentNumber || null,
-          paymentDate: pharmacyPayments.find(payment => 
-            payment.selectedReturns?.includes(returnItem.id)
+          paymentDate: allPayments.find(payment => 
+            payment.selectedBoughtReturns?.includes(returnItem.id)
           )?.paymentDate || null
         }));
         
@@ -385,37 +375,6 @@ export default function ReturnHistory() {
     setSelectedReturn(
       selectedReturn?.id === returnItem.id ? null : returnItem
     );
-  };
-
-  // FIXED: formatDate function to handle all date formats properly
-  const formatDate = (date) => {
-    if (!date) return "N/A";
-    try {
-      let dateObj;
-      if (date.toDate) {
-        dateObj = date.toDate();
-      } else if (date instanceof Date) {
-        dateObj = date;
-      } else if (typeof date === 'string') {
-        dateObj = new Date(date);
-      } else if (date.seconds) {
-        dateObj = new Date(date.seconds * 1000);
-      } else {
-        return "N/A";
-      }
-      
-      if (isNaN(dateObj.getTime())) {
-        return "N/A";
-      }
-      
-      const day = String(dateObj.getDate()).padStart(2, '0');
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const year = dateObj.getFullYear();
-      return `${day}/${month}/${year}`;
-    } catch (error) {
-      console.error("Error formatting date:", error, date);
-      return "N/A";
-    }
   };
 
   // Beautiful Payment Status Badge Component
@@ -480,16 +439,15 @@ export default function ReturnHistory() {
     label: item,
   }));
 
-  // Filter bills to show only unpaid ones for the selected pharmacy
-  const filteredBills = soldBills.filter((bill) => {
-    if (!selectedPharmacy?.id) return false;
+  // Filter bills to show only unpaid ones for the selected company
+  const filteredBills = boughtBills.filter((bill) => {
+    if (!selectedCompany?.id) return false;
     if (!bill) return false;
     
-    // Check if bill belongs to selected pharmacy and is unpaid
-    const isUnpaid = bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash";
-    const belongsToPharmacy = bill.pharmacyId === selectedPharmacy.id;
+    // Check if bill belongs to selected company
+    const belongsToCompany = bill.companyId === selectedCompany.id;
     
-    if (!belongsToPharmacy || !isUnpaid) return false;
+    if (!belongsToCompany) return false;
     
     // Apply filters with null checks
     let matchesBillNumber = true;
@@ -521,59 +479,65 @@ export default function ReturnHistory() {
     return matchesBillNumber && matchesItemName && matchesBarcode && matchesItemFilters;
   });
 
-  const getPaymentStatusBadge = (status) => {
-    if (!status) return "bg-gray-100 text-gray-800";
-    
-    switch (status) {
-      case "Paid":
-      case "Cash":
-        return "bg-green-100 text-green-800";
-      case "Unpaid":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+  const formatDate = (date) => {
+    if (!date) return "N/A";
+    try {
+      let dateObj;
+      if (date.toDate) {
+        dateObj = date.toDate();
+      } else if (date instanceof Date) {
+        dateObj = date;
+      } else if (typeof date === 'string') {
+        dateObj = new Date(date);
+      } else if (date.seconds) {
+        dateObj = new Date(date.seconds * 1000);
+      } else {
+        return "N/A";
+      }
+      
+      if (isNaN(dateObj.getTime())) {
+        return "N/A";
+      }
+      
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (error) {
+      console.error("Error formatting date:", error, date);
+      return "N/A";
     }
   };
 
-  if (isLoading && !selectedPharmacy) {
+  if (isLoading && !selectedCompany) {
     return (
       <div className="container py-8">
-        <h1 className="text-2xl font-bold mb-6">Return History</h1>
+        <h1 className="text-2xl font-bold mb-6">Bought Return History</h1>
         <div className="text-center py-8">Loading return history...</div>
       </div>
     );
   }
 
-  if (error && !selectedPharmacy) {
+  if (error && !selectedCompany) {
     return (
       <div className="container py-8">
-        <h1 className="text-2xl font-bold mb-6">Return History</h1>
+        <h1 className="text-2xl font-bold mb-6">Bought Return History</h1>
         <div className="alert alert-danger">{error}</div>
       </div>
     );
   }
 
   return (
-    <Card title="Return History">
-      <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-        <p className="text-blue-800 text-sm">
-          <strong>Note:</strong> This page shows all returns with beautiful payment status indicators. 
-          <span className="inline-flex items-center ml-2 px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium">
-            ✓ Paid
-          </span> returns show payment details, while 
-          <span className="inline-flex items-center mx-2 px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs font-medium">
-            ⏳ Unpaid
-          </span> returns can be edited or deleted.
-        </p>
-      </div>
+    <Card title="Bought Return History">
+    
 
       <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label className="block mb-1 text-sm font-medium">Pharmacy</label>
+          <label className="block mb-1 text-sm font-medium">Company</label>
           <Select
-            options={pharmacies.map((p) => ({ value: p, label: p.name }))}
-            onChange={handlePharmacySelect}
-            placeholder="Search pharmacy..."
+            options={companies.map((c) => ({ value: c, label: c.name }))}
+            onChange={handleCompanySelect}
+            placeholder="Search company..."
             isSearchable
           />
         </div>
@@ -636,7 +600,7 @@ export default function ReturnHistory() {
       {/* Returns Table */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Return History</h3>
+          <h3 className="text-lg font-semibold">Bought Return History</h3>
           <div className="text-sm text-gray-600">
             Total: {filteredReturns.length} returns
           </div>
@@ -731,7 +695,7 @@ export default function ReturnHistory() {
                           <td colSpan="9" className="p-0">
                             <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg my-2 shadow-inner border border-blue-200">
                               <h4 className="font-bold text-center mb-3 text-blue-800">
-                                📋 Return Details - Return #{returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A'}
+                                📋 Bought Return Details - Return #{returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A'}
                               </h4>
                               <div className="overflow-x-auto">
                                 <table className="table w-full">
@@ -792,9 +756,9 @@ export default function ReturnHistory() {
                     <div className="flex flex-col items-center justify-center text-gray-500">
                       <div className="text-4xl mb-2">📦</div>
                       <p className="text-lg font-medium">
-                        {selectedPharmacy ? "No returns found for this pharmacy" : "Please select a pharmacy to view returns"}
+                        {selectedCompany ? "No returns found for this company" : "Please select a company to view returns"}
                       </p>
-                      {selectedPharmacy && (
+                      {selectedCompany && (
                         <p className="text-sm mt-1">Try adjusting your filters or create a new return</p>
                       )}
                     </div>
@@ -807,9 +771,9 @@ export default function ReturnHistory() {
       </div>
 
       {/* Create New Return Section */}
-      {selectedPharmacy?.id && (
+      {selectedCompany?.id && (
         <div className="mt-6 p-6 bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-gray-200">
-          <h3 className="font-bold text-lg mb-4 text-gray-800">➕ Create New Return (Unpaid Bills Only)</h3>
+          <h3 className="font-bold text-lg mb-4 text-gray-800">➕ Create New Bought Return</h3>
           
           {error && (
             <div className="mb-4 p-3 bg-red-100 border border-red-300 rounded text-red-700">
@@ -823,7 +787,6 @@ export default function ReturnHistory() {
                 <tr className="bg-gradient-to-r from-gray-100 to-gray-200">
                   <th className="p-3 text-center font-semibold">Bill #</th>
                   <th className="p-3 text-center font-semibold">Date</th>
-                  <th className="p-3 text-center font-semibold">Payment Status</th>
                   <th className="p-3 text-center font-semibold">Total Amount (IQD)</th>
                   <th className="p-3 text-center font-semibold">Items Count</th>
                 </tr>
@@ -834,7 +797,7 @@ export default function ReturnHistory() {
                     if (!bill) return null;
                     
                     const billTotal = bill.items ? bill.items.reduce((sum, item) => 
-                      sum + ((item.price || 0) * (item.quantity || 0)), 0) : 0;
+                      sum + ((item.netPrice || 0) * (item.quantity || 0)), 0) : 0;
                     const itemsCount = bill.items ? bill.items.length : 0;
                     
                     return (
@@ -847,11 +810,6 @@ export default function ReturnHistory() {
                         >
                           <td className="p-3 text-center font-bold text-blue-700">{bill.billNumber || 'N/A'}</td>
                           <td className="p-3 text-center text-gray-600">{formatDate(bill.date)}</td>
-                          <td className="p-3 text-center">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPaymentStatusBadge(bill.paymentStatus)}`}>
-                              {bill.paymentStatus || 'Unknown'}
-                            </span>
-                          </td>
                           <td className="p-3 text-center font-bold text-green-700">{formatCurrency(billTotal)}</td>
                           <td className="p-3 text-center">
                             <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-sm">
@@ -861,10 +819,10 @@ export default function ReturnHistory() {
                         </tr>
                         {selectedBill?.id === bill.id && (
                           <tr>
-                            <td colSpan="5" className="p-0">
+                            <td colSpan="4" className="p-0">
                               <div className="p-4 bg-blue-50 rounded-lg my-2 shadow-inner border border-blue-200">
                                 <h4 className="font-bold text-center mb-3 text-blue-800">
-                                  📄 Bill #{bill.billNumber} Details (Unpaid) - Select items to return
+                                  📄 Bought Bill #{bill.billNumber} Details - Select items to return
                                 </h4>
                                 <div className="overflow-x-auto">
                                   <table className="table w-full">
@@ -872,7 +830,7 @@ export default function ReturnHistory() {
                                       <tr className="bg-gradient-to-r from-blue-100 to-blue-200">
                                         <th className="p-2 text-center font-semibold">Barcode</th>
                                         <th className="p-2 text-center font-semibold">Item Name</th>
-                                        <th className="p-2 text-center font-semibold">Sold Qty</th>
+                                        <th className="p-2 text-center font-semibold">Bought Qty</th>
                                         <th className="p-2 text-center font-semibold">Return Qty</th>
                                         <th className="p-2 text-center font-semibold">Remaining Qty</th>
                                         <th className="p-2 text-center font-semibold">Return Price (IQD)</th>
@@ -952,14 +910,14 @@ export default function ReturnHistory() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="5" className="p-6 text-center text-gray-500">
+                    <td colSpan="4" className="p-6 text-center text-gray-500">
                       <div className="flex flex-col items-center justify-center">
                         <div className="text-3xl mb-2">💳</div>
                         <p className="text-lg font-medium">
-                          {selectedPharmacy ? "No unpaid bills found for this pharmacy" : "Please select a pharmacy"}
+                          {selectedCompany ? "No bills found for this company" : "Please select a company"}
                         </p>
-                        {selectedPharmacy && (
-                          <p className="text-sm mt-1">All bills for this pharmacy have been paid</p>
+                        {selectedCompany && (
+                          <p className="text-sm mt-1">All bills for this company have been processed</p>
                         )}
                       </div>
                     </td>
