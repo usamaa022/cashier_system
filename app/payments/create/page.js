@@ -57,6 +57,13 @@ export default function PaymentManagementPage() {
   const hardcopyBillNumberRef = useRef(null);
   const pharmacySelectRef = useRef(null);
 
+  // Redirect if not logged in
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+    }
+  }, [user, router]);
+
   // Format currency with commas and IQD
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US').format(amount || 0) + " IQD";
@@ -226,6 +233,7 @@ export default function PaymentManagementPage() {
         : [...prev, billId]
     );
   };
+
   const toggleReturn = (returnId) => {
     setSelectedReturns(prev =>
       prev.includes(returnId)
@@ -242,6 +250,7 @@ export default function PaymentManagementPage() {
       setSelectedSoldBills(soldBills.map(bill => bill.id));
     }
   };
+
   const selectAllReturns = () => {
     if (selectedReturns.length === returns.length) {
       setSelectedReturns([]);
@@ -254,26 +263,21 @@ export default function PaymentManagementPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     let hasError = false;
-
     if (!selectedPharmacy) {
       setError("Please select a pharmacy");
       pharmacySelectRef.current?.focus();
       hasError = true;
     }
-
     if (!hardcopyBillNumber.trim()) {
       setError("Hardcopy Bill Number is required");
       hardcopyBillNumberRef.current?.focus();
       hasError = true;
     }
-
     if (selectedSoldBills.length === 0 && selectedReturns.length === 0) {
       setError("Please select at least one bill or return to process");
       hasError = true;
     }
-
     if (hasError) return;
-
     try {
       setSubmitting(true);
       setError(null);
@@ -301,7 +305,6 @@ export default function PaymentManagementPage() {
         result = await createPayment(paymentData);
         setSuccess(`Payment ${result.paymentNumber} created successfully!`);
       }
-
       if (!isEditMode) {
         setSelectedSoldBills([]);
         setSelectedReturns([]);
@@ -408,9 +411,7 @@ export default function PaymentManagementPage() {
       payment.createdByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.hardcopyBillNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
     const statusFilter = filterStatus === "all" || payment.status === filterStatus;
-
     let advancedFilter = true;
     if (showAdvancedSearch) {
       if (advancedSearch.pharmacyName && !payment.pharmacyName?.toLowerCase().includes(advancedSearch.pharmacyName.toLowerCase())) {
@@ -462,12 +463,6 @@ export default function PaymentManagementPage() {
   // Total amount
   const totalAmount = filteredPayments.reduce((sum, payment) => sum + payment.netAmount, 0);
 
-  // Redirect if not logged in
-  if (!user) {
-    router.push("/login");
-    return null;
-  }
-
   return (
     <div
       className="payment-container bg-gradient-blue"
@@ -490,7 +485,6 @@ export default function PaymentManagementPage() {
         >
           {isEditMode ? 'Update Payment' : 'Payment Management'}
         </h1>
-
         {isEditMode && (
           <div style={{
             marginTop: "0.5rem",
@@ -506,7 +500,6 @@ export default function PaymentManagementPage() {
           </div>
         )}
       </div>
-
       {/* Success/Error Messages */}
       {error && (
         <div style={{
@@ -533,7 +526,6 @@ export default function PaymentManagementPage() {
           </div>
         </div>
       )}
-
       {success && (
         <div style={{
           padding: "1rem",
@@ -559,7 +551,6 @@ export default function PaymentManagementPage() {
           </div>
         </div>
       )}
-
       {/* Create/Update Payment Section */}
       <div style={{
         display: "grid",
@@ -629,7 +620,6 @@ export default function PaymentManagementPage() {
                 </p>
               )}
             </div>
-
             <div style={{ width: "100%" }}>
               <label style={{
                 display: "block",
@@ -658,7 +648,6 @@ export default function PaymentManagementPage() {
                 required
               />
             </div>
-
             <div style={{ width: "100%" }}>
               <label style={{
                 display: "block",
@@ -687,7 +676,6 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         </div>
-
         {/* Sold Bills and Returns - Next Row */}
         <div style={{
           display: "grid",
@@ -795,7 +783,6 @@ export default function PaymentManagementPage() {
               )}
             </div>
           </div>
-
           {/* Returns Section */}
           <div style={{
             backgroundColor: "#fff",
@@ -859,7 +846,6 @@ export default function PaymentManagementPage() {
                     const returnNumber = returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A';
                     const itemCount = returnBill.items ? returnBill.items.length : 1;
                     const returnAmount = returnBill.totalReturn || 0;
-
                     return (
                       <div
                         key={returnBill.id}
@@ -911,7 +897,6 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         </div>
-
         {/* Payment Summary and Notes - Same Row */}
         <div style={{
           display: "grid",
@@ -957,7 +942,6 @@ export default function PaymentManagementPage() {
               </div>
             </div>
           </div>
-
           {/* Notes */}
           <div style={{
             backgroundColor: "#fff",
@@ -993,7 +977,6 @@ export default function PaymentManagementPage() {
             />
           </div>
         </div>
-
         {/* Action Buttons */}
         <div style={{
           display: "flex",
@@ -1044,7 +1027,6 @@ export default function PaymentManagementPage() {
           </button>
         </div>
       </div>
-
       {/* Payment History Section */}
       <div style={{
         backgroundColor: "#fff",
@@ -1072,7 +1054,6 @@ export default function PaymentManagementPage() {
             <p style={{ color: '#bfdbfe', fontSize: '1rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>View and manage all payment records</p>
           </div>
         </div>
-
         {/* Stats and Actions */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -1114,7 +1095,6 @@ export default function PaymentManagementPage() {
                 fontFamily: "var(--font-nrt-reg)"
               }}
             />
-
             <button
               onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
               style={{
@@ -1132,7 +1112,6 @@ export default function PaymentManagementPage() {
             </button>
           </div>
         </div>
-
         {/* Advanced Search Panel */}
         {showAdvancedSearch && (
           <div style={{
@@ -1363,7 +1342,6 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         )}
-
         {/* Main Content Area */}
         <div>
           {historyLoading ? (
@@ -1501,7 +1479,6 @@ export default function PaymentManagementPage() {
           )}
         </div>
       </div>
-
       {/* Payment Details Modal */}
       {showPaymentModal && selectedPayment && (
         <div style={{
@@ -1566,7 +1543,6 @@ export default function PaymentManagementPage() {
                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2563eb', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(selectedPayment.netAmount)}</div>
                 </div>
               </div>
-
               {/* Summary Cards in Horizontal Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div style={{
@@ -1600,7 +1576,6 @@ export default function PaymentManagementPage() {
                   <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{formatDateToDMY(selectedPayment.createdAt)}</div>
                 </div>
               </div>
-
               {/* Bills and Returns in Horizontal Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 {/* Sold Bills Section */}
@@ -1616,7 +1591,6 @@ export default function PaymentManagementPage() {
                       {paymentDetails[selectedPayment.id].soldBills.map(bill => {
                         const billTotal = bill.totalAmount || bill.items?.reduce((sum, item) =>
                           sum + ((item.price || 0) * (item.quantity || 0)), 0) || 0;
-
                         return (
                           <div key={bill.id} style={{
                             border: '1px solid #e5e7eb',
@@ -1659,7 +1633,6 @@ export default function PaymentManagementPage() {
                     </div>
                   </div>
                 )}
-
                 {/* Returns Section */}
                 {paymentDetails[selectedPayment.id]?.returns?.length > 0 && (
                   <div>
@@ -1675,7 +1648,6 @@ export default function PaymentManagementPage() {
                           (r.items ? r.items.reduce((sum, item) =>
                             sum + ((item.returnPrice || 0) * (item.returnQuantity || 0)), 0) :
                           (r.returnPrice || 0) * (r.returnQuantity || 0));
-
                         return (
                           <div key={r.id} style={{
                             border: '1px solid #e5e7eb',
@@ -1732,7 +1704,6 @@ export default function PaymentManagementPage() {
                   </div>
                 )}
               </div>
-
               {/* Notes Section */}
               {selectedPayment.notes && (
                 <div style={{ marginBottom: '1.5rem' }}>

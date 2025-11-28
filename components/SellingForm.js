@@ -606,44 +606,148 @@ const loadAllAttachments = async (bills) => {
     event.target.value = '';
   };
 
-  const viewAttachment = async (billNumber) => {
-    try {
-      console.log(`👀 Viewing attachment for bill ${billNumber}`);
-      let url = billAttachments[billNumber];
-      
-      if (!url) {
-        url = await getBillAttachmentUrlEnhanced(billNumber);
-      }
-      
-      if (url) {
-        if (url.startsWith('data:')) {
-          const newWindow = window.open();
-          newWindow.document.write(`
-            <html>
-              <head><title>Scanned Document - Bill ${billNumber}</title></head>
-              <body style="margin: 0; padding: 20px; background: #f5f5f5;">
-                <div style="max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                  <h2 style="color: #333; margin-bottom: 20px;">Scanned Document - Bill ${billNumber}</h2>
-                  <img src="${url}" style="max-width: 100%; height: auto; border: 1px solid #ddd;" alt="Scanned Document" />
-                  <div style="margin-top: 20px; text-align: center;">
-                    <button onclick="window.print()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Print</button>
-                  </div>
-                </div>
-              </body>
-            </html>
-          `);
-          newWindow.document.close();
-        } else {
-          window.open(url, '_blank');
-        }
-      } else {
-        alert("No attachment found for this bill.");
-      }
-    } catch (error) {
-      console.error("Error viewing attachment:", error);
-      alert("Failed to load attachment. Please try again.");
+// Add this useEffect to listen for messages from the popup window
+useEffect(() => {
+  const handleMessage = (event) => {
+    if (event.data.action === 'rescan') {
+      handleRescan(event.data.billNumber);
     }
   };
+
+  window.addEventListener('message', handleMessage);
+  return () => {
+    window.removeEventListener('message', handleMessage);
+  };
+}, []);
+
+// Updated viewAttachment function
+const viewAttachment = async (billNumber) => {
+  try {
+    console.log(`👀 Viewing attachment for bill ${billNumber}`);
+    let url = billAttachments[billNumber];
+
+    if (!url) {
+      url = await getBillAttachmentUrlEnhanced(billNumber);
+    }
+
+    if (url) {
+      if (url.startsWith('data:')) {
+        const newWindow = window.open();
+        newWindow.document.write(`
+          <html>
+            <head>
+              <title>Scanned Document - Bill ${billNumber}</title>
+              <style>
+                body {
+                  font-family: Arial, sans-serif;
+                  margin: 0;
+                  padding: 20px;
+                  background: #f5f5f5;
+                }
+                .container {
+                  max-width: 800px;
+                  margin: 0 auto;
+                  background: white;
+                  padding: 20px;
+                  border-radius: 8px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                .header {
+                  display: flex;
+                  justify-content: space-between;
+                  align-items: center;
+                  margin-bottom: 20px;
+                }
+                .title {
+                  font-size: 20px;
+                  font-weight: bold;
+                  color: #333;
+                }
+                .actions {
+                  display: flex;
+                  gap: 10px;
+                }
+                .button {
+                  padding: 8px 16px;
+                  border: none;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  font-weight: bold;
+                }
+                .print-button {
+                  background-color: #27ae60;
+                  color: white;
+                }
+                .rescan-button {
+                  background-color: #f39c12;
+                  color: white;
+                }
+                .close-button {
+                  background-color: #e74c3c;
+                  color: white;
+                }
+                .image-container {
+                  text-align: center;
+                  margin: 20px 0;
+                }
+                .image-container img {
+                  max-width: 100%;
+                  height: auto;
+                  border: 1px solid #ddd;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <div class="title">Scanned Document - Bill ${billNumber}</div>
+                  <div class="actions">
+                    <button class="button print-button" onclick="window.print()">Print</button>
+                    <button class="button rescan-button" onclick="window.opener.postMessage({ action: 'rescan', billNumber: '${billNumber}' }, '*')">Rescan</button>
+                    <button class="button close-button" onclick="window.close()">Close</button>
+                  </div>
+                </div>
+                <div class="image-container">
+                  <img src="${url}" alt="Scanned Document" />
+                </div>
+              </div>
+            </body>
+          </html>
+        `);
+        newWindow.document.close();
+      } else {
+        window.open(url, '_blank');
+      }
+    } else {
+      alert("No attachment found for this bill.");
+    }
+  } catch (error) {
+    console.error("Error viewing attachment:", error);
+    alert("Failed to load attachment. Please try again.");
+  }
+};
+
+// Add the handleRescan function
+const handleRescan = async (billNumber) => {
+  try {
+    console.log(`🔄 Rescanning document for bill ${billNumber}...`);
+    setUploadingAttachments(prev => ({ ...prev, [billNumber]: true }));
+
+    // Delete the existing attachment
+    await deleteBase64Attachment(billNumber);
+    console.log(`🗑️ Deleted existing attachment for bill ${billNumber}`);
+
+    // Rescan and upload new attachment
+    await handleScanAttachment(billNumber);
+
+  } catch (error) {
+    console.error("❌ Error rescanning document:", error);
+    alert(`Failed to rescan document: ${error.message}`);
+  } finally {
+    setUploadingAttachments(prev => ({ ...prev, [billNumber]: false }));
+  }
+};
+
 
   // Get batches for item
   const getBatchesForItem = (barcode) => {
@@ -662,37 +766,69 @@ const loadAllAttachments = async (bills) => {
   };
 
   // Search items
-  const handleSearch = async (query) => {
-    if (query.trim().length > 0) {
+// Search items
+// Enhanced search with client-side fallback
+const handleSearch = async (query) => {
+  if (query.trim().length > 0) {
+    try {
+      let results = [];
+      const searchTerms = query.trim().toLowerCase().split(/\s+/);
+      
+      // Try server-side search first
       try {
-        let results = [];
-        const searchTerms = query.trim().toLowerCase().split(/\s+/);
+        // Search by barcode
         if (/^\d+$/.test(query.trim())) {
-          results = await searchInitializedItems(query.trim(), "barcode");
+          const barcodeResults = await searchInitializedItems(query.trim(), "barcode");
+          results = [...results, ...barcodeResults];
         }
-        if (results.length === 0 || !/^\d+$/.test(query.trim())) {
-          const nameResults = await searchInitializedItems(query.trim(), "name");
-          results = [...results, ...nameResults];
-        }
-        if (searchTerms.length > 1) {
-          results = results.filter(item =>
-            searchTerms.every(term =>
-              item.name.toLowerCase().includes(term) ||
-              item.barcode.includes(term)
-            )
-          );
-        }
-        results = results.filter((item, index, self) =>
-          index === self.findIndex(i => i.barcode === item.barcode)
+        
+        // Search by name
+        const nameResults = await searchInitializedItems(query.trim(), "name");
+        results = [...results, ...nameResults];
+      } catch (serverError) {
+        console.warn("Server search failed, using client-side search:", serverError);
+        // Fallback to client-side search
+        results = storeItems.filter(item =>
+          searchTerms.some(term =>
+            item.name.toLowerCase().includes(term) ||
+            item.barcode.toLowerCase().includes(term)
+          )
         );
-        setSearchResults(results);
-      } catch (err) {
-        console.error("Error searching items:", err);
       }
-    } else {
-      setSearchResults([]);
+      
+      // Remove duplicates
+      results = results.filter((item, index, self) =>
+        index === self.findIndex(i => i.barcode === item.barcode)
+      );
+      
+      // Additional client-side filtering
+      if (searchTerms.length > 0) {
+        results = results.filter(item =>
+          searchTerms.some(term =>
+            item.name.toLowerCase().includes(term) ||
+            (item.barcode && item.barcode.toLowerCase().includes(term))
+          )
+        );
+      }
+      
+      setSearchResults(results);
+    } catch (err) {
+      console.error("Error searching items:", err);
+      // Final fallback to client-side search
+      const searchTerms = query.trim().toLowerCase().split(/\s+/);
+      const clientResults = storeItems.filter(item =>
+        searchTerms.some(term =>
+          item.name.toLowerCase().includes(term) ||
+          (item.barcode && item.barcode.toLowerCase().includes(term))
+        )
+      );
+      setSearchResults(clientResults);
     }
-  };
+  } else {
+    setSearchResults([]);
+  }
+};
+  
 
   // Select batch
   const handleSelectBatch = (batch) => {
