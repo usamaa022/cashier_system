@@ -555,17 +555,7 @@ export default function ReturnHistory() {
 
   return (
     <Card title="Return History">
-      <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200">
-        <p className="text-blue-800 text-sm">
-          <strong>Note:</strong> This page shows all returns with beautiful payment status indicators. 
-          <span className="inline-flex items-center ml-2 px-2 py-1 rounded-full bg-green-100 text-green-800 text-xs font-medium">
-            ✓ Paid
-          </span> returns show payment details, while 
-          <span className="inline-flex items-center mx-2 px-2 py-1 rounded-full bg-red-100 text-red-800 text-xs font-medium">
-            ⏳ Unpaid
-          </span> returns can be edited or deleted.
-        </p>
-      </div>
+
 
       <div className="mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>

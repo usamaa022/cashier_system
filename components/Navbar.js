@@ -17,6 +17,7 @@ export default function Navbar() {
   const [isBuyingOpen, setIsBuyingOpen] = useState(false);
   const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
   const [isEmployeeOpen, setIsEmployeeOpen] = useState(false);
+
   const accountsRef = useRef(null);
   const inventoryRef = useRef(null);
   const salesRef = useRef(null);
@@ -60,9 +61,7 @@ export default function Navbar() {
     router.push("/login");
   };
 
-  const navLinks = [
-    { href: "/statements", label: "Statements" },
-  ];
+  const navLinks = [{ href: "/statements", label: "Statements" }];
 
   return (
     <nav
@@ -73,27 +72,50 @@ export default function Navbar() {
         position: "sticky",
         top: 0,
         zIndex: 1000,
-        width: "100%"
+        width: "100%",
       }}
     >
       <div className="container">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", height: "100%" }}>
-          <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "bold", color: "#3b82f6", textDecoration: "none" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            height: "100%",
+          }}
+        >
+          <Link
+            href="/"
+            style={{
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              color: "#3b82f6",
+              textDecoration: "none",
+            }}
+          >
             Aran Med Store
           </Link>
-          <div style={{ display: "flex", gap: "1rem", height: "100%", alignItems: "center" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "1rem",
+              height: "100%",
+              alignItems: "center",
+            }}
+          >
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className="nav-link"
                 style={{
-                  borderBottom: pathname === link.href ? "2px solid #3b82f6" : "none",
+                  borderBottom:
+                    pathname === link.href ? "2px solid #3b82f6" : "none",
                   color: pathname === link.href ? "#3b82f6" : "var(--gray)",
                   textDecoration: "none",
                   padding: "0.5rem 0",
                   position: "relative",
-                  transition: "all 0.2s ease"
+                  transition: "all 0.2s ease",
                 }}
               >
                 {link.label}
@@ -108,7 +130,9 @@ export default function Navbar() {
                   style={{
                     background: "none",
                     border: "none",
-                    color: pathname.includes("/employee") ? "#3b82f6" : "var(--gray)",
+                    color: pathname.includes("/employee")
+                      ? "#3b82f6"
+                      : "var(--gray)",
                     fontSize: "1rem",
                     fontWeight: 500,
                     cursor: "pointer",
@@ -116,8 +140,10 @@ export default function Navbar() {
                     alignItems: "center",
                     gap: "0.25rem",
                     padding: "0.5rem 0",
-                    borderBottom: pathname.includes("/employee") ? "2px solid #3b82f6" : "none",
-                    transition: "all 0.2s ease"
+                    borderBottom: pathname.includes("/employee")
+                      ? "2px solid #3b82f6"
+                      : "none",
+                    transition: "all 0.2s ease",
                   }}
                 >
                   Employee Management
@@ -126,7 +152,7 @@ export default function Navbar() {
                       width: "16px",
                       height: "16px",
                       transition: "transform 0.2s ease",
-                      transform: isEmployeeOpen ? "rotate(180deg)" : "rotate(0deg)"
+                      transform: isEmployeeOpen ? "rotate(180deg)" : "rotate(0deg)",
                     }}
                     fill="none"
                     stroke="currentColor"
@@ -142,27 +168,34 @@ export default function Navbar() {
                   </svg>
                 </button>
                 {isEmployeeOpen && (
-                  <div style={{
-                    position: "absolute",
-                    right: 0,
-                    top: "100%",
-                    width: "220px",
-                    backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                    padding: "0.5rem 0",
-                    zIndex: 50,
-                    border: "1px solid #e5e7eb"
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      width: "220px",
+                      backgroundColor: "#fff",
+                      borderRadius: "0.375rem",
+                      boxShadow:
+                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      padding: "0.5rem 0",
+                      zIndex: 50,
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
                     <Link
                       href="/employee_accounts"
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_accounts") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/employee_accounts")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/employee_accounts") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/employee_accounts")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsEmployeeOpen(false)}
                     >
@@ -173,10 +206,14 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_purchases") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/employee_purchases")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/employee_purchases") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/employee_purchases")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsEmployeeOpen(false)}
                     >
@@ -187,10 +224,14 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/shipment_arrivals") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/shipment_arrivals")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/shipment_arrivals") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/shipment_arrivals")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsEmployeeOpen(false)}
                     >
@@ -201,10 +242,16 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_purchases_history") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/employee_purchases_history")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/employee_purchases_history") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes(
+                          "/employee_purchases_history"
+                        )
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsEmployeeOpen(false)}
                     >
@@ -231,8 +278,10 @@ export default function Navbar() {
                     alignItems: "center",
                     gap: "0.25rem",
                     padding: "0.5rem 0",
-                    borderBottom: pathname.includes("/buying") ? "2px solid #3b82f6" : "none",
-                    transition: "all 0.2s ease"
+                    borderBottom: pathname.includes("/buying")
+                      ? "2px solid #3b82f6"
+                      : "none",
+                    transition: "all 0.2s ease",
                   }}
                 >
                   Buying
@@ -241,7 +290,7 @@ export default function Navbar() {
                       width: "16px",
                       height: "16px",
                       transition: "transform 0.2s ease",
-                      transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)"
+                      transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)",
                     }}
                     fill="none"
                     stroke="currentColor"
@@ -257,27 +306,34 @@ export default function Navbar() {
                   </svg>
                 </button>
                 {isBuyingOpen && (
-                  <div style={{
-                    position: "absolute",
-                    right: 0,
-                    top: "100%",
-                    width: "200px",
-                    backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                    padding: "0.5rem 0",
-                    zIndex: 50,
-                    border: "1px solid #e5e7eb"
-                  }}>
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      width: "200px",
+                      backgroundColor: "#fff",
+                      borderRadius: "0.375rem",
+                      boxShadow:
+                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      padding: "0.5rem 0",
+                      zIndex: 50,
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
                     <Link
                       href="/buying"
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/buying") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/buying")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/buying") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/buying")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsBuyingOpen(false)}
                     >
@@ -289,10 +345,14 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/bought_returns") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/bought_returns")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/bought_returns") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/bought_returns")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsBuyingOpen(false)}
                     >
@@ -304,10 +364,14 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/Bought_Statement") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/Bought_Statement")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/Bought_Statement") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/Bought_Statement")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsBuyingOpen(false)}
                     >
@@ -325,7 +389,10 @@ export default function Navbar() {
                 style={{
                   background: "none",
                   border: "none",
-                  color: pathname.includes("/items") || pathname.includes("/store") ? "#3b82f6" : "var(--gray)",
+                  color:
+                    pathname.includes("/items") || pathname.includes("/store")
+                      ? "#3b82f6"
+                      : "var(--gray)",
                   fontSize: "1rem",
                   fontWeight: 500,
                   cursor: "pointer",
@@ -333,8 +400,11 @@ export default function Navbar() {
                   alignItems: "center",
                   gap: "0.25rem",
                   padding: "0.5rem 0",
-                  borderBottom: (pathname.includes("/items") || pathname.includes("/store")) ? "2px solid #3b82f6" : "none",
-                  transition: "all 0.2s ease"
+                  borderBottom:
+                    pathname.includes("/items") || pathname.includes("/store")
+                      ? "2px solid #3b82f6"
+                      : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 Inventory
@@ -343,7 +413,7 @@ export default function Navbar() {
                     width: "16px",
                     height: "16px",
                     transition: "transform 0.2s ease",
-                    transform: isInventoryOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    transform: isInventoryOpen ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
@@ -359,28 +429,35 @@ export default function Navbar() {
                 </svg>
               </button>
               {isInventoryOpen && (
-                <div style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "100%",
-                  width: "200px",
-                  backgroundColor: "#fff",
-                  borderRadius: "0.375rem",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                  padding: "0.5rem 0",
-                  zIndex: 50,
-                  border: "1px solid #e5e7eb"
-                }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "200px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
                   {user?.role !== "employee" && (
                     <Link
                       href="/items"
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/items") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/items")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/items") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/items")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsInventoryOpen(false)}
                     >
@@ -392,10 +469,14 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/store") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/store")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/store") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/store")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
                     onClick={() => setIsInventoryOpen(false)}
                   >
@@ -412,7 +493,12 @@ export default function Navbar() {
                 style={{
                   background: "none",
                   border: "none",
-                  color: pathname.includes("/selling") || pathname.includes("/sold") || pathname.includes("/return") ? "#3b82f6" : "var(--gray)",
+                  color:
+                    pathname.includes("/selling") ||
+                    pathname.includes("/sold") ||
+                    pathname.includes("/return")
+                      ? "#3b82f6"
+                      : "var(--gray)",
                   fontSize: "1rem",
                   fontWeight: 500,
                   cursor: "pointer",
@@ -420,8 +506,13 @@ export default function Navbar() {
                   alignItems: "center",
                   gap: "0.25rem",
                   padding: "0.5rem 0",
-                  borderBottom: (pathname.includes("/selling") || pathname.includes("/sold") || pathname.includes("/return")) ? "2px solid #3b82f6" : "none",
-                  transition: "all 0.2s ease"
+                  borderBottom:
+                    pathname.includes("/selling") ||
+                    pathname.includes("/sold") ||
+                    pathname.includes("/return")
+                      ? "2px solid #3b82f6"
+                      : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 Sales
@@ -430,7 +521,7 @@ export default function Navbar() {
                     width: "16px",
                     height: "16px",
                     transition: "transform 0.2s ease",
-                    transform: isSalesOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    transform: isSalesOpen ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
@@ -446,27 +537,34 @@ export default function Navbar() {
                 </svg>
               </button>
               {isSalesOpen && (
-                <div style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "100%",
-                  width: "200px",
-                  backgroundColor: "#fff",
-                  borderRadius: "0.375rem",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                  padding: "0.5rem 0",
-                  zIndex: 50,
-                  border: "1px solid #e5e7eb"
-                }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "200px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
                   <Link
                     href="/selling"
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/selling") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/selling")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/selling") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/selling")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
                     onClick={() => setIsSalesOpen(false)}
                   >
@@ -477,10 +575,14 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/sold") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/sold")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/sold") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/sold")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
                     onClick={() => setIsSalesOpen(false)}
                   >
@@ -491,10 +593,14 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/return") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/return")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/return") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/return")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
                     onClick={() => setIsSalesOpen(false)}
                   >
@@ -519,8 +625,10 @@ export default function Navbar() {
                   alignItems: "center",
                   gap: "0.25rem",
                   padding: "0.5rem 0",
-                  borderBottom: pathname.includes("/payments") ? "2px solid #3b82f6" : "none",
-                  transition: "all 0.2s ease"
+                  borderBottom: pathname.includes("/payments")
+                    ? "2px solid #3b82f6"
+                    : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
                 Payments
@@ -529,7 +637,7 @@ export default function Navbar() {
                     width: "16px",
                     height: "16px",
                     transition: "transform 0.2s ease",
-                    transform: isPaymentsOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    transform: isPaymentsOpen ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
@@ -545,27 +653,34 @@ export default function Navbar() {
                 </svg>
               </button>
               {isPaymentsOpen && (
-                <div style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "100%",
-                  width: "200px",
-                  backgroundColor: "#fff",
-                  borderRadius: "0.375rem",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                  padding: "0.5rem 0",
-                  zIndex: 50,
-                  border: "1px solid #e5e7eb"
-                }}>
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "200px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
                   <Link
                     href="/payments/create"
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/payments/create") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/payments/create")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/payments/create") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/payments/create")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
                     onClick={() => setIsPaymentsOpen(false)}
                   >
@@ -577,10 +692,14 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/bought_payments/") ? "#3b82f6" : "#374151",
+                        color: pathname.includes("/bought_payments/")
+                          ? "#3b82f6"
+                          : "#374151",
                         textDecoration: "none",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/bought_payments/") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                        backgroundColor: pathname.includes("/bought_payments/")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
                       }}
                       onClick={() => setIsPaymentsOpen(false)}
                     >
@@ -591,115 +710,14 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Transport Dropdown */}
-            {user?.role !== "employee" && (
-              <div ref={transportRef} style={{ position: "relative" }}>
-                <button
-                  onClick={() => setIsTransportOpen(!isTransportOpen)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: pathname.includes("/transport") ? "#3b82f6" : "var(--gray)",
-                    fontSize: "1rem",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.25rem",
-                    padding: "0.5rem 0",
-                    borderBottom: pathname.includes("/transport") ? "2px solid #3b82f6" : "none",
-                    transition: "all 0.2s ease"
-                  }}
-                >
-                  Transport
-                  <svg
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      transition: "transform 0.2s ease",
-                      transform: isTransportOpen ? "rotate(180deg)" : "rotate(0deg)"
-                    }}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-                {isTransportOpen && (
-                  <div style={{
-                    position: "absolute",
-                    right: 0,
-                    top: "100%",
-                    width: "200px",
-                    backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                    padding: "0.5rem 0",
-                    zIndex: 50,
-                    border: "1px solid #e5e7eb"
-                  }}>
-                    <Link
-                      href="/transport/send"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/transport/send") ? "#3b82f6" : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/transport/send") ? "rgba(59, 130, 246, 0.1)" : "transparent"
-                      }}
-                      onClick={() => setIsTransportOpen(false)}
-                    >
-                      Send Transport
-                    </Link>
-                    <Link
-                      href="/transport/receive"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/transport/receive") ? "#3b82f6" : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/transport/receive") ? "rgba(59, 130, 246, 0.1)" : "transparent"
-                      }}
-                      onClick={() => setIsTransportOpen(false)}
-                    >
-                      Receive Transport
-                    </Link>
-                    <Link
-                      href="/transport/transportHistory"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/transport/transportHistory") ? "#3b82f6" : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/transport/transportHistory") ? "rgba(59, 130, 246, 0.1)" : "transparent"
-                      }}
-                      onClick={() => setIsTransportOpen(false)}
-                    >
-                      Transport History
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Accounts Dropdown */}
-            <div ref={accountsRef} style={{ position: "relative" }}>
+            {/* Transport Dropdown - Visible to all roles */}
+            <div ref={transportRef} style={{ position: "relative" }}>
               <button
-                onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                onClick={() => setIsTransportOpen(!isTransportOpen)}
                 style={{
                   background: "none",
                   border: "none",
-                  color: pathname.includes("/companies") || pathname.includes("/pharmacies") ? "#3b82f6" : "var(--gray)",
+                  color: pathname.includes("/transport") ? "#3b82f6" : "var(--gray)",
                   fontSize: "1rem",
                   fontWeight: 500,
                   cursor: "pointer",
@@ -707,17 +725,19 @@ export default function Navbar() {
                   alignItems: "center",
                   gap: "0.25rem",
                   padding: "0.5rem 0",
-                  borderBottom: (pathname.includes("/companies") || pathname.includes("/pharmacies")) ? "2px solid #3b82f6" : "none",
-                  transition: "all 0.2s ease"
+                  borderBottom: pathname.includes("/transport")
+                    ? "2px solid #3b82f6"
+                    : "none",
+                  transition: "all 0.2s ease",
                 }}
               >
-                Accounts
+                Transport
                 <svg
                   style={{
                     width: "16px",
                     height: "16px",
                     transition: "transform 0.2s ease",
-                    transform: isAccountsOpen ? "rotate(180deg)" : "rotate(0deg)"
+                    transform: isTransportOpen ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
@@ -732,50 +752,187 @@ export default function Navbar() {
                   />
                 </svg>
               </button>
-              {isAccountsOpen && (
-                <div style={{
-                  position: "absolute",
-                  right: 0,
-                  top: "100%",
-                  width: "200px",
-                  backgroundColor: "#fff",
-                  borderRadius: "0.375rem",
-                  boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                  padding: "0.5rem 0",
-                  zIndex: 50,
-                  border: "1px solid #e5e7eb"
-                }}>
+              {isTransportOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: "100%",
+                    width: "200px",
+                    backgroundColor: "#fff",
+                    borderRadius: "0.375rem",
+                    boxShadow:
+                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    padding: "0.5rem 0",
+                    zIndex: 50,
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
                   <Link
-                    href="/pharmacies"
+                    href="/transport/send"
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/pharmacies") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/transport/send")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/pharmacies") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/transport/send")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
-                    onClick={() => setIsAccountsOpen(false)}
+                    onClick={() => setIsTransportOpen(false)}
                   >
-                    Pharmacies
+                    Send Transport
                   </Link>
                   <Link
-                    href="/companies"
+                    href="/transport/receive"
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/companies") ? "#3b82f6" : "#374151",
+                      color: pathname.includes("/transport/receive")
+                        ? "#3b82f6"
+                        : "#374151",
                       textDecoration: "none",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/companies") ? "rgba(59, 130, 246, 0.1)" : "transparent"
+                      backgroundColor: pathname.includes("/transport/receive")
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
                     }}
-                    onClick={() => setIsAccountsOpen(false)}
+                    onClick={() => setIsTransportOpen(false)}
                   >
-                    Companies
+                    Receive Transport
+                  </Link>
+                  <Link
+                    href="/transport/transportHistory"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname.includes("/transport/transportHistory")
+                        ? "#3b82f6"
+                        : "#374151",
+                      textDecoration: "none",
+                      transition: "all 0.2s ease",
+                      backgroundColor: pathname.includes(
+                        "/transport/transportHistory"
+                      )
+                        ? "rgba(59, 130, 246, 0.1)"
+                        : "transparent",
+                    }}
+                    onClick={() => setIsTransportOpen(false)}
+                  >
+                    Transport History
                   </Link>
                 </div>
               )}
             </div>
+
+            {/* Accounts Dropdown - Only for admin and superAdmin */}
+            {(user?.role === "admin" || user?.role === "superAdmin") && (
+              <div ref={accountsRef} style={{ position: "relative" }}>
+                <button
+                  onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color:
+                      pathname.includes("/companies") ||
+                      pathname.includes("/pharmacies")
+                        ? "#3b82f6"
+                        : "var(--gray)",
+                    fontSize: "1rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.25rem",
+                    padding: "0.5rem 0",
+                    borderBottom:
+                      pathname.includes("/companies") ||
+                      pathname.includes("/pharmacies")
+                        ? "2px solid #3b82f6"
+                        : "none",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  Accounts
+                  <svg
+                    style={{
+                      width: "16px",
+                      height: "16px",
+                      transition: "transform 0.2s ease",
+                      transform: isAccountsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    }}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </button>
+                {isAccountsOpen && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 0,
+                      top: "100%",
+                      width: "200px",
+                      backgroundColor: "#fff",
+                      borderRadius: "0.375rem",
+                      boxShadow:
+                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      padding: "0.5rem 0",
+                      zIndex: 50,
+                      border: "1px solid #e5e7eb",
+                    }}
+                  >
+                    <Link
+                      href="/pharmacies"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/pharmacies")
+                          ? "#3b82f6"
+                          : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/pharmacies")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
+                      }}
+                      onClick={() => setIsAccountsOpen(false)}
+                    >
+                      Pharmacies
+                    </Link>
+                    <Link
+                      href="/companies"
+                      style={{
+                        display: "block",
+                        padding: "0.5rem 1rem",
+                        color: pathname.includes("/companies")
+                          ? "#3b82f6"
+                          : "#374151",
+                        textDecoration: "none",
+                        transition: "all 0.2s ease",
+                        backgroundColor: pathname.includes("/companies")
+                          ? "rgba(59, 130, 246, 0.1)"
+                          : "transparent",
+                      }}
+                      onClick={() => setIsAccountsOpen(false)}
+                    >
+                      Companies
+                    </Link>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* User Info and Login/Logout */}
             <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>

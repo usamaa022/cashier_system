@@ -222,8 +222,8 @@ export default function StatementPage() {
                         </tbody>
                         <tfoot className="bg-red-100">
                           <tr>
-                            <td colSpan="7" className="p-2 text-right font-bold">Total Returns:</td>
-                            <td className="p-2 text-right font-bold text-lg">
+                            <td colSpan="7" className="p-2 text-left font-bold">Total Returns:</td>
+                            <td className="p-2 text-left font-bold text-lg">
                               {formatCurrency(totalReturn)}
                             </td>
                           </tr>
