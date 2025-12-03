@@ -11,6 +11,7 @@ import {
   getBillAttachmentUrlEnhanced,
   deleteBillAttachment,
   storeBase64Image,
+  getAllReturns, 
   getBase64BillAttachment,
   deleteBase64Attachment,
 } from "@/lib/data";
@@ -54,6 +55,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
   const [billAttachments, setBillAttachments] = useState({});
   const [uploadingAttachments, setUploadingAttachments] = useState({});
   const [scannerStatus, setScannerStatus] = useState("ready");
+  const [returnBills, setReturnBills] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
   const [filters, setFilters] = useState({
     billNumber: "",
@@ -182,6 +184,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
   // File Scanner Utility Functions
   const fileScanner = {
     isAvailable: true,
+    
     async scanDocument() {
       return new Promise((resolve, reject) => {
         const fileInput = document.createElement("input");
@@ -220,44 +223,132 @@ export default function SellingForm({ onBillCreated, userRole }) {
         fileInput.click();
       });
     },
-    async convertToBlackAndWhite(base64Image) {
+    
+    // Optimized Grayscale conversion with better quality and controlled size
+    convertToOptimizedGrayscale(base64Image) {
       return new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0);
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          const data = imageData.data;
-          for (let i = 0; i < data.length; i += 4) {
-            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3;
-            data[i] = brightness;
-            data[i + 1] = brightness;
-            data[i + 2] = brightness;
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Calculate optimal dimensions - keep max 1200px on longest side
+          const maxDimension = 1200;
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height && width > maxDimension) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else if (height > maxDimension) {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
           }
+          
+          canvas.width = width;
+          canvas.height = height;
+          
+          // Draw with smoothing for better quality
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Convert to grayscale with better contrast
+          const imageData = ctx.getImageData(0, 0, width, height);
+          const data = imageData.data;
+          
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Use luminance method for better grayscale
+            const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            
+            // Adjust brightness and contrast
+            let adjusted = luminance;
+            
+            // Boost mid-tones for better document clarity
+            if (adjusted < 128) {
+              // Darken shadows slightly
+              adjusted = Math.pow(adjusted / 128, 1.2) * 128;
+            } else {
+              // Lighten highlights slightly
+              adjusted = 128 + Math.pow((adjusted - 128) / 128, 0.8) * 128;
+            }
+            
+            // Apply gentle contrast
+            adjusted = ((adjusted - 128) * 1.1) + 128;
+            adjusted = Math.max(0, Math.min(255, adjusted));
+            
+            data[i] = adjusted;     // Red
+            data[i + 1] = adjusted; // Green
+            data[i + 2] = adjusted; // Blue
+            // Alpha stays the same
+          }
+          
           ctx.putImageData(imageData, 0, 0);
-          const bwBase64 = canvas.toDataURL("image/jpeg", 0.8);
-          resolve(bwBase64);
+          
+          // Convert to JPEG with optimal quality for size/quality balance
+          // Use progressive JPEG for better compression
+          const quality = 0.82; // Good balance between quality and size
+          const optimizedBase64 = canvas.toDataURL('image/jpeg', quality);
+          
+          // Check file size
+          const sizeInBytes = Math.round((optimizedBase64.length * 3) / 4);
+          console.log(`📏 Optimized grayscale: ${sizeInBytes} bytes (${(sizeInBytes / 1024).toFixed(1)} KB)`);
+          
+          // If still too large, compress further
+          if (sizeInBytes > 500 * 1024) { // > 500KB
+            console.log('📦 Further compressing...');
+            const finalCanvas = document.createElement('canvas');
+            const finalCtx = finalCanvas.getContext('2d');
+            
+            // Reduce dimensions
+            finalCanvas.width = Math.round(width * 0.8);
+            finalCanvas.height = Math.round(height * 0.8);
+            
+            finalCtx.drawImage(canvas, 0, 0, finalCanvas.width, finalCanvas.height);
+            
+            const finalBase64 = finalCanvas.toDataURL('image/jpeg', 0.75);
+            const finalSize = Math.round((finalBase64.length * 3) / 4);
+            console.log(`📦 Final size: ${finalSize} bytes (${(finalSize / 1024).toFixed(1)} KB)`);
+            
+            resolve(finalBase64);
+          } else {
+            resolve(optimizedBase64);
+          }
         };
+        
+        img.onerror = () => {
+          console.error('Failed to load image for conversion');
+          resolve(base64Image);
+        };
+        
         img.src = base64Image;
       });
     },
+    
+    // Keep compatibility with old function name
+    convertToBlackAndWhite(base64Image) {
+      return this.convertToOptimizedGrayscale(base64Image);
+    },
+    
     async scanAndConvertToBase64() {
       try {
         const scanResult = await this.scanDocument();
-        const bwImage = await this.convertToBlackAndWhite(scanResult.base64);
+        const grayImage = await this.convertToOptimizedGrayscale(scanResult.base64);
         return {
           ...scanResult,
-          base64: bwImage,
-          fileName: `bw_scan_${Date.now()}.jpg`,
+          base64: grayImage,
+          fileName: `scan_${Date.now()}.jpg`,
         };
       } catch (error) {
         console.error("Scan error:", error);
         throw error;
       }
     },
+    
     getStatus() {
       return {
         available: this.isAvailable,
@@ -267,62 +358,207 @@ export default function SellingForm({ onBillCreated, userRole }) {
     },
   };
 
-  // Handle Scan Attachment
-  const handleScanAttachment = async (billNumber) => {
+  // Enhanced Handle Rescan with better UI
+  const handleRescan = async (billNumber) => {
+    try {
+      console.log(`🔄 Rescanning document for bill ${billNumber}...`);
+      
+      // Create a custom modal for better UX
+      const useCamera = window.confirm(
+        '📷 Rescan Document\n\n' +
+        'Choose scanning method:\n\n' +
+        '• Click OK to use Camera\n' +
+        '• Click Cancel to Upload File\n\n' +
+        'Both methods will optimize the image for clear readability.'
+      );
+      
+      if (useCamera) {
+        await handleScanDocument(billNumber);
+      } else {
+        await handleFileUpload(billNumber);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error initiating rescan:', error);
+      alert(`Failed to rescan: ${error.message}`);
+    }
+  };
+
+  // Unified function for both scanning and uploading
+  const processDocumentImage = async (billNumber, base64Image, sourceType) => {
     if (!billNumber) {
       alert("Please select a bill first");
       return;
     }
+
     setIsScanning(true);
     setUploadingAttachments((prev) => ({ ...prev, [billNumber]: true }));
+
     try {
-      console.log(`📷 Starting file scan for bill ${billNumber}...`);
-      const scanResult = await fileScanner.scanAndConvertToBase64();
-      if (scanResult && scanResult.base64) {
-        console.log("✅ File scan completed, storing image...");
-        console.log("📊 Scan result:", {
-          fileName: scanResult.fileName,
-          fileType: scanResult.fileType,
-          fileSize: scanResult.fileSize,
-          base64Length: scanResult.base64.length,
-        });
-        // Store base64 image in Firestore
-        const storedImage = await storeBase64Image(
-          billNumber,
-          scanResult.base64,
-          scanResult.fileName,
-          scanResult.fileType
-        );
-        console.log("💾 Storage result:", storedImage);
-        // Update UI state
-        setBillAttachments((prev) => ({
-          ...prev,
-          [billNumber]: scanResult.base64,
-        }));
-        // Update recent bills state
-        setRecentBills((prevBills) =>
-          prevBills.map((bill) =>
-            bill.billNumber === billNumber
-              ? {
-                  ...bill,
-                  hasAttachment: true,
-                  attachmentUrl: scanResult.base64,
-                }
-              : bill
-          )
-        );
-        console.log(`✅ File attachment stored for bill ${billNumber}`);
-        alert("Document scanned and attached successfully!");
-      } else {
-        throw new Error("No image data received from file scan");
+      console.log(`🔄 Processing ${sourceType} image for bill ${billNumber}...`);
+      
+      if (!base64Image) {
+        throw new Error('No image captured');
       }
+      
+      // Convert to optimized grayscale (not pure black/white)
+      console.log('⚪ Optimizing image for clarity...');
+      const optimizedImage = await fileScanner.convertToOptimizedGrayscale(base64Image);
+      
+      // Delete any existing attachment first
+      await deleteBase64Attachment(billNumber);
+      
+      // Store the base64 image
+      const storedImage = await storeBase64Image(
+        billNumber,
+        optimizedImage,
+        `${sourceType}_${Date.now()}.jpg`,
+        'image/jpeg'
+      );
+      console.log("💾 Image stored:", storedImage);
+      
+      // Update UI state
+      setBillAttachments((prev) => ({
+        ...prev,
+        [billNumber]: optimizedImage,
+      }));
+      
+      // Update recent bills state
+      setRecentBills((prevBills) =>
+        prevBills.map((bill) =>
+          bill.billNumber === billNumber
+            ? {
+                ...bill,
+                hasAttachment: true,
+                attachmentUrl: optimizedImage,
+              }
+            : bill
+        )
+      );
+      
+      console.log(`✅ Document processed successfully for bill ${billNumber}`);
+      alert("Document processed successfully! Image has been optimized for clarity.");
+      
     } catch (error) {
-      console.error("❌ Error with file scan:", error);
-      alert(`File scan failed: ${error.message}`);
+      console.error(`❌ Error with ${sourceType}:`, error);
+      alert(`Processing failed: ${error.message}`);
     } finally {
       setIsScanning(false);
       setUploadingAttachments((prev) => ({ ...prev, [billNumber]: false }));
     }
+  };
+
+  // Function to handle scanning document with camera
+  const handleScanDocument = async (billNumber) => {
+    try {
+      const base64Image = await captureImageFromCamera();
+      await processDocumentImage(billNumber, base64Image, 'scan');
+    } catch (error) {
+      console.error('❌ Camera scan error:', error);
+      alert(`Camera scan failed: ${error.message}`);
+    }
+  };
+
+  // Function to handle file upload
+  const handleFileUpload = async (billNumber) => {
+    try {
+      const base64Image = await selectFileFromDevice();
+      await processDocumentImage(billNumber, base64Image, 'upload');
+    } catch (error) {
+      console.error('❌ File upload error:', error);
+      alert(`File upload failed: ${error.message}`);
+    }
+  };
+
+  // Function to capture image from camera
+  const captureImageFromCamera = () => {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment'; // Prefer rear camera on mobile
+      input.style.display = 'none';
+      
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+          document.body.removeChild(input);
+          reject(new Error('No file selected'));
+          return;
+        }
+        
+        if (!file.type.startsWith('image/')) {
+          alert('Please select an image file');
+          document.body.removeChild(input);
+          reject(new Error('Not an image file'));
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.body.removeChild(input);
+          resolve(e.target.result);
+        };
+        reader.onerror = () => {
+          document.body.removeChild(input);
+          reject(new Error('Failed to read file'));
+        };
+        reader.readAsDataURL(file);
+      };
+      
+      input.oncancel = () => {
+        document.body.removeChild(input);
+        reject(new Error('Camera access cancelled'));
+      };
+      
+      document.body.appendChild(input);
+      input.click();
+    });
+  };
+
+  // Function to select file from device
+  const selectFileFromDevice = () => {
+    return new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.style.display = 'none';
+      
+      input.onchange = (event) => {
+        const file = event.target.files[0];
+        if (!file) {
+          document.body.removeChild(input);
+          reject(new Error('No file selected'));
+          return;
+        }
+        
+        if (!file.type.startsWith('image/')) {
+          alert('Please select an image file');
+          document.body.removeChild(input);
+          reject(new Error('Not an image file'));
+          return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.body.removeChild(input);
+          resolve(e.target.result);
+        };
+        reader.onerror = () => {
+          document.body.removeChild(input);
+          reject(new Error('Failed to read file'));
+        };
+        reader.readAsDataURL(file);
+      };
+      
+      input.oncancel = () => {
+        document.body.removeChild(input);
+        reject(new Error('File selection cancelled'));
+      };
+      
+      document.body.appendChild(input);
+      input.click();
+    });
   };
 
   // Enhanced View Attachment with Full Screen
@@ -459,244 +695,172 @@ export default function SellingForm({ onBillCreated, userRole }) {
     }
   };
 
-  // Enhanced Handle Rescan - Fixed version
-  const handleRescan = async (billNumber) => {
-    try {
-      console.log(`🔄 Rescanning document for bill ${billNumber}...`);
+  // Scanner Attachment Button Component
+  const ScannerAttachmentButton = ({ bill, isUploading, styles }) => {
+    const hasAttachment = billAttachments[bill.billNumber];
+    
+    const handleButtonClick = async (e, type) => {
+      e.stopPropagation();
+      if (type === 'scan') {
+        await handleScanDocument(bill.billNumber);
+      } else if (type === 'upload') {
+        await handleFileUpload(bill.billNumber);
+      }
+    };
 
-      // Create file input element
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = 'image/*';
-      fileInput.style.display = 'none';
-
-      // Add to DOM temporarily
-      document.body.appendChild(fileInput);
-
-      fileInput.onchange = async (event) => {
-        const file = event.target.files[0];
-        if (!file) {
-          console.log('No file selected for rescan');
-          document.body.removeChild(fileInput);
-          return;
-        }
-        
-        if (!file.type.startsWith('image/')) {
-          alert('Please select an image file (JPEG, PNG, GIF, etc.)');
-          document.body.removeChild(fileInput);
-          return;
-        }
-        
-        if (file.size > 5 * 1024 * 1024) {
-          alert('File size too large. Please select an image smaller than 5MB.');
-          document.body.removeChild(fileInput);
-          return;
-        }
-        
-        setIsScanning(true);
-        setUploadingAttachments((prev) => ({ ...prev, [billNumber]: true }));
-        
-        try {
-          console.log(`🗑️ Deleting existing attachment for bill ${billNumber}...`);
-          // Delete the existing attachment
-          await deleteBase64Attachment(billNumber);
-          console.log(`✅ Deleted existing attachment for bill ${billNumber}`);
-          
-          // Convert new file to base64
-          const reader = new FileReader();
-          reader.onload = async (e) => {
-            try {
-              const base64Image = e.target.result;
-
-              // Convert to black and white
-              const bwImage = await fileScanner.convertToBlackAndWhite(base64Image);
-
-              // Store the new base64 image
-              const storedImage = await storeBase64Image(
-                billNumber,
-                bwImage,
-                `rescan_${Date.now()}.jpg`,
-                'image/jpeg'
-              );
-              console.log("💾 New scan stored:", storedImage);
-              
-              // Update UI state
-              setBillAttachments((prev) => ({
-                ...prev,
-                [billNumber]: bwImage,
-              }));
-              
-              // Update recent bills state
-              setRecentBills((prevBills) =>
-                prevBills.map((bill) =>
-                  bill.billNumber === billNumber
-                    ? {
-                        ...bill,
-                        hasAttachment: true,
-                        attachmentUrl: bwImage,
-                      }
-                    : bill
-                )
-              );
-              
-              console.log(`✅ Document rescanned successfully for bill ${billNumber}`);
-              alert("Document rescanned successfully!");
-              
-              // Refresh the attachment view
-              setTimeout(() => {
-                viewAttachment(billNumber);
-              }, 500);
-              
-            } catch (error) {
-              console.error('❌ Error processing rescan:', error);
-              alert(`Failed to process rescan: ${error.message}`);
-            } finally {
-              setIsScanning(false);
-              setUploadingAttachments((prev) => ({ ...prev, [billNumber]: false }));
-              document.body.removeChild(fileInput);
-            }
-          };
-
-          reader.onerror = () => {
-            throw new Error('Failed to read file');
-            document.body.removeChild(fileInput);
-          };
-
-          reader.readAsDataURL(file);
-
-        } catch (error) {
-          console.error('❌ Error during rescan:', error);
-          alert(`Failed to rescan document: ${error.message}`);
-          setIsScanning(false);
-          setUploadingAttachments((prev) => ({ ...prev, [billNumber]: false }));
-          document.body.removeChild(fileInput);
-        }
-      };
-      
-      fileInput.oncancel = () => {
-        console.log('File selection cancelled');
-        document.body.removeChild(fileInput);
-      };
-      
-      // Trigger file input click
-      fileInput.click();
-
-    } catch (error) {
-      console.error('❌ Error initiating rescan:', error);
-      alert(`Failed to initiate rescan: ${error.message}`);
-    }
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
+        {hasAttachment ? (
+          <>
+            <button
+              style={styles.viewAttachmentButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                viewAttachment(bill.billNumber);
+              }}
+              title="View Scanned Document"
+            >
+              📄 View
+            </button>
+            <button
+              style={styles.rescanButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRescan(bill.billNumber);
+              }}
+              disabled={isUploading}
+              title="Rescan Document"
+            >
+              🔄 Rescan
+            </button>
+          </>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: "5px", width: "50%" }}>
+            <button
+              style={isUploading ? { ...styles.attachButton, opacity: 0.6 } : styles.attachButton}
+              onClick={(e) => handleButtonClick(e, 'scan')}
+              disabled={isUploading}
+              title="Scan Document with Camera"
+            >
+              {isUploading ? "⏳ Processing..." : "📷 Scan"}
+            </button>
+            <button
+              style={isUploading ? { ...styles.uploadButton, opacity: 0.6 } : styles.uploadButton}
+              onClick={(e) => handleButtonClick(e, 'upload')}
+              disabled={isUploading}
+              title="Upload File"
+            >
+              {isUploading ? "⏳ Processing..." : "📁 Upload"}
+            </button>
+          </div>
+        )}
+        {/* Scanner status indicator */}
+        <div
+          style={{
+            fontSize: "10px",
+            color:
+              scannerStatus === "ready"
+                ? "#27ae60"
+                : scannerStatus === "initializing"
+                ? "#f39c12"
+                : scannerStatus === "error"
+                ? "#e74c3c"
+                : "#95a5a6",
+            fontWeight: "bold",
+          }}
+        >
+          {scannerStatus === "ready"
+            ? ""
+            : scannerStatus === ""
+            ? ""
+            : scannerStatus === ""
+            ? ""
+            : ""}
+        </div>
+      </div>
+    );
   };
 
-  // Corrected Pharmacy Financial Summary Calculation
-  const calculatePharmacyFinancialSummary = (pharmacyId) => {
+  const calculatePharmacyFinancialSummary = (pharmacyId, currentBillItems = []) => {
     if (!pharmacyId) {
       return {
         totalSales: 0,
         totalUnpaidBills: 0,
         totalReturnBills: 0,
-        remainingUnpaid: 0
+        currentBillTotal: 0,
+        remainingUnpaid: 0,
       };
     }
-
+  
     // Filter bills for this specific pharmacy
-    const pharmacyBills = recentBills.filter(bill => bill.pharmacyId === pharmacyId);
-    
-    console.log(`📊 Calculating financial summary for pharmacy ${pharmacyId}:`, {
-      totalBills: pharmacyBills.length,
-      bills: pharmacyBills.map(bill => ({
-        billNumber: bill.billNumber,
-        paymentStatus: bill.paymentStatus,
-        total: bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0,
-        isReturn: bill.isReturnBill || false
-      }))
-    });
-
-    // Calculate total sales (sum of all REGULAR bills for this pharmacy)
-    const totalSales = pharmacyBills.reduce((sum, bill) => {
-      // Only count regular sales bills (not return bills)
-      if (!bill.isReturnBill) {
-        const billTotal = bill.items?.reduce((itemSum, item) => 
-          itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0;
-        return sum + billTotal;
-      }
-      return sum;
-    }, 0);
-
-    // Calculate total unpaid bills (only REGULAR bills with paymentStatus = "Unpaid")
+    const pharmacyBills = recentBills.filter((bill) => bill.pharmacyId === pharmacyId);
+  
+    // Calculate total unpaid sales bills (only UNPAID and NOT return bills)
     const totalUnpaidBills = pharmacyBills.reduce((sum, bill) => {
-      // Only count regular unpaid bills (not return bills)
       if (bill.paymentStatus === "Unpaid" && !bill.isReturnBill) {
-        const billTotal = bill.items?.reduce((itemSum, item) => 
-          itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0;
+        const billTotal = bill.items?.reduce(
+          (itemSum, item) => itemSum + parseCurrency(item.price) * item.quantity,
+          0
+        ) || 0;
         return sum + billTotal;
       }
       return sum;
     }, 0);
-
-    // Calculate total return bills (sum of all RETURN bills for this pharmacy)
-    const totalReturnBills = pharmacyBills.reduce((sum, bill) => {
-      // Only count return bills
-      if (bill.isReturnBill) {
-        const billTotal = bill.items?.reduce((itemSum, item) => 
-          itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0;
+  
+    // Filter return bills for this specific pharmacy
+    const pharmacyReturnBills = returnBills.filter((returnBill) => 
+      returnBill.pharmacyId === pharmacyId && returnBill.paymentStatus !== "Processed" && returnBill.paymentStatus !== "Paid"
+    );
+  
+    // Calculate total return bills for this pharmacy (only unprocessed returns)
+    const totalReturnBills = pharmacyReturnBills.reduce((sum, returnBill) => {
+      if (returnBill.items && Array.isArray(returnBill.items)) {
+        // If returnBill has items array
+        const billTotal = returnBill.items.reduce(
+          (itemSum, item) => itemSum + parseCurrency(item.returnPrice || item.price || 0) * (item.returnQuantity || item.quantity || 0),
+          0
+        );
+        return sum + billTotal;
+      } else {
+        // If returnBill is a single item
+        const billTotal = parseCurrency(returnBill.returnPrice || returnBill.price || 0) * (returnBill.returnQuantity || returnBill.quantity || 0);
         return sum + billTotal;
       }
-      return sum;
     }, 0);
-
+  
+    // Calculate current bill total (if provided)
+    const currentBillTotal = currentBillItems?.reduce(
+      (sum, item) => sum + parseCurrency(item.price) * item.quantity,
+      0
+    ) || 0;
+  
     // Calculate remaining unpaid after returns
     const remainingUnpaid = Math.max(0, totalUnpaidBills - totalReturnBills);
-
-    console.log(`💰 Financial Summary for pharmacy ${pharmacyId}:`, {
-      totalSales,
+  
+    // Debug: Log the calculated values
+    console.log("📊 Financial Summary:", {
+      pharmacyId,
       totalUnpaidBills,
       totalReturnBills,
-      remainingUnpaid
+      currentBillTotal,
+      remainingUnpaid,
+      pharmacyBillsCount: pharmacyBills.length,
+      returnBillsCount: pharmacyReturnBills.length,
+      allReturnBillsCount: returnBills.length
     });
-
+  
     return {
-      totalSales,
+      totalSales: totalUnpaidBills,
       totalUnpaidBills,
       totalReturnBills,
-      remainingUnpaid
+      currentBillTotal,
+      remainingUnpaid,
     };
   };
-
-  // Debug function to check bill data for a specific pharmacy
-  const debugPharmacyBills = (pharmacyId) => {
-    const pharmacyBills = recentBills.filter(bill => bill.pharmacyId === pharmacyId);
-    
-    console.log(`🔍 Debugging bills for pharmacy ${pharmacyId}:`, {
-      totalBills: pharmacyBills.length,
-      bills: pharmacyBills.map(bill => ({
-        billNumber: bill.billNumber,
-        pharmacyName: bill.pharmacyName,
-        paymentStatus: bill.paymentStatus,
-        isReturnBill: bill.isReturnBill || false,
-        totalAmount: bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0,
-        items: bill.items?.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          total: item.quantity * parseCurrency(item.price)
-        }))
-      }))
-    });
-
-    const regularBills = pharmacyBills.filter(bill => !bill.isReturnBill);
-    const returnBills = pharmacyBills.filter(bill => bill.isReturnBill);
-    const unpaidBills = regularBills.filter(bill => bill.paymentStatus === "Unpaid");
-
-    console.log(`📊 Breakdown for pharmacy ${pharmacyId}:`, {
-      regularBills: regularBills.length,
-      returnBills: returnBills.length,
-      unpaidBills: unpaidBills.length,
-      totalRegularAmount: regularBills.reduce((sum, bill) => sum + (bill.items?.reduce((itemSum, item) => itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0), 0),
-      totalReturnAmount: returnBills.reduce((sum, bill) => sum + (bill.items?.reduce((itemSum, item) => itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0), 0),
-      totalUnpaidAmount: unpaidBills.reduce((sum, bill) => sum + (bill.items?.reduce((itemSum, item) => itemSum + (parseCurrency(item.price) * item.quantity), 0) || 0), 0)
-    });
-  };
-
+  
+  
+  
+      
   // Enhanced Search with Debouncing
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -772,7 +936,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
   const handleFilterInputFocus = (e) => e.target.select();
 
   // File Upload Handler (Fallback)
-  const handleFileUpload = async (billNumber, file) => {
+  const handleFileUploadFallback = async (billNumber, file) => {
     if (!file) return;
     console.log(`📤 Starting upload for bill ${billNumber}...`);
     setUploadingAttachments((prev) => ({ ...prev, [billNumber]: true }));
@@ -816,13 +980,13 @@ export default function SellingForm({ onBillCreated, userRole }) {
       event.target.value = "";
       return;
     }
-    if (file.size > 1 * 1024 * 1024) {
-      alert("File size too large. Please select an image smaller than 1MB.");
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size too large. Please select an image smaller than 5MB.");
       event.target.value = "";
       return;
     }
     console.log(`📎 Selected file for bill ${billNumber}:`, file.name, file.size);
-    handleFileUpload(billNumber, file);
+    handleFileUploadFallback(billNumber, file);
     event.target.value = "";
   };
 
@@ -859,32 +1023,6 @@ export default function SellingForm({ onBillCreated, userRole }) {
     await Promise.all(loadPromises);
     console.log(`✅ Loaded ${loadedCount} attachments out of ${bills.length} bills`);
     setBillAttachments(prev => ({ ...prev, ...attachments }));
-  };
-
-  // Debug Attachment Storage
-  const debugAttachmentStorage = async (billNumber) => {
-    console.log("🔍 Debugging attachment storage for bill:", billNumber);
-    try {
-      // Check if we have it in local state
-      console.log("📱 Local state:", billAttachments[billNumber] ? "Found" : "Not found");
-      // Check Firestore for base64 attachment
-      const base64Result = await getBase64BillAttachment(billNumber);
-      console.log("📦 Firestore base64:", base64Result ? `Found (${base64Result.length} chars)` : "Not found");
-      // Check Firestore for URL attachment
-      const urlResult = await getBillAttachmentUrlEnhanced(billNumber);
-      console.log("🔗 Firestore URL:", urlResult ? "Found" : "Not found");
-      // Check recent bills state
-      const billInState = recentBills.find((bill) => bill.billNumber === billNumber);
-      console.log("📄 Bill in state:", billInState ? "Found" : "Not found");
-      if (billInState) {
-        console.log("   - hasAttachment:", billInState.hasAttachment);
-        console.log("   - attachmentUrl:", billInState.attachmentUrl);
-      }
-      return { base64Result, urlResult };
-    } catch (error) {
-      console.error("❌ Debug error:", error);
-      return { base64Result: null, urlResult: null };
-    }
   };
 
   // Test Firestore Connection
@@ -927,53 +1065,61 @@ export default function SellingForm({ onBillCreated, userRole }) {
   }, []);
 
   // Fetch Data
-  useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      console.log("🔄 Starting data fetch...");
-      try {
-        await testFirestoreConnection();
-        console.log("📦 Fetching store items...");
-        const items = await getStoreItems();
-        console.log(`✅ Store items loaded: ${items.length} items`);
-        setStoreItems(items);
-        console.log("🧾 Fetching sold bills...");
-        const bills = await searchSoldBills("");
-        console.log(`✅ Sold bills loaded: ${bills.length} bills`);
-        const sortedBills = bills.sort((a, b) => {
-          const dateA = new Date(a.date);
-          const dateB = new Date(b.date);
-          return dateB - dateA;
-        });
-        setRecentBills(sortedBills);
-        const uniqueItems = Array.from(new Set(items.map((item) => item.name))).map((name) => {
-          const item = items.find((i) => i.name === name);
-          return {
-            value: name,
-            label: `${name} (${item.barcode})`,
-            barcode: item.barcode,
-          };
-        });
-        setItemOptions(uniqueItems);
-        console.log(`✅ Item options created: ${uniqueItems.length} unique items`);
-        console.log("📎 Loading attachments...");
-        await loadAllAttachments(sortedBills);
-        console.log("✅ Attachments loaded");
-        console.log("🎉 All data loaded successfully!");
-      } catch (err) {
-        console.error("❌ Error fetching data:", err);
-        console.error("Error details:", {
-          name: err.name,
-          message: err.message,
-          code: err.code,
-        });
-        setError(`Failed to load data: ${err.message}`);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+
+// Fetch Data
+useEffect(() => {
+  const fetchData = async () => {
+    setIsLoading(true);
+    console.log("🔄 Starting data fetch...");
+    try {
+      await testFirestoreConnection();
+      console.log("📦 Fetching store items...");
+      const items = await getStoreItems();
+      console.log(`✅ Store items loaded: ${items.length} items`);
+      setStoreItems(items);
+  
+      console.log("🧾 Fetching sold bills...");
+      const bills = await searchSoldBills("");
+      console.log(`✅ Sold bills loaded: ${bills.length} bills`);
+      const sortedBills = bills.sort((a, b) => new Date(b.date) - new Date(a.date));
+      setRecentBills(sortedBills);
+  
+      console.log(`🔄 Fetching ALL return bills...`);
+      const allReturns = await getAllReturns();
+      console.log(`✅ Return bills loaded: ${allReturns.length} return bills`);
+      setReturnBills(allReturns);
+  
+      const uniqueItems = Array.from(new Set(items.map((item) => item.name))).map((name) => {
+        const item = items.find((i) => i.name === name);
+        return {
+          value: name,
+          label: `${name} (${item.barcode})`,
+          barcode: item.barcode,
+        };
+      });
+      setItemOptions(uniqueItems);
+      console.log(`✅ Item options created: ${uniqueItems.length} unique items`);
+  
+      console.log("📎 Loading attachments...");
+      await loadAllAttachments(sortedBills);
+      console.log("✅ Attachments loaded");
+  
+      console.log("🎉 All data loaded successfully!");
+    } catch (err) {
+      console.error("❌ Error fetching data:", err);
+      console.error("Error details:", {
+        name: err.name,
+        message: err.message,
+        code: err.code,
+      });
+      setError(`Failed to load data: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+      
+  fetchData();
+}, []);
 
   // Get Batches for Item
   const getBatchesForItem = (barcode) => {
@@ -1305,7 +1451,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
     setShowBillPreview(true);
   };
 
-  // Enhanced Bill Template HTML with Correct Financial Summary
+  // Enhanced Bill Template HTML with CORRECTED Financial Summary
   const createEnhancedBillTemplateHTML = (bill, financialSummary, billPaymentMethod) => {
     const getPaymentStatusColor = (paymentMethod) => {
       switch (paymentMethod) {
@@ -1320,146 +1466,162 @@ export default function SellingForm({ onBillCreated, userRole }) {
       }
     };
   
-    const currentBillTotal = bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0;
+    const currentBillTotal = financialSummary.currentBillTotal || 
+      bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0;
   
     return `
-      <div class="bill-template">
-        <!-- Bill Header and Info -->
-        <div class="bill-header">
-          <div class="header-content">
-            <div class="company-info">
-              <h1 class="company-name">ARAN MED STORE</h1>
-              <p class="company-address">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
-              <p class="company-phone">+964 772 533 5252 | +964 751 741 22 41</p>
-            </div>
-            <div class="invoice-title-section">
-              <div class="invoice-title">
-                <h2 class="invoice-title-text">MEDICAL INVOICE</h2>
-                <div class="payment-status" style="background-color: ${getPaymentStatusColor(billPaymentMethod)}">
-                  ${billPaymentMethod.toUpperCase()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-  
-        <!-- Bill Info -->
-        <div class="bill-info">
-          <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed">
-            <h3 style="margin: 0 0 15px 0; font-family: 'NRT-Bd', sans-serif;">Bill To</h3>
-            <div style="padding: 15px; background: white; border-radius: 6px; border: 1px solid #e1e8ed">
-              <p style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">${bill.pharmacyName}</p>
-              <p style="font-size: 14px; color: #7f8c8d; margin: 0; font-family: 'NRT-Reg', sans-serif;">Code: ${pharmacyCode}</p>
-            </div>
-          </div>
-          <div style="padding: 20px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed">
-            <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
-              <tr>
-                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice #:</td>
-                <td style="padding: 5px 0; font-size: 14px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
-                  ${bill.billNumber === "TEMP0000" ? "TEMP0000" : bill.billNumber?.toString().padStart(7, "0")}
-                </td>
-              </tr>
-              <tr>
-                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice Date:</td>
-                <td style="padding: 5px 0; font-size: 14px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
-                  ${formatDate(bill.date || saleDate)}
-                </td>
-              </tr>
-              <tr>
-                <td style="font-weight: 600; padding: 5px 15px 5px 0; font-size: 14px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Payment:</td>
-                <td style="padding: 5px 0;">
-                  <div class="payment-status" style="background-color: ${getPaymentStatusColor(billPaymentMethod)}">
-                    ${billPaymentMethod.toUpperCase()}
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </div>
-        </div>
-  
-        <!-- Items Table -->
-        <table class="items-table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Item Details</th>
-              <th style="text-align: center;">Barcode</th>
-              <th style="text-align: center;">Quantity</th>
-              <th style="text-align: right;">Unit Price (IQD)</th>
-              <th style="text-align: right;">Total Amount (IQD)</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${bill.items?.map((item, index) => `
-              <tr>
-                <td style="text-align: center; font-weight: 600;">${index + 1}</td>
-                <td>
-                  <div style="font-weight: 600; margin-bottom: 4px; font-family: 'NRT-Bd', sans-serif;">${item.name}</div>
-                  <div style="font-size: 12px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
-                </td>
-                <td style="text-align: center; font-family: 'NRT-Reg', monospace;">${item.barcode}</td>
-                <td style="text-align: center; font-weight: 600;">${item.quantity}</td>
-                <td style="text-align: right; font-weight: 600;">${formatCurrency(item.price)}</td>
-                <td style="text-align: right; font-weight: 600;">${formatCurrency(item.quantity * item.price)}</td>
-              </tr>
-            `).join("")}
-            <tr class="total-row">
-              <td colspan="5" style="text-align: right; font-weight: 600;">CURRENT BILL TOTAL:</td>
-              <td style="text-align: right; font-weight: 600; font-size: 16px;">${formatCurrency(currentBillTotal)} IQD</td>
-            </tr>
-          </tbody>
-        </table>
-  
-        <!-- Financial Summary -->
-        <div class="financial-summary">
-          <h4 style="margin: 0 0 15px 0; font-family: 'NRT-Bd', sans-serif; color: #2c3e50;">Pharmacy Account Summary</h4>
-          
-          <!-- Current Bill Total -->
-          <div class="financial-row">
-            <span style="font-weight: 600;">Current Bill Total:</span>
-            <span style="font-weight: 600;">${formatCurrency(currentBillTotal)} IQD</span>
-          </div>
-          
-          <!-- Total Sales (All Regular Bills) -->
-          <div class="financial-row">
-            <span>Total Sales (Regular Bills):</span>
-            <span>${formatCurrency(financialSummary.totalSales)} IQD</span>
-          </div>
-          
-          <!-- Total Unpaid (Unpaid Regular Bills) -->
-          <div class="financial-row">
-            <span>Total Unpaid Bills:</span>
-            <span>${formatCurrency(financialSummary.totalUnpaidBills)} IQD</span>
-          </div>
-          
-          <!-- Total Returns (All Return Bills) -->
-          <div class="financial-row">
-            <span>Total Return Bills:</span>
-            <span style="color: #e74c3c;">- ${formatCurrency(financialSummary.totalReturnBills)} IQD</span>
-          </div>
-          
-          <!-- Remaining Unpaid After Returns -->
-          <div class="financial-row">
-            <span style="font-weight: 600; color: #e74c3c;">Remaining Unpaid Balance:</span>
-            <span style="font-weight: 600; color: #e74c3c;">${formatCurrency(financialSummary.remainingUnpaid)} IQD</span>
-          </div>
-        </div>
-  
-        <!-- Note Section -->
-        ${bill.note ? `
-          <div class="note-section">
-            <h4 style="font-weight: 600; margin-bottom: 10px; color: #e67e22; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
-            <p style="font-size: 14px; color: #2c3e50; line-height: 1.5; margin: 0; font-family: 'NRT-Reg', sans-serif;">${bill.note}</p>
-          </div>
-        ` : ""}
-  
-        <!-- Signature Section -->
-        <div style="margin-top: 30px; text-align: right;">
-          <div style="width: 300px; height: 1px; background-color: #3498db; margin: 20px 0 8px auto"></div>
-          <p style="font-size: 12px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif;">Receiver Signature (Stamp)</p>
-        </div>
+<div class="bill-template" style="padding-top: 0px;">
+  <!-- Bill Header and Info -->
+  <div class="bill-header" style="margin-bottom: 0px;">
+    <div class="header-content" style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div class="company-info" style="flex: 1;">
+        <h1 class="company-name" style="margin: 0 0 2px 0; font-size: 24px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
+        <p class="company-address" style="margin: 0 0 3px 0; font-size: 14px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
+        <p class="company-phone" style="margin: 0; font-size: 14px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">+964 772 533 5252 | +964 751 741 2241</p>
       </div>
+      <div class="invoice-title-section" style="flex-shrink: 0; width: auto;  text-align: right;">
+        <img 
+          src="/Aranlogo.png"
+          alt="Aran Logo"
+          style="
+            width: 250px;
+            object-fit: contain;
+            display: inline-block;
+          "
+        />
+      </div>
+    </div>
+  </div>
+
+  <!-- Bill Info -->
+  <div class="bill-info" style="display: flex; gap: 20px; margin-bottom: 20px;">
+  <!-- Left column for bill information -->
+  <div style="flex: 2; display: flex; gap: 20px;">
+    <!-- Bill To section -->
+    <div style="flex: 1; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
+      <h3 style="margin: 0 0 10px 0; font-family: 'NRT-Bd', sans-serif; font-size: 15px; color: #2c3e50;">Bill To: ${bill.pharmacyName} (${pharmacyCode})</h3>
+      <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
+        <tr>
+          <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Payment:</td>
+          <td style="padding: 3px 0;">
+            <div class="payment-status" style="background-color: ${getPaymentStatusColor(billPaymentMethod)}; display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; color: #fff;">
+              ${billPaymentMethod.toUpperCase()}
+            </div>
+          </td>
+        </tr>
+        <tr>
+          <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">isConsignment:</td>
+          <td style="padding: 3px 0;">
+            <div class="payment-status" style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; color: #34495E">
+              ${bill.isConsignment?'تحت صرف':'Owned'}   
+            </div>
+          </td>
+        </tr>
+      </table>
+    </div>
+    
+    <!-- Invoice details section -->
+    <div style="flex: 1; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
+      <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
+        <tr>
+          <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Invoice #:</td>
+          <td style="padding: 3px 0; font-size: 13px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
+            ${bill.billNumber === "TEMP0000" ? "TEMP0000" : bill.billNumber?.toString().padStart(7, "0")}
+          </td>
+        </tr>
+        <tr>
+          <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Invoice Date:</td>
+          <td style="padding: 3px 0; font-size: 13px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
+            ${formatDate(bill.date || saleDate)}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  
+  <div style="flex: 1;  border-radius: 8px; border: 0px dashed #e1e8ed; display: flex; align-items: left; justify-content: center;">
+     <img 
+          src="/scann.png"
+          alt="scan me"
+          style="
+          margin-top:10px;
+            width: 120px;
+        
+          "
+        />
+  </div>
+</div>
+
+  <!-- Items Table -->
+  <table class="items-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+    <thead>
+      <tr style="background-color: #3498db; color: white;">
+        <th style="padding: 6px; text-align: center; font-family: 'NRT-Bd', sans-serif;">#</th>
+        <th style="padding: 6px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
+        <th style="padding: 6px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
+        <th style="padding: 6px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Quantity</th>
+        <th style="padding: 6px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price (IQD)</th>
+        <th style="padding: 6px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Total Amount (IQD)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bill.items?.map((item, index) => `
+        <tr style="border-bottom: 1px solid #e1e8ed;">
+          <td style="padding: 5px; text-align: center; font-weight: 600;">${index + 1}</td>
+          <td style="padding: 5px;">
+            <div style="font-weight: 600; margin-bottom: 3px; font-family: 'NRT-Bd', sans-serif;">${item.name}</div>
+            <div style="font-size: 11px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
+          </td>
+          <td style="padding: 5px; text-align: center; font-family: 'NRT-Reg', monospace; font-size: 13px;">${item.barcode}</td>
+          <td style="padding: 5px; text-align: center; font-weight: 600;">${item.quantity}</td>
+          <td style="padding: 5px; text-align: center; font-weight: 600;">${formatCurrency(item.price)}</td>
+          <td style="padding: 5px; text-align: right; font-weight: 600;">${formatCurrency(item.quantity * item.price)}</td>
+        </tr>
+      `).join("")}
+      <tr style="background-color: #34495E; font-weight: 700;">
+        <td colspan="5" style="padding: 8px;color: white; text-align: right;font-size: 16px; font-family: 'NRT-Bd', sans-serif;">CURRENT TOTAL:</td>
+        <td style="padding: 6px; text-align: right;color: white; font-family: 'NRT-Bd', sans-serif; font-size: 16px;">${formatCurrency(currentBillTotal)} IQD</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Financial Summary -->
+  <div class="financial-summary" style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 20px;">
+  
+    
+    <!-- Total Unpaid (Unpaid Regular Bills) -->
+    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e1e8ed;">
+      <span style="font-family: 'NRT-Reg', sans-serif; font-size: 15px;">Total Unpaid Bills:</span>
+      <span style="font-family: 'NRT-Reg', sans-serif; font-size: 15px; font-weight: 600;">${formatCurrency(financialSummary.totalUnpaidBills)} IQD</span>
+    </div>
+    
+    <!-- Total Returns (All Return Bills) -->
+    <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e1e8ed;">
+      <span style="font-family: 'NRT-Reg', sans-serif; font-size: 15px;">Total Return Bills:</span>
+      <span style="font-family: 'NRT-Reg', sans-serif; font-size: 15px; font-weight: 600; color: #e74c3c;">- ${formatCurrency(financialSummary.totalReturnBills)} IQD</span>
+    </div>
+    
+    <!-- Remaining Unpaid After Returns -->
+    <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+      <span style="font-family: 'NRT-Bd', sans-serif; font-size: 15px;font-weight: 600; color: #e74c3c;">Remaining Unpaid Balance:</span>
+      <span style="font-family: 'NRT-Bd', sans-serif; font-size: 15px;font-weight: 600; color: #e74c3c;">${formatCurrency(financialSummary.remainingUnpaid)} IQD</span>
+    </div>
+  </div>
+
+  <!-- Note Section -->
+  ${bill.note ? `
+    <div class="note-section" style="background-color: #fff8e1; padding: 12px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 20px;">
+      <h4 style="font-weight: 600; margin: 0 0 8px 0; color: #e67e22; font-size: 13px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
+      <p style="font-size: 13px; color: #2c3e50; line-height: 1.4; margin: 0; font-family: 'NRT-Reg', sans-serif;">${bill.note}</p>
+    </div>
+  ` : ""}
+
+  <!-- Signature Section -->
+  <div style="margin-top: 20px; text-align: right;">
+    <div style="width: 250px; height: 1px; background-color: #3498db; margin: 15px 0 5px auto"></div>
+    <p style="font-size: 11px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif; margin: 0;">Receiver Signature (Stamp)</p>
+  </div>
+</div>
     `;
   };
   
@@ -1575,86 +1737,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
       }
     };
 
-    return (
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        gap: "10px", 
-        marginBottom: "15px",
-        padding: "10px",
-        backgroundColor: "#f8f9fa",
-        borderRadius: "8px",
-        border: "1px solid #e1e8ed"
-      }}>
-        <div
-          style={{
-            width: "12px",
-            height: "12px",
-            borderRadius: "50%",
-            backgroundColor: getStatusColor(),
-          }}
-        />
-        <span style={{ fontSize: "14px", color: "#2c3e50" }}>
-          Scanner: {scannerStatus === "ready" ? "Ready" : scannerStatus === "initializing" ? "Initializing" : "Error"}
-        </span>
-      </div>
-    );
-  };
 
-  // Scanner Attachment Button Component
-  const ScannerAttachmentButton = ({ bill, isUploading, styles }) => {
-    const hasAttachment = billAttachments[bill.billNumber];
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "5px" }}>
-        {hasAttachment ? (
-          <button
-            style={styles.viewAttachmentButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              viewAttachment(bill.billNumber);
-            }}
-            title="View Scanned Document"
-          >
-            📄 View Scan
-          </button>
-        ) : (
-          <button
-            style={isUploading ? { ...styles.attachButton, opacity: 0.6 } : styles.attachButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleScanAttachment(bill.billNumber);
-            }}
-            disabled={isUploading}
-            title="Upload Signature Image"
-          >
-            {isUploading ? "⏳ Scanning..." : "📷 Scan Document"}
-          </button>
-        )}
-        {/* Scanner status indicator */}
-        <div
-          style={{
-            fontSize: "10px",
-            color:
-              scannerStatus === "ready"
-                ? "#27ae60"
-                : scannerStatus === "initializing"
-                ? "#f39c12"
-                : scannerStatus === "error"
-                ? "#e74c3c"
-                : "#95a5a6",
-            fontWeight: "bold",
-          }}
-        >
-          {scannerStatus === "ready"
-            ? "Scanner ✓"
-            : scannerStatus === "initializing"
-            ? "Scanner ⚡"
-            : scannerStatus === "error"
-            ? "Scanner ✗"
-            : "Scanner"}
-        </div>
-      </div>
-    );
   };
 
   // Enhanced AdvancedSearchFilters Component
@@ -1692,7 +1775,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               />
             </div>
             {/* Item Name */}
-            <div style={styles.filterGroup}>
+            {/* <div style={styles.filterGroup}>
               <label style={styles.filterLabel}>Item Name</label>
               <input
                 type="text"
@@ -1702,7 +1785,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
                 onChange={(e) => handleFilterChange("itemName", e.target.value)}
                 onFocus={handleFilterInputFocus}
               />
-            </div>
+            </div> */}
             {/* Pharmacy Name - Enhanced ComboBox */}
             <div style={styles.filterGroup}>
               <label style={styles.filterLabel}>Pharmacy Name</label>
@@ -1910,7 +1993,8 @@ export default function SellingForm({ onBillCreated, userRole }) {
   // BillPreview Component
   const BillPreview = ({ bill, styles }) => {
     const billPaymentMethod = bill.paymentStatus || paymentMethod;
-    const financialSummary = calculatePharmacyFinancialSummary(bill.pharmacyId);
+    // Pass current bill items to financial summary calculation
+    const financialSummary = calculatePharmacyFinancialSummary(bill.pharmacyId, bill.items);
     const getPaymentStatusColor = (paymentMethod) => {
       switch (paymentMethod) {
         case "Cash":
@@ -1974,7 +2058,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
                       fontFamily: "'NRT-Reg', sans-serif",
                     }}
                   >
-                    +964 772 533 5252 | +964 751 741 22 41
+                    +964 772 533 5252 | +964 751 741 2241
                   </p>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -2007,6 +2091,9 @@ export default function SellingForm({ onBillCreated, userRole }) {
                     >
                       {billPaymentMethod.toUpperCase()}
                     </div>
+
+
+
                   </div>
                 </div>
               </div>
@@ -2160,17 +2247,17 @@ export default function SellingForm({ onBillCreated, userRole }) {
               margin: "20px 0",
               border: "1px solid #e1e8ed"
             }}>
-              <h4 style={{ margin: "0 0 15px 0", fontFamily: "'NRT-Bd', sans-serif", color: "#2c3e50" }}>Pharmacy Account Summary</h4>
+             
               
               {/* Current Bill Total */}
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e1e8ed" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid #e1e8ed"}}>
                 <span style={{ fontWeight: "600" }}>Current Bill Total:</span>
                 <span style={{ fontWeight: "600" }}>
-                  {formatCurrency(bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0)} IQD
+                  {formatCurrency(financialSummary.currentBillTotal || bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0)} IQD
                 </span>
               </div>
               
-              {/* Total Sales (All Regular Bills) */}
+              Total Sales (All Regular Bills)
               <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #e1e8ed" }}>
                 <span>Total Sales (Regular Bills):</span>
                 <span>{formatCurrency(financialSummary.totalSales)} IQD</span>
@@ -2343,16 +2430,6 @@ export default function SellingForm({ onBillCreated, userRole }) {
                             >
                               Print
                             </button>
-                            <button
-                              style={styles.debugButton}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                debugPharmacyBills(bill.pharmacyId);
-                              }}
-                              title="Debug Financials"
-                            >
-                              Debug
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -2483,7 +2560,8 @@ export default function SellingForm({ onBillCreated, userRole }) {
     }
     // Use the actual bill's payment method, not the current form state
     const billPaymentMethod = billToPrint.paymentStatus || paymentMethod;
-    const financialSummary = calculatePharmacyFinancialSummary(billToPrint.pharmacyId);
+    // Pass current bill items to financial summary calculation
+    const financialSummary = calculatePharmacyFinancialSummary(billToPrint.pharmacyId, billToPrint.items);
 
     const billHTML = createEnhancedBillTemplateHTML(billToPrint, financialSummary, billPaymentMethod);
     printWindow.document.write(`
@@ -2553,7 +2631,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               color: #34495e;
               margin: 0;
               font-weight: 500;
-              font-family: 'NRT-Reg', sans-serif;
+              fontFamily: 'NRT-Reg', sans-serif;
             }
             .invoice-title-section {
               text-align: right;
@@ -2564,7 +2642,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               color: #2c3e50;
               margin: 0 0 10px 0;
               text-transform: uppercase;
-              font-family: 'NRT-Bd', sans-serif;
+              fontFamily: 'NRT-Bd', sans-serif;
             }
             .payment-status {
               display: inline-block;
@@ -2575,7 +2653,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               font-size: 12px;
               text-transform: uppercase;
               letter-spacing: 1px;
-              font-family: 'NRT-Bd', sans-serif;
+              fontFamily: 'NRT-Bd', sans-serif;
             }
             .bill-info {
               display: grid;
@@ -2587,7 +2665,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               width: 100%;
               border-collapse: collapse;
               margin: 20px 0;
-              font-family: 'NRT-Reg', sans-serif;
+              fontFamily: 'NRT-Reg', sans-serif;
             }
             .items-table th {
               background-color: #34495e;
@@ -2595,7 +2673,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
               padding: 12px;
               text-align: left;
               font-weight: 600;
-              font-family: 'NRT-Bd', sans-serif;
+              fontFamily: 'NRT-Bd', sans-serif;
             }
             .items-table td {
               padding: 12px;
@@ -2649,7 +2727,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
                 margin: 0;
               }
               .bill-header {
-                margin-bottom: 20px;
+                margin-bottom: 1 px;
               }
             }
           </style>
@@ -2672,7 +2750,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
   // Styles
   const styles = {
     container: {
-      maxWidth: "75%",
+      maxWidth: "85%",
       margin: "0 auto",
       padding: "20px",
       fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
@@ -3216,16 +3294,6 @@ export default function SellingForm({ onBillCreated, userRole }) {
       cursor: "pointer",
       fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     },
-    debugButton: {
-      backgroundColor: "#9b59b6",
-      color: "white",
-      border: "none",
-      padding: "6px 12px",
-      borderRadius: "4px",
-      fontSize: "12px",
-      cursor: "pointer",
-      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    },
     attachButton: {
       backgroundColor: "#9b59b6",
       color: "white",
@@ -3238,7 +3306,43 @@ export default function SellingForm({ onBillCreated, userRole }) {
       transition: "all 0.3s ease",
       display: "flex",
       alignItems: "center",
+      justifyContent: "center",
       gap: "5px",
+      width: "100%",
+    },
+    uploadButton: {
+      backgroundColor: "#27ae60",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "5px",
+      width: "100%",
+      marginTop: "3px",
+    },
+    rescanButton: {
+      backgroundColor: "#f39c12",
+      color: "white",
+      border: "none",
+      padding: "6px 12px",
+      borderRadius: "4px",
+      fontSize: "12px",
+      cursor: "pointer",
+      fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      transition: "all 0.3s ease",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: "5px",
+      width: "50%",
+      marginTop: "3px",
     },
     viewAttachmentButton: {
       backgroundColor: "#27ae60",
@@ -3250,6 +3354,8 @@ export default function SellingForm({ onBillCreated, userRole }) {
       cursor: "pointer",
       fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
       transition: "all 0.3s ease",
+      width: "50%",
+
     },
     billDetails: {
       backgroundColor: "#f8f9fa",
@@ -3481,7 +3587,7 @@ export default function SellingForm({ onBillCreated, userRole }) {
   // Main Render
   return (
     <div style={styles.container}>
-      <div style={styles.header}>{isEditMode ? `Edit Bill #${editingBillNumber}` : "Create New Sale"}</div>
+      <div style={styles.header}>{isEditMode ? `Edit Bill #${editingBillNumber}` : ""}</div>
       <div style={styles.formContainer}>
         {error && (
           <div style={styles.error}>
