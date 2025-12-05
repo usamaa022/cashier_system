@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
+import PaymentBill from "@/components/PaymentBill";
 import {
   createPayment,
   getPharmacies,
@@ -54,6 +55,7 @@ export default function PaymentManagementPage() {
   const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
   const [amountRange, setAmountRange] = useState([0, 50000000]);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentBillData, setPaymentBillData] = useState(null);
   const hardcopyBillNumberRef = useRef(null);
   const pharmacySelectRef = useRef(null);
 
@@ -200,7 +202,7 @@ export default function PaymentManagementPage() {
   const loadPaymentDetails = async (paymentId) => {
     try {
       const payment = paymentHistory.find(p => p.id === paymentId);
-      if (!payment) return;
+      if (!payment) return { soldBills: [], returns: [] };
       const soldBills = await getSoldBills();
       const returns = await getReturnsForPharmacy(payment.pharmacyId);
       const soldDetails = soldBills.filter(bill => payment.selectedSoldBills?.includes(bill.id));
@@ -209,8 +211,10 @@ export default function PaymentManagementPage() {
         ...prev,
         [paymentId]: { soldBills: soldDetails, returns: returnDetails }
       }));
+      return { soldBills: soldDetails, returns: returnDetails };
     } catch (error) {
       console.error("Error loading payment details:", error);
+      return { soldBills: [], returns: [] };
     }
   };
 
@@ -219,10 +223,12 @@ export default function PaymentManagementPage() {
     const bill = soldBills.find(b => b.id === billId);
     return total + (bill?.totalAmount || 0);
   }, 0);
+
   const returnTotal = selectedReturns.reduce((total, returnId) => {
     const returnBill = returns.find(r => r.id === returnId);
     return total + (returnBill?.totalReturn || 0);
   }, 0);
+
   const totalAfterReturn = soldTotal - returnTotal;
 
   // Toggle bill/return selection
@@ -263,21 +269,28 @@ export default function PaymentManagementPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     let hasError = false;
+
     if (!selectedPharmacy) {
       setError("Please select a pharmacy");
       pharmacySelectRef.current?.focus();
+      pharmacySelectRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       hasError = true;
     }
+
     if (!hardcopyBillNumber.trim()) {
       setError("Hardcopy Bill Number is required");
       hardcopyBillNumberRef.current?.focus();
+      hardcopyBillNumberRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       hasError = true;
     }
+
     if (selectedSoldBills.length === 0 && selectedReturns.length === 0) {
       setError("Please select at least one bill or return to process");
       hasError = true;
     }
+
     if (hasError) return;
+
     try {
       setSubmitting(true);
       setError(null);
@@ -297,6 +310,7 @@ export default function PaymentManagementPage() {
         createdBy: user.uid,
         createdByName: userDisplayName
       };
+
       let result;
       if (isEditMode) {
         result = await updatePayment(editPaymentId, paymentData);
@@ -305,6 +319,33 @@ export default function PaymentManagementPage() {
         result = await createPayment(paymentData);
         setSuccess(`Payment ${result.paymentNumber} created successfully!`);
       }
+
+      // Get the selected sold bills and returns data
+      const selectedSoldBillsData = soldBills.filter(bill => selectedSoldBills.includes(bill.id));
+      const selectedReturnsData = returns.filter(returnBill => selectedReturns.includes(returnBill.id));
+
+      // Prepare the data for printing
+      const billPrintData = {
+        pharmacyName: selectedPharmacyData?.name || "Unknown Pharmacy",
+        pharmacyCode: selectedPharmacyData?.code || "N/A",
+        soldBills: selectedSoldBillsData,
+        returns: selectedReturnsData,
+        hardcopyBillNumber,
+        paymentNumber: result.paymentNumber,
+        soldTotal,
+        returnTotal,
+        netAmount: totalAfterReturn,
+        createdByName: userDisplayName,
+        paymentDate: new Date(paymentDate),
+        notes,
+      };
+
+      // Set the data and trigger print
+      setPaymentBillData(billPrintData);
+      setTimeout(() => {
+        window.print();
+      }, 300);
+
       if (!isEditMode) {
         setSelectedSoldBills([]);
         setSelectedReturns([]);
@@ -320,7 +361,459 @@ export default function PaymentManagementPage() {
     }
   };
 
-  // Cancel edit mode
+// Quick Print Function with Beautiful Advanced Design
+const printPaymentQuick = async (payment) => {
+  try {
+    setError(null);
+    setSuccess(`Printing ${payment.paymentNumber}...`);
+    
+    // Get details quickly
+    const details = await loadPaymentDetails(payment.id);
+    const selectedPharmacyData = pharmacies.find(p => p.id === payment.pharmacyId);
+    
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    
+    // Format functions
+    const formatCurrencyForPrint = (amount) => {
+      return new Intl.NumberFormat('en-US').format(amount || 0) + " IQD";
+    };
+    
+    const formatDateForPrint = (date) => {
+      if (!date) return "";
+      try {
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return "";
+        const day = String(d.getDate()).padStart(2, "0");
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch {
+        return "";
+      }
+    };
+    
+    // Calculate bill total with fallback
+    const calculateBillTotal = (bill) => {
+      if (bill.totalAmount) return bill.totalAmount;
+      if (bill.items && Array.isArray(bill.items)) {
+        return bill.items.reduce((sum, item) => {
+          const price = item.price || item.unitPrice || 0;
+          const quantity = item.quantity || 1;
+          return sum + (price * quantity);
+        }, 0);
+      }
+      return 0;
+    };
+    
+    // Calculate return total with fallback - FIXED to handle 0 values
+    const calculateReturnTotal = (ret) => {
+      if (ret.totalReturn !== undefined && ret.totalReturn !== null) {
+        return ret.totalReturn;
+      }
+      if (ret.amount !== undefined && ret.amount !== null) {
+        return ret.amount;
+      }
+      if (ret.total !== undefined && ret.total !== null) {
+        return ret.total;
+      }
+      if (ret.items && Array.isArray(ret.items)) {
+        return ret.items.reduce((sum, item) => {
+          const price = item.returnPrice || item.price || item.unitPrice || 0;
+          const quantity = item.returnQuantity || item.quantity || 1;
+          return sum + (price * quantity);
+        }, 0);
+      }
+      return 0;
+    };
+    
+    // Create the HTML content with advanced design
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payment Receipt - ${payment.paymentNumber}</title>
+        <style>
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
+          body {
+            font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #1a202c;
+            background: white;
+            font-size: 10px;
+            line-height: 1.25;
+          }
+          .container {
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            padding: 12mm;
+            box-sizing: border-box;
+          }
+          .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding: 12px 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+          }
+          .logo {
+            width: 45px;
+            height: 45px;
+            object-fit: contain;
+            background-color: white;
+            padding: 5px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          }
+          .info-card {
+            background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(253, 160, 133, 0.2);
+          }
+          .payment-card {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(168, 237, 234, 0.2);
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 9px;
+            margin: 5px 0;
+          }
+          th {
+            padding: 8px 6px;
+            text-align: left;
+            font-weight: 600;
+          }
+          .sold-header {
+            background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+            color: #22543d;
+            border-bottom: 2px solid #38b2ac;
+          }
+          .return-header {
+            background: linear-gradient(135deg, #fed7d7 0%, #feb2b2 100%);
+            color: #742a2a;
+            border-bottom: 2px solid #fc8181;
+          }
+          td {
+            padding: 7px 6px;
+            border-bottom: 1px solid #edf2f7;
+          }
+          .summary-box {
+            margin: 15px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #4c51bf 0%, #2d3748 100%);
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(76, 81, 191, 0.3);
+          }
+          .net-amount {
+            font-size: 28px;
+            font-weight: 800;
+            margin: 10px 0;
+            color: white;
+            text-shadow: 0 3px 6px rgba(0,0,0,0.4);
+          }
+          .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            border-radius: 6px;
+            color: white;
+            box-shadow: 0 2px 8px rgba(56, 178, 172, 0.2);
+          }
+          .sold-title {
+            background: linear-gradient(135deg, #38b2ac 0%, #319795 100%);
+          }
+          .return-title {
+            background: linear-gradient(135deg, #fc8181 0%, #f56565 100%);
+          }
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 9px 12px;
+            border-top: 2px solid;
+          }
+          .sold-total {
+            background: linear-gradient(135deg, #9ae6b4 0%, #68d391 100%);
+            border-top-color: #38b2ac;
+          }
+          .return-total {
+            background: linear-gradient(135deg, #feb2b2 0%, #fc8181 100%);
+            border-top-color: #fc8181;
+          }
+          .index-circle {
+            width: 16px;
+            height: 16px;
+            background-color: #38b2ac;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            font-weight: bold;
+          }
+          .return-circle {
+            background-color: #fc8181;
+          }
+          @media print {
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: white !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <!-- Header - Logo and Store Name -->
+          <div class="header">
+            <div style="display: flex; align-items: center; gap: 12px;">
+             
+              <div>
+                <div style="font-size: 18px; font-weight: 700; margin: 0 0 2px 0; letter-spacing: 0.3px;">
+                  ARAN MED STORE
+                </div>
+                <div style="font-size: 9px; opacity: 0.9;">
+                  Sulaymaniyah • Opposite Smart Health Tower • +964 772 533 5252
+                </div>
+              </div>
+            </div>
+            
+            <div style="text-align: right;">
+        <img src="/Aranlogo.png" alt="Aran Med Store Logo" class="" style="width:150px">
+            </div>
+          </div>
+          
+          <!-- Pharmacy & Payment Info -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
+            <div class="info-card">
+              <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px; color: #7b341e; display: flex; align-items: center; gap: 5px;">
+                <span>🏥</span> Pharmacy Details
+              </div>
+              <div style="font-size: 9px; color: #744210;">
+                <div><strong>Name:</strong> ${payment.pharmacyName}</div>
+                <div><strong>Code:</strong> ${selectedPharmacyData?.code || "PH-" + (payment.pharmacyId?.slice(-4) || "N/A")}</div>
+                <div><strong>Hardcopy payment number:</strong> ${payment.hardcopyBillNumber}</div>
+              </div>
+            </div>
+            
+            <div class="payment-card">
+              <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px; color: #2d3748; display: flex; align-items: center; gap: 5px;">
+                <span>👤</span> Payment Details
+              </div>
+              <div style="font-size: 9px; color: #4a5568;">
+                <div><strong>Processed By:</strong> ${payment.createdByName}</div>
+                <div><strong>Payment Date:</strong> ${formatDateForPrint(payment.paymentDate)}</div>
+                <div><strong>system payment number: </strong> ${payment.paymentNumber}</div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Sold Bills Section -->
+          ${details?.soldBills?.length > 0 ? `
+            <div style="margin-bottom: 15px;">
+              
+              <div style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                <table>
+                  <thead>
+                    <tr class="sold-header">
+                      <th>Bill # 💰 PAID SOLD BILLS (${details.soldBills.length})</th>
+                      <th style="text-align: center;">Date</th>
+                      <th style="text-align: right;">Amount (IQD)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${details.soldBills.map((bill, index) => {
+                      const billTotal = calculateBillTotal(bill);
+                      return `
+                        <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
+                          <td>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                              <div class="index-circle">${index + 1}</div>
+                              ${bill.billNumber || 'BILL-' + (index + 1)}
+                            </div>
+                          </td>
+                          <td style="text-align: center; color: #4a5568;">
+                            ${formatDateForPrint(bill.date)}
+                          </td>
+                          <td style="text-align: right; font-weight: 600; color: #22543d;">
+                            ${formatCurrencyForPrint(billTotal)}
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+                
+                <div class="total-row sold-total">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <div style="width: 18px; height: 18px; background-color: #22543d; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px;">∑</div>
+                    <span style="font-size: 10px; font-weight: 600; color: #22543d;">
+                      Total Sold Amount:
+                    </span>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 700; color: #22543d; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    ${formatCurrencyForPrint(payment.soldTotal)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Returns Section -->
+          ${details?.returns?.length > 0 ? `
+            <div style="margin-bottom: 20px;">
+              <div style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
+                <table>
+                  <thead>
+                    <tr class="return-header">
+                      <th>Return #  🔄 PROCESSED RETURNS (${details.returns.length})</th>
+                      <th style="text-align: center;">Date</th>
+                      <th style="text-align: right;">Amount (IQD)</th>
+                    </tr>
+                  </thead>
+                <tbody>
+  ${details.returns.map((ret, index) => {
+    // Calculate return total with better fallback logic
+    let returnTotal = calculateReturnTotal(ret);
+    
+    // Get return number - use pharmacyReturnNumber if available
+    const returnNumber = ret.pharmacyReturnNumber || ret.returnNumber || ret.returnId || 'RET-' + (ret.id ? ret.id.slice(-4) : index + 1);
+    const fromBill = ret.billNumber ? '<span style="font-size: 8px; color: #718096; background-color: #edf2f7; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">From: ' + ret.billNumber + '</span>' : '';
+    return `
+      <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
+        <td>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <div class="index-circle return-circle">${index + 1}</div>
+            ${returnNumber}
+            ${fromBill}
+          </div>
+        </td>
+        <td style="text-align: center; color: #4a5568;">
+          ${formatDateForPrint(ret.date)}
+        </td>
+        <td style="text-align: right; font-weight: 600; color: #742a2a;">
+          ${returnTotal > 0 ? '-' : ''}${formatCurrencyForPrint(returnTotal)}
+        </td>
+      </tr>
+    `;
+  }).join('')}
+</tbody>
+                </table>
+                
+                <div class="total-row return-total">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+
+                    <span style="font-size: 10px; font-weight: 600; color: #742a2a;">
+                      Total Returns:
+                    </span>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 700; color: #742a2a; text-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    ${payment.returnTotal > 0 ? '-' : ''}${formatCurrencyForPrint(payment.returnTotal)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Payment Summary -->
+<div style="border-top: 2px solid rgba(255,255,255,0.3); padding-top: 15px; margin-top: 10px; text-align: center;">
+  <div style="font-size: 11px; margin-bottom: 10px; opacity: 0.9; letter-spacing: 1px; font-family: 'NRT-Bd', sans-serif;">
+    NET AMOUNT PAYABLE
+  </div>
+  <div class="" style="font-size: 28px; font-weight: 800; color: white; font-family: 'NRT-Bd', sans-serif;">
+    ${formatCurrencyForPrint(payment.netAmount)}
+  </div>
+  <div style="font-size: 9px; opacity: 0.8; font-style: italic; margin-top: 5px; font-family: 'NRT-Reg', sans-serif;">
+    
+  </div>
+</div>
+          
+          ${payment.notes ? `
+            <!-- Notes -->
+            <div style="margin-bottom: 12px; padding: 10px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px; border-left: 4px solid #f59e0b;">
+              <div style="font-size: 10px; font-weight: 600; color: #92400e; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;">
+                <span>📝</span> NOTES
+              </div>
+              <div style="font-size: 9px; color: #92400e; font-style: italic;">
+                ${payment.notes}
+              </div>
+            </div>
+          ` : ''}
+          
+
+          
+         
+          
+          <!-- Signature Area -->
+        
+          <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 15px; border-top: 1px dashed #cbd5e0;">
+            <div style="text-align: center; width: 45%;">
+              <div style="border-bottom: 1px solid #94a3b8; padding-bottom: 12px; margin-bottom: 8px; height: 18px;"></div>
+              <div style="font-size: 9px; font-weight: 600; color: #4a5568;">Customer Signature</div>
+              <div style="font-size: 8px; color: #94a3b8;">توقيع العميل</div>
+            </div>
+            
+            <div style="text-align: center; width: 45%;">
+              <div style="border-bottom: 1px solid #94a3b8; padding-bottom: 12px; margin-bottom: 8px; height: 18px;"></div>
+              <div style="font-size: 9px; font-weight: 600; color: #4a5568;">Authorized Signatory</div>
+              <div style="font-size: 8px; color: #94a3b8;">${payment.createdByName}</div>
+            </div>
+          </div>
+           <!-- Footer -->
+          <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 8px; color: #718096; text-align: center;">
+            <div style="margin-bottom: 5px; font-weight: 600; font-size: 9px; color: #4a5568;">
+              ARAN MED STORE • Official Payment Receipt
+            </div>
+            <div>
+              System-generated receipt • Valid for accounting <br>
+              For inquiries: +964 772 533 5252 • Receipt ID: ${payment.paymentNumber}
+            </div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    // Write and print
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Focus and print
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.onafterprint = () => {
+        printWindow.close();
+        setSuccess(`Payment ${payment.paymentNumber} printed successfully!`);
+      };
+    }, 500);
+    
+  } catch (error) {
+    console.error("Print error:", error);
+    setError("Failed to print");
+  }
+};
+
   const handleCancelEdit = () => {
     setIsEditMode(false);
     setEditPaymentId(null);
@@ -411,7 +904,9 @@ export default function PaymentManagementPage() {
       payment.createdByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.hardcopyBillNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       payment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+
     const statusFilter = filterStatus === "all" || payment.status === filterStatus;
+
     let advancedFilter = true;
     if (showAdvancedSearch) {
       if (advancedSearch.pharmacyName && !payment.pharmacyName?.toLowerCase().includes(advancedSearch.pharmacyName.toLowerCase())) {
@@ -457,6 +952,7 @@ export default function PaymentManagementPage() {
         advancedFilter = false;
       }
     }
+
     return basicSearch && statusFilter && advancedFilter;
   });
 
@@ -500,6 +996,7 @@ export default function PaymentManagementPage() {
           </div>
         )}
       </div>
+
       {/* Success/Error Messages */}
       {error && (
         <div style={{
@@ -526,6 +1023,7 @@ export default function PaymentManagementPage() {
           </div>
         </div>
       )}
+
       {success && (
         <div style={{
           padding: "1rem",
@@ -551,6 +1049,7 @@ export default function PaymentManagementPage() {
           </div>
         </div>
       )}
+
       {/* Create/Update Payment Section */}
       <div style={{
         display: "grid",
@@ -676,6 +1175,7 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         </div>
+
         {/* Sold Bills and Returns - Next Row */}
         <div style={{
           display: "grid",
@@ -783,6 +1283,7 @@ export default function PaymentManagementPage() {
               )}
             </div>
           </div>
+
           {/* Returns Section */}
           <div style={{
             backgroundColor: "#fff",
@@ -843,7 +1344,10 @@ export default function PaymentManagementPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {returns.map((returnBill) => {
                     const returnId = returnBill.id;
-                    const returnNumber = returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A';
+                    // Use pharmacyReturnNumber if available, otherwise fall back to other identifiers
+                    const returnNumber = returnBill.pharmacyReturnNumber || 
+                                      returnBill.returnNumber || 
+                                      (returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A');
                     const itemCount = returnBill.items ? returnBill.items.length : 1;
                     const returnAmount = returnBill.totalReturn || 0;
                     return (
@@ -869,9 +1373,9 @@ export default function PaymentManagementPage() {
                             <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
                               {formatDate(returnBill.date)} • {itemCount} items
                             </div>
-                            {returnBill.items && returnBill.items.length > 0 && (
+                            {returnBill.billNumber && (
                               <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
-                                Items: {returnBill.items.map(item => item.name).join(', ')}
+                                From Bill: {returnBill.billNumber}
                               </div>
                             )}
                             <div style={{ fontSize: '0.75rem', color: selectedReturns.includes(returnBill.id) ? '#f59e0b' : '#dc2626', marginTop: '0.25rem', fontWeight: '500', fontFamily: "var(--font-nrt-reg)" }}>
@@ -880,7 +1384,7 @@ export default function PaymentManagementPage() {
                           </div>
                           <div style={{ textAlign: 'right', marginLeft: '0.5rem' }}>
                             <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
-                              -{formatCurrency(returnAmount)}
+                              {returnAmount > 0 ? '-' : ''}{formatCurrency(returnAmount)}
                             </div>
                             {selectedReturns.includes(returnBill.id) && (
                               <div style={{ fontSize: '0.75rem', color: '#f59e0b', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
@@ -897,6 +1401,7 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         </div>
+
         {/* Payment Summary and Notes - Same Row */}
         <div style={{
           display: "grid",
@@ -931,7 +1436,7 @@ export default function PaymentManagementPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', width: '100%' }}>
                 <span style={{ color: '#4b5563', fontSize: '0.875rem', fontFamily: "var(--font-nrt-reg)" }}>Returns:</span>
                 <span style={{ fontWeight: '600', color: '#dc2626', fontFamily: "var(--font-nrt-bd)" }}>
-                  -{formatCurrency(returnTotal)} ({selectedReturns.length} return(s))
+                  {returnTotal > 0 ? '-' : ''}{formatCurrency(returnTotal)} ({selectedReturns.length} return(s))
                 </span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 0', borderTop: '1px solid #e5e7eb', marginTop: '0.5rem', width: '100%' }}>
@@ -942,6 +1447,7 @@ export default function PaymentManagementPage() {
               </div>
             </div>
           </div>
+
           {/* Notes */}
           <div style={{
             backgroundColor: "#fff",
@@ -977,30 +1483,37 @@ export default function PaymentManagementPage() {
             />
           </div>
         </div>
+
         {/* Action Buttons */}
         <div style={{
           display: "flex",
           gap: "0.5rem",
           width: "100%"
         }}>
-          {isEditMode && (
-            <button
-              onClick={handleCancelEdit}
-              style={{
-                flex: 1,
-                padding: '0.75rem',
-                backgroundColor: '#9ca3af',
-                color: 'white',
-                border: 'none',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontFamily: "var(--font-nrt-bd)"
-              }}
-            >
-              Cancel
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setSelectedPharmacy("");
+              setSelectedSoldBills([]);
+              setSelectedReturns([]);
+              setHardcopyBillNumber("");
+              setNotes("");
+              setError(null);
+              setSuccess(null);
+            }}
+            style={{
+              flex: 1,
+              padding: '0.75rem',
+              backgroundColor: '#9ca3af',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontFamily: "var(--font-nrt-bd)"
+            }}
+          >
+            Cancel
+          </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !selectedPharmacy || !hardcopyBillNumber.trim() || (selectedSoldBills.length === 0 && selectedReturns.length === 0)}
@@ -1027,6 +1540,14 @@ export default function PaymentManagementPage() {
           </button>
         </div>
       </div>
+
+      {/* Payment Bill (Hidden, for printing) */}
+      {paymentBillData && (
+        <div style={{ display: 'none' }}>
+          <PaymentBill {...paymentBillData} />
+        </div>
+      )}
+
       {/* Payment History Section */}
       <div style={{
         backgroundColor: "#fff",
@@ -1054,6 +1575,7 @@ export default function PaymentManagementPage() {
             <p style={{ color: '#bfdbfe', fontSize: '1rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>View and manage all payment records</p>
           </div>
         </div>
+
         {/* Stats and Actions */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', gap: '1rem' }}>
@@ -1112,6 +1634,7 @@ export default function PaymentManagementPage() {
             </button>
           </div>
         </div>
+
         {/* Advanced Search Panel */}
         {showAdvancedSearch && (
           <div style={{
@@ -1251,7 +1774,7 @@ export default function PaymentManagementPage() {
                 />
               </div>
               <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '1rem', fontFamily: "var(--font-nrt-bd)" }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>
                   Amount Range: {formatCurrency(amountRange[0])} - {formatCurrency(amountRange[1])}
                 </label>
                 <div style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center' }}>
@@ -1342,6 +1865,7 @@ export default function PaymentManagementPage() {
             </div>
           </div>
         )}
+
         {/* Main Content Area */}
         <div>
           {historyLoading ? (
@@ -1392,6 +1916,7 @@ export default function PaymentManagementPage() {
                         </div>
                       </div>
                     </div>
+
                     {/* Payment Details */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                       <div style={{ textAlign: 'center' }}>
@@ -1400,9 +1925,10 @@ export default function PaymentManagementPage() {
                       </div>
                       <div style={{ textAlign: 'center' }}>
                         <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: '500', fontFamily: "var(--font-nrt-bd)" }}>Returns</div>
-                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#b91c1c', fontFamily: "var(--font-nrt-bd)" }}>-{formatCurrency(payment.returnTotal)}</div>
+                        <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#b91c1c', fontFamily: "var(--font-nrt-bd)" }}>{payment.returnTotal > 0 ? '-' : ''}{formatCurrency(payment.returnTotal)}</div>
                       </div>
                     </div>
+
                     {/* Summary */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.875rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>
                       <div>
@@ -1413,12 +1939,14 @@ export default function PaymentManagementPage() {
                         <div>By: {payment.createdByName}</div>
                       </div>
                     </div>
+
                     {/* Notes Preview */}
                     {payment.notes && (
                       <div style={{ marginTop: '0.75rem', padding: '0.5rem', backgroundColor: '#fef3c7', borderRadius: '0.25rem', border: '1px solid #f59e0b' }}>
                         <p style={{ fontSize: '0.75rem', color: '#92400e', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "var(--font-nrt-reg)" }}>{payment.notes}</p>
                       </div>
                     )}
+
                     {/* Action Buttons */}
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', paddingTop: '0.75rem', borderTop: '1px solid #e5e7eb' }}>
                       <button
@@ -1471,6 +1999,35 @@ export default function PaymentManagementPage() {
                         </svg>
                         Update
                       </button>
+                      <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printPaymentQuick(payment); // Use quick print function
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: '0.5rem',
+                            fontSize: '0.875rem',
+                            backgroundColor: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '0.375rem',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.25rem',
+                            fontFamily: "var(--font-nrt-bd)",
+                            transition: 'all 0.2s ease',
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H5a2 2 0 00-2 2v4h14z" />
+                          </svg>
+                          Print
+                        </button>
                     </div>
                   </div>
                 </div>
@@ -1479,6 +2036,7 @@ export default function PaymentManagementPage() {
           )}
         </div>
       </div>
+
       {/* Payment Details Modal */}
       {showPaymentModal && selectedPayment && (
         <div style={{
@@ -1536,13 +2094,14 @@ export default function PaymentManagementPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                 <div>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1e293b', margin: '0 0 0.5rem 0', fontFamily: "var(--font-nrt-bd)" }}>{selectedPayment.pharmacyName}</h3>
-                  <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0 0 0.25rem 0', fontFamily: "var(--font-nrt-reg)" }}>Hardcopy Bill: {selectedPayment.hardcopyBillNumber}</p>
+                  <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0 0 0.25rem 0', fontFamily: "var(--font-nrt-reg)" }}>Hardcopy Payment Number: {selectedPayment.hardcopyBillNumber}</p>
                   <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>Date: {formatDateToDMY(selectedPayment.paymentDate)}</p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#2563eb', fontFamily: "var(--font-nrt-bd)" }}>{formatCurrency(selectedPayment.netAmount)}</div>
                 </div>
               </div>
+
               {/* Summary Cards in Horizontal Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                 <div style={{
@@ -1562,7 +2121,7 @@ export default function PaymentManagementPage() {
                   border: '1px solid #fee2e2'
                 }}>
                   <div style={{ fontSize: '0.75rem', color: '#dc2626', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Returns</div>
-                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#b91c1c', marginBottom: '0.25rem', fontFamily: "var(--font-nrt-bd)" }}>-{formatCurrency(selectedPayment.returnTotal)}</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#b91c1c', marginBottom: '0.25rem', fontFamily: "var(--font-nrt-bd)" }}>{selectedPayment.returnTotal > 0 ? '-' : ''}{formatCurrency(selectedPayment.returnTotal)}</div>
                   <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{selectedPayment.selectedReturns?.length || 0} returns</div>
                 </div>
                 <div style={{
@@ -1576,6 +2135,7 @@ export default function PaymentManagementPage() {
                   <div style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>{formatDateToDMY(selectedPayment.createdAt)}</div>
                 </div>
               </div>
+
               {/* Bills and Returns in Horizontal Layout */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
                 {/* Sold Bills Section */}
@@ -1633,13 +2193,14 @@ export default function PaymentManagementPage() {
                     </div>
                   </div>
                 )}
+
                 {/* Returns Section */}
                 {paymentDetails[selectedPayment.id]?.returns?.length > 0 && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                       <h4 style={{ fontSize: '1.125rem', fontWeight: 'bold', color: '#1e293b', fontFamily: "var(--font-nrt-bd)" }}>Returns ({paymentDetails[selectedPayment.id].returns.length})</h4>
                       <span style={{ fontSize: '0.875rem', color: '#dc2626', fontFamily: "var(--font-nrt-reg)" }}>
-                        Total: -{formatCurrency(selectedPayment.returnTotal)}
+                        Total: {selectedPayment.returnTotal > 0 ? '-' : ''}{formatCurrency(selectedPayment.returnTotal)}
                       </span>
                     </div>
                     <div style={{ display: 'grid', gap: '0.75rem' }}>
@@ -1658,7 +2219,7 @@ export default function PaymentManagementPage() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                               <div>
                                 <div style={{ fontWeight: '600', color: '#1f2937', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
-                                  Return #{r.returnNumber || r.id?.slice(-6) || 'N/A'}
+                                  Return #{r.pharmacyReturnNumber || r.returnNumber || r.id?.slice(-6) || 'N/A'}
                                 </div>
                                 <div style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '0.25rem', fontFamily: "var(--font-nrt-reg)" }}>
                                   {formatDate(r.date)}
@@ -1666,7 +2227,7 @@ export default function PaymentManagementPage() {
                               </div>
                               <div style={{ textAlign: 'right' }}>
                                 <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '0.875rem', fontFamily: "var(--font-nrt-bd)" }}>
-                                  -{formatCurrency(returnTotal)}
+                                  {returnTotal > 0 ? '-' : ''}{formatCurrency(returnTotal)}
                                 </div>
                               </div>
                             </div>
@@ -1674,7 +2235,7 @@ export default function PaymentManagementPage() {
                               {r.items?.slice(0, 3).map((item, i) => (
                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>
                                   <span>{item.name}</span>
-                                  <span style={{ color: '#dc2626' }}>x{item.returnQuantity} • -{formatCurrency(item.returnPrice || 0)}</span>
+                                  <span style={{ color: '#dc2626' }}>x{item.returnQuantity} • {returnTotal > 0 ? '-' : ''}{formatCurrency(item.returnPrice || 0)}</span>
                                 </div>
                               ))}
                               {r.items?.length > 3 && (
@@ -1685,7 +2246,7 @@ export default function PaymentManagementPage() {
                               {!r.items && (
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.75rem', fontFamily: "var(--font-nrt-reg)" }}>
                                   <span>{r.name}</span>
-                                  <span style={{ color: '#dc2626' }}>x{r.returnQuantity} • -{formatCurrency(r.returnPrice || 0)}</span>
+                                  <span style={{ color: '#dc2626' }}>x{r.returnQuantity} • {returnTotal > 0 ? '-' : ''}{formatCurrency(r.returnPrice || 0)}</span>
                                 </div>
                               )}
                             </div>
@@ -1704,6 +2265,7 @@ export default function PaymentManagementPage() {
                   </div>
                 )}
               </div>
+
               {/* Notes Section */}
               {selectedPayment.notes && (
                 <div style={{ marginBottom: '1.5rem' }}>
@@ -1733,7 +2295,7 @@ export default function PaymentManagementPage() {
                   backgroundColor: '#2563eb',
                   color: 'white',
                   border: 'none',
-                  borderRadius: '0.375rem',
+                  borderRadius: '0.5rem',
                   cursor: 'pointer',
                   fontSize: '0.875rem',
                   fontFamily: "var(--font-nrt-bd)"
