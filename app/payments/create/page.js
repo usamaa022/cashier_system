@@ -1630,7 +1630,7 @@ const printPaymentQuick = async (payment) => {
                 fontFamily: "var(--font-nrt-bd)"
               }}
             >
-              {showAdvancedSearch ? 'Hide' : 'Advanced'} Search
+              {showAdvancedSearch ? 'Hide' : 'Advanced'} Searchh
             </button>
           </div>
         </div>
