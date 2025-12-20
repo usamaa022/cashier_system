@@ -123,7 +123,7 @@ export default function Navbar() {
             ))}
 
             {/* Employee Management Dropdown - Only for superAdmin */}
-            {user?.role === "superAdmin" && (
+            {/* {user?.role === "superAdmin" && (
               <div ref={employeeRef} style={{ position: "relative" }}>
                 <button
                   onClick={() => setIsEmployeeOpen(!isEmployeeOpen)}
@@ -260,7 +260,7 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
-            )}
+            )} */}
 
             {/* Buying Dropdown - Only for superAdmin */}
             {user?.role === "superAdmin" && (
