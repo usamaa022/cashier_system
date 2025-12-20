@@ -361,74 +361,71 @@ export default function PaymentManagementPage() {
     }
   };
 
-// Quick Print Function with Beautiful Advanced Design
-const printPaymentQuick = async (payment) => {
-  try {
-    setError(null);
-    setSuccess(`Printing ${payment.paymentNumber}...`);
-    
-    // Get details quickly
-    const details = await loadPaymentDetails(payment.id);
-    const selectedPharmacyData = pharmacies.find(p => p.id === payment.pharmacyId);
-    
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank');
-    
-    // Format functions
-    const formatCurrencyForPrint = (amount) => {
-      return new Intl.NumberFormat('en-US').format(amount || 0) + " IQD";
-    };
-    
-    const formatDateForPrint = (date) => {
-      if (!date) return "";
-      try {
-        const d = new Date(date);
-        if (isNaN(d.getTime())) return "";
-        const day = String(d.getDate()).padStart(2, "0");
-        const month = String(d.getMonth() + 1).padStart(2, "0");
-        const year = d.getFullYear();
-        return `${day}/${month}/${year}`;
-      } catch {
-        return "";
-      }
-    };
-    
-    // Calculate bill total with fallback
-    const calculateBillTotal = (bill) => {
-      if (bill.totalAmount) return bill.totalAmount;
-      if (bill.items && Array.isArray(bill.items)) {
-        return bill.items.reduce((sum, item) => {
-          const price = item.price || item.unitPrice || 0;
-          const quantity = item.quantity || 1;
-          return sum + (price * quantity);
-        }, 0);
-      }
-      return 0;
-    };
-    
-    // Calculate return total with fallback - FIXED to handle 0 values
-    const calculateReturnTotal = (ret) => {
-      if (ret.totalReturn !== undefined && ret.totalReturn !== null) {
-        return ret.totalReturn;
-      }
-      if (ret.amount !== undefined && ret.amount !== null) {
-        return ret.amount;
-      }
-      if (ret.total !== undefined && ret.total !== null) {
-        return ret.total;
-      }
-      if (ret.items && Array.isArray(ret.items)) {
-        return ret.items.reduce((sum, item) => {
-          const price = item.returnPrice || item.price || item.unitPrice || 0;
-          const quantity = item.returnQuantity || item.quantity || 1;
-          return sum + (price * quantity);
-        }, 0);
-      }
-      return 0;
-    };
-    
-    // Create the HTML content with advanced design
-    const htmlContent = `
+  // Quick Print Function with Beautiful Advanced Design
+  const printPaymentQuick = async (payment) => {
+    try {
+      setError(null);
+      setSuccess(`Printing ${payment.paymentNumber}...`);
+
+      // Get details quickly
+      const details = await loadPaymentDetails(payment.id);
+      const selectedPharmacyData = pharmacies.find(p => p.id === payment.pharmacyId);
+
+      // Create a new window for printing
+      const printWindow = window.open('', '_blank');
+
+      // Format functions
+      const formatCurrencyForPrint = (amount) => {
+        return new Intl.NumberFormat('en-US').format(amount || 0) + " IQD";
+      };
+
+      const formatDateForPrint = (date) => {
+        if (!date) return "";
+        try {
+          const d = new Date(date);
+          if (isNaN(d.getTime())) return "";
+          const day = String(d.getDate()).padStart(2, "0");
+          const month = String(d.getMonth() + 1).padStart(2, "0");
+          const year = d.getFullYear();
+          return `${day}/${month}/${year}`;
+        } catch {
+          return "";
+        }
+      };
+
+      // Calculate bill total with fallback
+      const calculateBillTotal = (bill) => {
+        if (bill.totalAmount) return bill.totalAmount;
+        if (bill.items && Array.isArray(bill.items)) {
+          return bill.items.reduce((sum, item) => {
+            const price = item.price || item.unitPrice || 0;
+            const quantity = item.quantity || 1;
+            return sum + (price * quantity);
+          }, 0);
+        }
+        return 0;
+      };
+
+      // Calculate return total with fallback
+      const calculateReturnTotal = (ret) => {
+        if (ret.totalReturn !== undefined && ret.totalReturn !== null) {
+          return ret.totalReturn;
+        }
+        if (ret.items && Array.isArray(ret.items)) {
+          return ret.items.reduce((sum, item) => {
+            const price = item.returnPrice || item.price || item.unitPrice || 0;
+            const quantity = item.returnQuantity || item.quantity || 1;
+            return sum + (price * quantity);
+          }, 0);
+        }
+        if (ret.returnPrice !== undefined && ret.returnQuantity !== undefined) {
+          return ret.returnPrice * ret.returnQuantity;
+        }
+        return 0;
+      };
+
+      // Create the HTML content with advanced design
+      const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -587,7 +584,6 @@ const printPaymentQuick = async (payment) => {
           <!-- Header - Logo and Store Name -->
           <div class="header">
             <div style="display: flex; align-items: center; gap: 12px;">
-             
               <div>
                 <div style="font-size: 18px; font-weight: 700; margin: 0 0 2px 0; letter-spacing: 0.3px;">
                   ARAN MED STORE
@@ -597,12 +593,11 @@ const printPaymentQuick = async (payment) => {
                 </div>
               </div>
             </div>
-            
             <div style="text-align: right;">
-        <img src="/Aranlogo.png" alt="Aran Med Store Logo" class="" style="width:150px">
+              <img src="/Aranlogo.png" alt="Aran Med Store Logo" class="" style="width:150px">
             </div>
           </div>
-          
+      
           <!-- Pharmacy & Payment Info -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px;">
             <div class="info-card">
@@ -615,7 +610,6 @@ const printPaymentQuick = async (payment) => {
                 <div><strong>Hardcopy payment number:</strong> ${payment.hardcopyBillNumber}</div>
               </div>
             </div>
-            
             <div class="payment-card">
               <div style="font-size: 10px; font-weight: 600; margin-bottom: 6px; color: #2d3748; display: flex; align-items: center; gap: 5px;">
                 <span>👤</span> Payment Details
@@ -623,15 +617,14 @@ const printPaymentQuick = async (payment) => {
               <div style="font-size: 9px; color: #4a5568;">
                 <div><strong>Processed By:</strong> ${payment.createdByName}</div>
                 <div><strong>Payment Date:</strong> ${formatDateForPrint(payment.paymentDate)}</div>
-                <div><strong>system payment number: </strong> ${payment.paymentNumber}</div>
+                <div><strong>System Payment Number:</strong> ${payment.paymentNumber}</div>
               </div>
             </div>
           </div>
-          
+      
           <!-- Sold Bills Section -->
           ${details?.soldBills?.length > 0 ? `
             <div style="margin-bottom: 15px;">
-              
               <div style="border: 1px solid #e2e8f0; border-radius: 6px; overflow: hidden;">
                 <table>
                   <thead>
@@ -659,11 +652,17 @@ const printPaymentQuick = async (payment) => {
                             ${formatCurrencyForPrint(billTotal)}
                           </td>
                         </tr>
+                        ${bill.billNote ? `
+                          <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
+                            <td colspan="3" style="padding: 4px 8px; font-size: 8px; color: #6b7280; font-style: italic;">
+                              <strong>Note:</strong> ${bill.billNote}
+                            </td>
+                          </tr>
+                        ` : ''}
                       `;
                     }).join('')}
                   </tbody>
                 </table>
-                
                 <div class="total-row sold-total">
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <div style="width: 18px; height: 18px; background-color: #22543d; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px;">∑</div>
@@ -678,7 +677,7 @@ const printPaymentQuick = async (payment) => {
               </div>
             </div>
           ` : ''}
-          
+      
           <!-- Returns Section -->
           ${details?.returns?.length > 0 ? `
             <div style="margin-bottom: 20px;">
@@ -686,43 +685,45 @@ const printPaymentQuick = async (payment) => {
                 <table>
                   <thead>
                     <tr class="return-header">
-                      <th>Return #  🔄 PROCESSED RETURNS (${details.returns.length})</th>
+                      <th>Return # 🔄 PROCESSED RETURNS (${details.returns.length})</th>
                       <th style="text-align: center;">Date</th>
                       <th style="text-align: right;">Amount (IQD)</th>
                     </tr>
                   </thead>
-                <tbody>
-  ${details.returns.map((ret, index) => {
-    // Calculate return total with better fallback logic
-    let returnTotal = calculateReturnTotal(ret);
-    
-    // Get return number - use pharmacyReturnNumber if available
-    const returnNumber = ret.pharmacyReturnNumber || ret.returnNumber || ret.returnId || 'RET-' + (ret.id ? ret.id.slice(-4) : index + 1);
-    const fromBill = ret.billNumber ? '<span style="font-size: 8px; color: #718096; background-color: #edf2f7; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">From: ' + ret.billNumber + '</span>' : '';
-    return `
-      <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
-        <td>
-          <div style="display: flex; align-items: center; gap: 4px;">
-            <div class="index-circle return-circle">${index + 1}</div>
-            ${returnNumber}
-            ${fromBill}
-          </div>
-        </td>
-        <td style="text-align: center; color: #4a5568;">
-          ${formatDateForPrint(ret.date)}
-        </td>
-        <td style="text-align: right; font-weight: 600; color: #742a2a;">
-          ${returnTotal > 0 ? '-' : ''}${formatCurrencyForPrint(returnTotal)}
-        </td>
-      </tr>
-    `;
-  }).join('')}
-</tbody>
+                  <tbody>
+                    ${details.returns.map((ret, index) => {
+                      let returnTotal = calculateReturnTotal(ret);
+                      const returnNumber = ret.pharmacyReturnNumber || ret.returnNumber || ret.returnId || 'RET-' + (ret.id ? ret.id.slice(-4) : index + 1);
+                      const fromBill = ret.billNumber ? `<span style="font-size: 8px; color: #718096; background-color: #edf2f7; padding: 1px 4px; border-radius: 3px; margin-left: 4px;">From: ${ret.billNumber}</span>` : '';
+                      return `
+                        <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
+                          <td>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                              <div class="index-circle return-circle">${index + 1}</div>
+                              ${returnNumber}
+                              ${fromBill}
+                            </div>
+                          </td>
+                          <td style="text-align: center; color: #4a5560;">
+                            ${formatDateForPrint(ret.date)}
+                          </td>
+                          <td style="text-align: right; font-weight: 600; color: #742a2a;">
+                            ${returnTotal > 0 ? '-' : ''}${formatCurrencyForPrint(returnTotal)}
+                          </td>
+                        </tr>
+                        ${ret.returnBillNote ? `
+                          <tr style="border-bottom: 1px solid #edf2f7; background-color: ${index % 2 === 0 ? 'white' : '#f7fafc'};">
+                            <td colspan="3" style="padding: 4px 8px; font-size: 8px; color: #6b7280; font-style: italic;">
+                              <strong>Note:</strong> ${ret.returnBillNote}
+                            </td>
+                          </tr>
+                        ` : ''}
+                      `;
+                    }).join('')}
+                  </tbody>
                 </table>
-                
                 <div class="total-row return-total">
                   <div style="display: flex; align-items: center; gap: 6px;">
-
                     <span style="font-size: 10px; font-weight: 600; color: #742a2a;">
                       Total Returns:
                     </span>
@@ -734,20 +735,19 @@ const printPaymentQuick = async (payment) => {
               </div>
             </div>
           ` : ''}
-          
+      
           <!-- Payment Summary -->
-<div style="border-top: 2px solid rgba(255,255,255,0.3); padding-top: 15px; margin-top: 10px; text-align: center;">
-  <div style="font-size: 11px; margin-bottom: 10px; opacity: 0.9; letter-spacing: 1px; font-family: 'NRT-Bd', sans-serif;">
-    NET AMOUNT PAYABLE
-  </div>
-  <div class="" style="font-size: 28px; font-weight: 800; color: white; font-family: 'NRT-Bd', sans-serif;">
-    ${formatCurrencyForPrint(payment.netAmount)}
-  </div>
-  <div style="font-size: 9px; opacity: 0.8; font-style: italic; margin-top: 5px; font-family: 'NRT-Reg', sans-serif;">
-    
-  </div>
-</div>
-          
+          <div style="border-top: 2px solid rgba(255,255,255,0.3); padding-top: 15px; margin-top: 10px; text-align: center;">
+            <div style="font-size: 11px; margin-bottom: 10px; opacity: 0.9; letter-spacing: 1px; font-family: 'NRT-Bd', sans-serif;">
+              NET AMOUNT PAYABLE
+            </div>
+            <div class="" style="font-size: 28px; font-weight: 800; color: black; font-family: 'NRT-Bd', sans-serif;">
+              ${formatCurrencyForPrint(payment.netAmount)}
+            </div>
+            <div style="font-size: 9px; opacity: 0.8; font-style: italic; margin-top: 5px; font-family: 'NRT-Reg', sans-serif;">
+            </div>
+          </div>
+      
           ${payment.notes ? `
             <!-- Notes -->
             <div style="margin-bottom: 12px; padding: 10px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px; border-left: 4px solid #f59e0b;">
@@ -759,27 +759,21 @@ const printPaymentQuick = async (payment) => {
               </div>
             </div>
           ` : ''}
-          
-
-          
-         
-          
+      
           <!-- Signature Area -->
-        
           <div style="display: flex; justify-content: space-between; margin-top: 40px; padding-top: 15px; border-top: 1px dashed #cbd5e0;">
             <div style="text-align: center; width: 45%;">
               <div style="border-bottom: 1px solid #94a3b8; padding-bottom: 12px; margin-bottom: 8px; height: 18px;"></div>
               <div style="font-size: 9px; font-weight: 600; color: #4a5568;">Customer Signature</div>
               <div style="font-size: 8px; color: #94a3b8;">توقيع العميل</div>
             </div>
-            
             <div style="text-align: center; width: 45%;">
               <div style="border-bottom: 1px solid #94a3b8; padding-bottom: 12px; margin-bottom: 8px; height: 18px;"></div>
               <div style="font-size: 9px; font-weight: 600; color: #4a5568;">Authorized Signatory</div>
               <div style="font-size: 8px; color: #94a3b8;">${payment.createdByName}</div>
             </div>
           </div>
-           <!-- Footer -->
+          <!-- Footer -->
           <div style="margin-top: 15px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 8px; color: #718096; text-align: center;">
             <div style="margin-bottom: 5px; font-weight: 600; font-size: 9px; color: #4a5568;">
               ARAN MED STORE • Official Payment Receipt
@@ -792,27 +786,28 @@ const printPaymentQuick = async (payment) => {
         </div>
       </body>
       </html>
-    `;
-    
-    // Write and print
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    
-    // Focus and print
-    printWindow.focus();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.onafterprint = () => {
-        printWindow.close();
-        setSuccess(`Payment ${payment.paymentNumber} printed successfully!`);
-      };
-    }, 500);
-    
-  } catch (error) {
-    console.error("Print error:", error);
-    setError("Failed to print");
-  }
-};
+      `;
+      
+
+      // Write and print
+      printWindow.document.write(htmlContent);
+      printWindow.document.close();
+
+      // Focus and print
+      printWindow.focus();
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.onafterprint = () => {
+          printWindow.close();
+          setSuccess(`Payment ${payment.paymentNumber} printed successfully!`);
+        };
+      }, 500);
+
+    } catch (error) {
+      console.error("Print error:", error);
+      setError("Failed to print");
+    }
+  };
 
   const handleCancelEdit = () => {
     setIsEditMode(false);
@@ -897,65 +892,79 @@ const printPaymentQuick = async (payment) => {
   };
 
   // Filter payments
-  const filteredPayments = paymentHistory.filter(payment => {
-    const basicSearch = searchTerm === "" ||
-      payment.paymentNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.pharmacyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.createdByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.hardcopyBillNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
+// Filter payments
+const filteredPayments = paymentHistory.filter(payment => {
+  // Basic search
+  const basicSearch = searchTerm === "" ||
+    payment.paymentNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    payment.pharmacyName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    payment.createdByName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    payment.hardcopyBillNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    payment.notes?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const statusFilter = filterStatus === "all" || payment.status === filterStatus;
+  // Status filter
+  const statusFilter = filterStatus === "all" || payment.status === filterStatus;
 
-    let advancedFilter = true;
-    if (showAdvancedSearch) {
-      if (advancedSearch.pharmacyName && !payment.pharmacyName?.toLowerCase().includes(advancedSearch.pharmacyName.toLowerCase())) {
-        advancedFilter = false;
-      }
-      if (advancedSearch.hardcopyBillNumber && !payment.hardcopyBillNumber?.toLowerCase().includes(advancedSearch.hardcopyBillNumber.toLowerCase())) {
-        advancedFilter = false;
-      }
-      if (advancedSearch.soldBillNumber) {
-        const hasSoldBill = paymentDetails[payment.id]?.soldBills?.some(bill =>
-          bill.billNumber?.toLowerCase().includes(advancedSearch.soldBillNumber.toLowerCase())
-        );
-        if (!hasSoldBill) advancedFilter = false;
-      }
-      if (advancedSearch.returnedBillNumber) {
-        const hasReturnBill = paymentDetails[payment.id]?.returns?.some(returnBill =>
-          returnBill.returnNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase()) ||
-          returnBill.billNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase())
-        );
-        if (!hasReturnBill) advancedFilter = false;
-      }
-      if (advancedSearch.notes && !payment.notes?.toLowerCase().includes(advancedSearch.notes.toLowerCase())) {
-        advancedFilter = false;
-      }
-      if (advancedSearch.dateFrom) {
-        const paymentDate = new Date(payment.paymentDate);
-        const fromDate = parseDMYToDate(advancedSearch.dateFrom);
-        if (fromDate && paymentDate < fromDate) advancedFilter = false;
-      }
-      if (advancedSearch.dateTo) {
-        const paymentDate = new Date(payment.paymentDate);
-        const toDate = parseDMYToDate(advancedSearch.dateTo);
-        if (toDate) {
-          toDate.setHours(23, 59, 59, 999);
-          if (paymentDate > toDate) advancedFilter = false;
-        }
-      }
-      const paymentAmount = payment.netAmount || 0;
-      if (advancedSearch.amountFrom && paymentAmount < advancedSearch.amountFrom) {
-        advancedFilter = false;
-      }
-      if (advancedSearch.amountTo && paymentAmount > advancedSearch.amountTo) {
-        advancedFilter = false;
+  // Advanced search
+  let advancedFilter = true;
+  if (showAdvancedSearch) {
+    // Pharmacy name
+    if (advancedSearch.pharmacyName && !payment.pharmacyName?.toLowerCase().includes(advancedSearch.pharmacyName.toLowerCase())) {
+      advancedFilter = false;
+    }
+    // Hardcopy bill number
+    if (advancedSearch.hardcopyBillNumber && !payment.hardcopyBillNumber?.toLowerCase().includes(advancedSearch.hardcopyBillNumber.toLowerCase())) {
+      advancedFilter = false;
+    }
+    // Sold bill number
+    if (advancedSearch.soldBillNumber) {
+      const hasSoldBill = payment.selectedSoldBills?.some(billId => {
+        const bill = soldBills.find(b => b.id === billId);
+        return bill?.billNumber?.toLowerCase().includes(advancedSearch.soldBillNumber.toLowerCase());
+      });
+      if (!hasSoldBill) advancedFilter = false;
+    }
+    // Returned bill number
+    if (advancedSearch.returnedBillNumber) {
+      const hasReturnBill = payment.selectedReturns?.some(returnId => {
+        const returnBill = returns.find(r => r.id === returnId);
+        return returnBill?.returnBillNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase()) ||
+               returnBill?.billNumber?.toLowerCase().includes(advancedSearch.returnedBillNumber.toLowerCase());
+      });
+      if (!hasReturnBill) advancedFilter = false;
+    }
+    // Notes
+    if (advancedSearch.notes && !payment.notes?.toLowerCase().includes(advancedSearch.notes.toLowerCase())) {
+      advancedFilter = false;
+    }
+    // Date range
+    if (advancedSearch.dateFrom) {
+      const paymentDate = new Date(payment.paymentDate);
+      const fromDate = parseDMYToDate(advancedSearch.dateFrom);
+      if (fromDate && paymentDate < fromDate) advancedFilter = false;
+    }
+    if (advancedSearch.dateTo) {
+      const paymentDate = new Date(payment.paymentDate);
+      const toDate = parseDMYToDate(advancedSearch.dateTo);
+      if (toDate) {
+        toDate.setHours(23, 59, 59, 999);
+        if (paymentDate > toDate) advancedFilter = false;
       }
     }
+    // Amount range
+    const paymentAmount = payment.netAmount || 0;
+    if (advancedSearch.amountFrom && paymentAmount < Number(advancedSearch.amountFrom)) {
+      advancedFilter = false;
+    }
+    if (advancedSearch.amountTo && paymentAmount > Number(advancedSearch.amountTo)) {
+      advancedFilter = false;
+    }
+  }
 
-    return basicSearch && statusFilter && advancedFilter;
-  });
+  return basicSearch && statusFilter && advancedFilter;
+});
 
+  
   // Total amount
   const totalAmount = filteredPayments.reduce((sum, payment) => sum + payment.netAmount, 0);
 
@@ -1176,6 +1185,166 @@ const printPaymentQuick = async (payment) => {
           </div>
         </div>
 
+        {/* Advanced Search Section */}
+        <div style={{
+          width: "100%",
+          backgroundColor: "#fff",
+          borderRadius: "0.5rem",
+          boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+          padding: "1.5rem",
+          fontFamily: "var(--font-nrt-reg)"
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              color: "#1e293b",
+              fontFamily: "var(--font-nrt-bd)"
+            }}>
+              Advanced Search
+            </h2>
+            <button
+              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                fontFamily: "var(--font-nrt-bd)"
+              }}
+            >
+              {showAdvancedSearch ? 'Hide Search' : 'Show Search'}
+            </button>
+          </div>
+
+          {showAdvancedSearch && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Bill Number</label>
+                <input
+                  type="text"
+                  value={advancedSearch.soldBillNumber}
+                  onChange={(e) => handleAdvancedSearchChange('soldBillNumber', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter bill number"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Item Name</label>
+                <input
+                  type="text"
+                  value={advancedSearch.itemName}
+                  onChange={(e) => handleAdvancedSearchChange('itemName', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="Enter item name"
+                />
+              </div> <br></br>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Total IQD Range</label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="number"
+                    value={advancedSearch.amountFrom}
+                    onChange={(e) => handleAdvancedSearchChange('amountFrom', e.target.value)}
+                    placeholder="From"
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  />
+                  <input
+                    type="number"
+                    value={advancedSearch.amountTo}
+                    onChange={(e) => handleAdvancedSearchChange('amountTo', e.target.value)}
+                    placeholder="To"
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.875rem',
+                      fontFamily: "var(--font-nrt-reg)"
+                    }}
+                  />
+                </div>
+              </div>
+              <br></br>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date From (dd/mm/yyyy)</label>
+                <input
+                  type="text"
+                  value={advancedSearch.dateFrom}
+                  onChange={(e) => handleAdvancedSearchChange('dateFrom', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="dd/mm/yyyy"
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date To (dd/mm/yyyy)</label>
+                <input
+                  type="text"
+                  value={advancedSearch.dateTo}
+                  onChange={(e) => handleAdvancedSearchChange('dateTo', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-reg)"
+                  }}
+                  placeholder="dd/mm/yyyy"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+                <button
+                  onClick={resetAdvancedSearch}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '0.375rem',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem',
+                    fontFamily: "var(--font-nrt-bd)"
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Sold Bills and Returns - Next Row */}
         <div style={{
           display: "grid",
@@ -1277,6 +1446,13 @@ const printPaymentQuick = async (payment) => {
                           )}
                         </div>
                       </div>
+                      {bill.billNote && (
+                        <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#f0fdf4', borderRadius: '0.25rem', border: '1px solid #bbf7d0' }}>
+                          <p style={{ fontSize: '0.75rem', color: '#059669', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>
+                            <strong>Note:</strong> {bill.billNote}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1344,10 +1520,7 @@ const printPaymentQuick = async (payment) => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {returns.map((returnBill) => {
                     const returnId = returnBill.id;
-                    // Use pharmacyReturnNumber if available, otherwise fall back to other identifiers
-                    const returnNumber = returnBill.pharmacyReturnNumber || 
-                                      returnBill.returnNumber || 
-                                      (returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A');
+                    const returnNumber = returnBill.pharmacyReturnNumber || returnBill.returnNumber || (returnBill.id ? `Return #${returnBill.id.slice(-6)}` : 'Return #N/A');
                     const itemCount = returnBill.items ? returnBill.items.length : 1;
                     const returnAmount = returnBill.totalReturn || 0;
                     return (
@@ -1393,6 +1566,13 @@ const printPaymentQuick = async (payment) => {
                             )}
                           </div>
                         </div>
+                        {returnBill.returnBillNote && (
+                          <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fef2f2', borderRadius: '0.25rem', border: '1px solid #fee2e2' }}>
+                            <p style={{ fontSize: '0.75rem', color: '#dc2626', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>
+                              <strong>Note:</strong> {returnBill.returnBillNote}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1617,254 +1797,8 @@ const printPaymentQuick = async (payment) => {
                 fontFamily: "var(--font-nrt-reg)"
               }}
             />
-            <button
-              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#e5e7eb',
-                color: '#374151',
-                border: 'none',
-                borderRadius: '0.375rem',
-                cursor: 'pointer',
-                fontSize: '0.875rem',
-                fontFamily: "var(--font-nrt-bd)"
-              }}
-            >
-              {showAdvancedSearch ? 'Hide' : 'Advanced'} Searchh
-            </button>
           </div>
         </div>
-
-        {/* Advanced Search Panel */}
-        {showAdvancedSearch && (
-          <div style={{
-            backgroundColor: "#f8fafc",
-            borderRadius: "0.5rem",
-            padding: "1.5rem",
-            marginBottom: "1.5rem",
-            fontFamily: "var(--font-nrt-reg)"
-          }}>
-            <h3 style={{
-              fontSize: "1.25rem",
-              fontWeight: "600",
-              marginBottom: "1rem",
-              color: "#1e293b",
-              fontFamily: "var(--font-nrt-bd)"
-            }}>
-              Advanced Search
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Pharmacy Name</label>
-                <input
-                  type="text"
-                  value={advancedSearch.pharmacyName}
-                  onChange={(e) => handleAdvancedSearchChange('pharmacyName', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="Enter pharmacy name"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Hardcopy Bill #</label>
-                <input
-                  type="text"
-                  value={advancedSearch.hardcopyBillNumber}
-                  onChange={(e) => handleAdvancedSearchChange('hardcopyBillNumber', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="Enter bill number"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Sold Bill #</label>
-                <input
-                  type="text"
-                  value={advancedSearch.soldBillNumber}
-                  onChange={(e) => handleAdvancedSearchChange('soldBillNumber', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="Enter sold bill number"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Returned Bill #</label>
-                <input
-                  type="text"
-                  value={advancedSearch.returnedBillNumber}
-                  onChange={(e) => handleAdvancedSearchChange('returnedBillNumber', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="Enter returned bill number"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Notes</label>
-                <input
-                  type="text"
-                  value={advancedSearch.notes}
-                  onChange={(e) => handleAdvancedSearchChange('notes', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="Search in notes"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date From (dd/mm/yyyy)</label>
-                <input
-                  type="text"
-                  value={advancedSearch.dateFrom}
-                  onChange={(e) => handleAdvancedSearchChange('dateFrom', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="dd/mm/yyyy"
-                />
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>Date To (dd/mm/yyyy)</label>
-                <input
-                  type="text"
-                  value={advancedSearch.dateTo}
-                  onChange={(e) => handleAdvancedSearchChange('dateTo', e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
-                    fontFamily: "var(--font-nrt-reg)"
-                  }}
-                  placeholder="dd/mm/yyyy"
-                />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '500', marginBottom: '0.5rem', fontFamily: "var(--font-nrt-bd)" }}>
-                  Amount Range: {formatCurrency(amountRange[0])} - {formatCurrency(amountRange[1])}
-                </label>
-                <div style={{ position: 'relative', height: '40px', display: 'flex', alignItems: 'center' }}>
-                  <input
-                    type="range"
-                    min="0"
-                    max="50000000"
-                    step="10000"
-                    value={amountRange[0]}
-                    onChange={(e) => handleAmountRangeChange([parseInt(e.target.value), amountRange[1]])}
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: '6px',
-                      background: `linear-gradient(to right, #e5e7eb 0%, #e5e7eb ${(amountRange[0] / 50000000) * 100}%, #3b82f6 ${(amountRange[0] / 50000000) * 100}%, #3b82f6 ${(amountRange[1] / 50000000) * 100}%, #e5e7eb ${(amountRange[1] / 50000000) * 100}%, #e5e7eb 100%)`,
-                      borderRadius: '3px',
-                      outline: 'none',
-                    }}
-                  />
-                  <input
-                    type="range"
-                    min="0"
-                    max="50000000"
-                    step="10000"
-                    value={amountRange[1]}
-                    onChange={(e) => handleAmountRangeChange([amountRange[0], parseInt(e.target.value)])}
-                    style={{
-                      position: 'absolute',
-                      width: '100%',
-                      height: '6px',
-                      background: 'transparent',
-                      outline: 'none',
-                    }}
-                  />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>0 IQD</span>
-                  <span style={{ fontSize: '0.75rem', color: '#6b7280', fontFamily: "var(--font-nrt-reg)" }}>50,000,000 IQD</span>
-                </div>
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <input
-                    type="number"
-                    value={advancedSearch.amountFrom}
-                    onChange={(e) => handleAdvancedSearchChange('amountFrom', e.target.value)}
-                    placeholder="From"
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem',
-                      fontFamily: "var(--font-nrt-reg)"
-                    }}
-                  />
-                  <input
-                    type="number"
-                    value={advancedSearch.amountTo}
-                    onChange={(e) => handleAdvancedSearchChange('amountTo', e.target.value)}
-                    placeholder="To"
-                    style={{
-                      flex: 1,
-                      padding: '0.5rem',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '0.375rem',
-                      fontSize: '0.875rem',
-                      fontFamily: "var(--font-nrt-reg)"
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-              <button
-                onClick={resetAdvancedSearch}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#e5e7eb',
-                  color: '#374151',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontFamily: "var(--font-nrt-bd)"
-                }}
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Main Content Area */}
         <div>
@@ -2000,34 +1934,34 @@ const printPaymentQuick = async (payment) => {
                         Update
                       </button>
                       <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            printPaymentQuick(payment); // Use quick print function
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: '0.5rem',
-                            fontSize: '0.875rem',
-                            backgroundColor: '#10b981',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '0.375rem',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '0.25rem',
-                            fontFamily: "var(--font-nrt-bd)",
-                            transition: 'all 0.2s ease',
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H5a2 2 0 00-2 2v4h14z" />
-                          </svg>
-                          Print
-                        </button>
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          printPaymentQuick(payment);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '0.5rem',
+                          fontSize: '0.875rem',
+                          backgroundColor: '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '0.375rem',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.25rem',
+                          fontFamily: "var(--font-nrt-bd)",
+                          transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#059669'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = '#10b981'}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H5a2 2 0 00-2 2v4h14z" />
+                        </svg>
+                        Print
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -2184,6 +2118,13 @@ const printPaymentQuick = async (payment) => {
                                 </div>
                               )}
                             </div>
+                            {bill.billNote && (
+                              <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#f0fdf4', borderRadius: '0.25rem', border: '1px solid #bbf7d0' }}>
+                                <p style={{ fontSize: '0.75rem', color: '#059669', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>
+                                  <strong>Note:</strong> {bill.billNote}
+                                </p>
+                              </div>
+                            )}
                             <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.75rem', color: '#059669', fontFamily: "var(--font-nrt-reg)" }}>
                               Paid in this payment
                             </div>
@@ -2250,6 +2191,13 @@ const printPaymentQuick = async (payment) => {
                                 </div>
                               )}
                             </div>
+                            {r.returnBillNote && (
+                              <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#fef2f2', borderRadius: '0.25rem', border: '1px solid #fee2e2' }}>
+                                <p style={{ fontSize: '0.75rem', color: '#dc2626', margin: 0, fontFamily: "var(--font-nrt-reg)" }}>
+                                  <strong>Note:</strong> {r.returnBillNote}
+                                </p>
+                              </div>
+                            )}
                             <div style={{ marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid #e5e7eb', fontSize: '0.75rem', color: '#059669', fontFamily: "var(--font-nrt-reg)" }}>
                               Processed in this payment
                             </div>

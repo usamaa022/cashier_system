@@ -1,10 +1,10 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { getPharmacies, getPharmacyBills, getReturnsForPharmacy } from "@/lib/data";
 import Card from "@/components/Card";
 import PharmacySelectionModal from "@/components/PharmacySelectionModal";
 import { format } from "date-fns";
 import { useReactToPrint } from "react-to-print";
+import { getPharmacies, getPharmacyBills, getReturnsForPharmacy } from "@/lib/data";
 
 export default function StatementPage() {
   const [selectedPharmacy, setSelectedPharmacy] = useState(null);
@@ -14,6 +14,7 @@ export default function StatementPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const pdfRef = useRef();
+  
 
   // Currency formatting function
   const formatCurrency = (amount) => {
@@ -212,7 +213,7 @@ export default function StatementPage() {
                               </td>
                               <td className="p-2 text-center">
                                 {returnItem.returnDate ?
-                                  formatDateForDisplay(returnItem.returnDate.toDate()) : 'N/A'}
+                                  formatDateForDisplay(returnItem.returnDate) : 'N/A'}
                               </td>
                               <td className="p-2 text-right font-medium">
                                 {formatCurrency(returnItem.returnQuantity * returnItem.returnPrice)}
