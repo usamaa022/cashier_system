@@ -29,57 +29,45 @@ const getCurrentYearTwoDigits = () => {
 };
 
 // Function to generate bill number with format YYNNN (e.g., 26100 for 2026's 100th bill)
+// Function to generate bill number - simple continuous sequence
 const generateBillNumber = async () => {
   try {
-    const currentYear = getCurrentYearTwoDigits();
-    const yearPrefix = parseInt(currentYear);
-    
-    // Query for the highest bill number in current year
+    // Query for the highest bill number
     const billsRef = collection(db, "soldBills");
     const q = query(billsRef, orderBy("billNumber", "desc"), limit(1));
     const querySnapshot = await getDocs(q);
     
-    let nextNumber = 100; // Start from 100 for each year
+    let nextNumber = 4000; // Start from 4000 if no bills exist
     
     if (!querySnapshot.empty) {
       const lastBill = querySnapshot.docs[0].data();
       const lastBillNumber = parseInt(lastBill.billNumber);
       
       if (!isNaN(lastBillNumber)) {
-        const lastYear = Math.floor(lastBillNumber / 1000); // Get first 2 digits
-        const lastSequence = lastBillNumber % 1000; // Get last 3 digits
-        
-        if (lastYear === yearPrefix) {
-          // Same year, increment sequence
-          nextNumber = lastSequence + 1;
-        }
-        // If different year, start from 100 again
+        // Simply increment the last bill number by 1
+        nextNumber = lastBillNumber + 1;
       }
     }
     
-    // Create bill number: YY * 1000 + sequence
-    const billNumber = (yearPrefix * 1000) + nextNumber;
-    return billNumber;
+    console.log(`Generated bill number: ${nextNumber}`);
+    return nextNumber;
     
   } catch (error) {
     console.error("Error generating bill number:", error);
-    // Fallback: timestamp-based number
+    // Fallback: Get current timestamp and add a random number
     const timestamp = Date.now();
-    const currentYear = getCurrentYearTwoDigits();
-    const yearPrefix = parseInt(currentYear);
-    return (yearPrefix * 1000) + (timestamp % 900 + 100); // 100-999 range
+    const lastDigits = timestamp % 10000; // Get last 4 digits
+    return Math.max(4000, lastDigits);
   }
 };
-
 // Function to format bill number for display
 const formatBillNumber = (billNumber) => {
   if (!billNumber) return "N/A";
   const num = parseInt(billNumber);
   if (isNaN(num)) return billNumber.toString();
   
-  const year = Math.floor(num / 1000);
-  const sequence = num % 1000;
-  return `${year}${sequence.toString().padStart(3, '0')}`;
+  // Just return the number as is
+  return num.toString();
 };
 
 // Function to parse bill number from display format
@@ -1189,39 +1177,40 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     }
   };
 
-  // Enhanced Select Batch Handler for Integer Prices
-  const handleSelectBatch = (batch) => {
-    const existingItemIndex = selectedItems.findIndex(
-      (item) => item.batchId === batch.batchId
-    );
-    if (existingItemIndex >= 0) {
-      const updatedItems = [...selectedItems];
-      const actualBatch = storeItems.find((item) => item.id === batch.batchId);
-      const maxQty = actualBatch ? actualBatch.quantity : batch.quantity;
-      const newQty = Math.min(updatedItems[existingItemIndex].quantity + 1, maxQty);
-      updatedItems[existingItemIndex].quantity = newQty;
-      updatedItems[existingItemIndex].availableQuantity = maxQty;
-      setSelectedItems(updatedItems);
-    } else {
-      const actualBatch = storeItems.find((item) => item.id === batch.batchId);
-      const availableQty = actualBatch ? actualBatch.quantity : batch.quantity;
-      setSelectedItems([
-        ...selectedItems,
-        {
-          ...batch,
-          quantity: 1,
-          price: parseCurrency(batch.outPrice),
-          expireDate: batch.expireDate,
-          netPrice: parseCurrency(batch.netPrice),
-          outPrice: parseCurrency(batch.outPrice),
-          availableQuantity: availableQty,
-          batchId: batch.batchId,
-        },
-      ]);
-    }
-    setSearchQuery("");
-  };
 
+  // Add this function after the handleSearch function and before the handleItemChange function
+const handleSelectBatch = (batch) => {
+  const existingItemIndex = selectedItems.findIndex(
+    (item) => item.batchId === batch.batchId
+  );
+  
+  if (existingItemIndex >= 0) {
+    const updatedItems = [...selectedItems];
+    const actualBatch = storeItems.find((item) => item.id === batch.batchId);
+    const maxQty = actualBatch ? actualBatch.quantity : batch.quantity;
+    const newQty = Math.min(updatedItems[existingItemIndex].quantity + 1, maxQty);
+    updatedItems[existingItemIndex].quantity = newQty;
+    updatedItems[existingItemIndex].availableQuantity = maxQty;
+    setSelectedItems(updatedItems);
+  } else {
+    const actualBatch = storeItems.find((item) => item.id === batch.batchId);
+    const availableQty = actualBatch ? actualBatch.quantity : batch.quantity;
+    setSelectedItems([
+      ...selectedItems,
+      {
+        ...batch,
+        quantity: 1,
+        price: parseCurrency(batch.outPrice),
+        expireDate: batch.expireDate,
+        netPrice: parseCurrency(batch.netPrice),
+        outPrice: parseCurrency(batch.outPrice),
+        availableQuantity: availableQty,
+        batchId: batch.batchId,
+      },
+    ]);
+  }
+  setSearchQuery("");
+};
   // Enhanced Item Change Handler for Integer Prices
   const handleItemChange = (index, field, value) => {
     const updatedItems = [...selectedItems];
@@ -1234,11 +1223,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     } else if (field === "price") {
       const price = parseCurrency(value);
       updatedItems[index].price = price;
-      if (price < updatedItems[index].netPrice) {
-        alert(
-          `Warning: Selling price (${formatCurrency(price)}) is below net price (${formatCurrency(updatedItems[index].netPrice)}).`
-        );
-      }
+      // Removed the immediate warning check - will be done on blur/submit
     }
     setSelectedItems(updatedItems);
   };
@@ -1248,6 +1233,28 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     const updatedItems = [...selectedItems];
     updatedItems.splice(index, 1);
     setSelectedItems(updatedItems);
+  };
+
+  // Validate bill before submit
+  const validateBillBeforeSubmit = () => {
+    let hasWarning = false;
+    let warningMessage = "";
+    
+    selectedItems.forEach((item) => {
+      if (item.price < item.netPrice) {
+        hasWarning = true;
+        warningMessage += `• ${item.name}: Selling price (${formatCurrency(item.price)}) is below net price (${formatCurrency(item.netPrice)})\n`;
+      }
+    });
+    
+    if (hasWarning) {
+      const proceed = window.confirm(
+        `Price Warning:\n\n${warningMessage}\nDo you want to proceed anyway?`
+      );
+      return proceed;
+    }
+    
+    return true;
   };
 
   // Submit Bill
@@ -1260,6 +1267,12 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setError("Please add at least one item.");
       return;
     }
+    
+    // Validate prices before submitting
+    if (!validateBillBeforeSubmit()) {
+      return; // User chose not to proceed
+    }
+    
     setIsLoading(true);
     setError(null);
     try {
@@ -1279,6 +1292,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       // Generate bill number with new format
       const billNumber = await generateBillNumber();
       
+      // FIX: Use the actual user info passed from parent component
       const bill = await createSoldBill({
         items: preparedItems,
         pharmacyId,
@@ -1319,6 +1333,12 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setError("No bill selected for update.");
       return;
     }
+    
+    // Validate prices before updating
+    if (!validateBillBeforeSubmit()) {
+      return; // User chose not to proceed
+    }
+    
     setIsLoading(true);
     setError(null);
     try {
@@ -2060,7 +2080,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     );
   };
 
-  // RecentBills Component - updated to show formatted bill numbers
+  // RecentBills Component - FIXED: using unique keys with bill.id or combination
   const RecentBills = ({ styles }) => {
     return (
       <div style={styles.recentBillsSection}>
@@ -2091,7 +2111,8 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                 </thead>
                 <tbody>
                   {currentBills.map((bill, index) => (
-                    <React.Fragment key={bill.billNumber}>
+                    // FIXED: Use bill.id if available, otherwise use combination of billNumber and index
+                    <React.Fragment key={bill.id || `${bill.billNumber}-${index}`}>
                       <tr
                         style={{
                           ...(index % 2 === 0 ? styles.tableRowEven : styles.tableRowOdd),
@@ -3552,6 +3573,14 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                       style={styles.priceInput}
                       value={item.price}
                       onChange={(e) => handleItemChange(index, "price", e.target.value)}
+                      onBlur={(e) => {
+                        const price = parseCurrency(e.target.value);
+                        if (price < item.netPrice) {
+                          alert(
+                            `Warning: Selling price (${formatCurrency(price)}) is below net price (${formatCurrency(item.netPrice)}).`
+                          );
+                        }
+                      }}
                     />
                     <span style={{ fontSize: "12px", color: "#7f8c8d" }}>IQD</span>
                   </div>
