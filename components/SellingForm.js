@@ -18,10 +18,80 @@ import {
 import React from "react";
 import Select from "react-select";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
-import { getFirestore, doc, updateDoc, getDoc, collection, getDocs, query, limit } from "firebase/firestore";
+import { getFirestore, doc, updateDoc, getDoc, collection, getDocs, query, limit, orderBy, setDoc } from "firebase/firestore";
 
 const storage = getStorage();
 const db = getFirestore();
+
+// Function to get current year as 2 digits (e.g., 26 for 2026)
+const getCurrentYearTwoDigits = () => {
+  return new Date().getFullYear().toString().slice(-2);
+};
+
+// Function to generate bill number with format YYNNN (e.g., 26100 for 2026's 100th bill)
+const generateBillNumber = async () => {
+  try {
+    const currentYear = getCurrentYearTwoDigits();
+    const yearPrefix = parseInt(currentYear);
+    
+    // Query for the highest bill number in current year
+    const billsRef = collection(db, "soldBills");
+    const q = query(billsRef, orderBy("billNumber", "desc"), limit(1));
+    const querySnapshot = await getDocs(q);
+    
+    let nextNumber = 100; // Start from 100 for each year
+    
+    if (!querySnapshot.empty) {
+      const lastBill = querySnapshot.docs[0].data();
+      const lastBillNumber = parseInt(lastBill.billNumber);
+      
+      if (!isNaN(lastBillNumber)) {
+        const lastYear = Math.floor(lastBillNumber / 1000); // Get first 2 digits
+        const lastSequence = lastBillNumber % 1000; // Get last 3 digits
+        
+        if (lastYear === yearPrefix) {
+          // Same year, increment sequence
+          nextNumber = lastSequence + 1;
+        }
+        // If different year, start from 100 again
+      }
+    }
+    
+    // Create bill number: YY * 1000 + sequence
+    const billNumber = (yearPrefix * 1000) + nextNumber;
+    return billNumber;
+    
+  } catch (error) {
+    console.error("Error generating bill number:", error);
+    // Fallback: timestamp-based number
+    const timestamp = Date.now();
+    const currentYear = getCurrentYearTwoDigits();
+    const yearPrefix = parseInt(currentYear);
+    return (yearPrefix * 1000) + (timestamp % 900 + 100); // 100-999 range
+  }
+};
+
+// Function to format bill number for display
+const formatBillNumber = (billNumber) => {
+  if (!billNumber) return "N/A";
+  const num = parseInt(billNumber);
+  if (isNaN(num)) return billNumber.toString();
+  
+  const year = Math.floor(num / 1000);
+  const sequence = num % 1000;
+  return `${year}${sequence.toString().padStart(3, '0')}`;
+};
+
+// Function to parse bill number from display format
+const parseBillNumber = (displayNumber) => {
+  if (!displayNumber) return null;
+  const str = displayNumber.toString();
+  if (str.length < 3) return parseInt(str);
+  
+  const year = parseInt(str.slice(0, 2));
+  const sequence = parseInt(str.slice(2));
+  return (year * 1000) + sequence;
+};
 
 export default function SellingForm({ onBillCreated, userRole, user }) {
   // State declarations
@@ -1205,6 +1275,10 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         batchId: item.batchId,
       }));
       console.log("Prepared items:", preparedItems);
+      
+      // Generate bill number with new format
+      const billNumber = await generateBillNumber();
+      
       const bill = await createSoldBill({
         items: preparedItems,
         pharmacyId,
@@ -1215,6 +1289,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         note: note.trim(),
         createdBy: user?.id || "unknown",
         createdByName: user?.name || "Unknown User",
+        billNumber: billNumber, // Pass the generated bill number
       });
       console.log("Bill created successfully:", bill);
       if (onBillCreated) onBillCreated(bill);
@@ -1265,6 +1340,8 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         paymentMethod,
         isConsignment,
         note: note.trim(),
+        updatedBy: user?.id || "unknown",
+        updatedByName: user?.name || "Unknown User",
       });
       if (onBillCreated) onBillCreated(updatedBill);
       setCurrentBill(updatedBill);
@@ -1277,7 +1354,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       });
       setRecentBills(sortedBills);
       await loadAllAttachments(sortedBills);
-      alert(`Bill #${editingBillNumber} updated successfully!`);
+      alert(`Bill #${formatBillNumber(editingBillNumber)} updated successfully!`);
       resetForm();
     } catch (error) {
       console.error("Error updating bill:", error);
@@ -1291,7 +1368,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
   const loadBillForEditing = (bill) => {
     setIsEditMode(true);
     setEditingBillNumber(bill.billNumber);
-    setEditingBillDisplay(`Bill #${bill.billNumber} - ${bill.pharmacyName || "N/A"} - ${formatDate(bill.date)}`);
+    setEditingBillDisplay(`Bill #${formatBillNumber(bill.billNumber)} - ${bill.pharmacyName || "N/A"} - ${formatDate(bill.date)}`);
     setPharmacyId(bill.pharmacyId);
     setPharmacyName(bill.pharmacyName || "");
     const pharmacyBill = recentBills.find((b) => b.pharmacyId === bill.pharmacyId);
@@ -1364,12 +1441,13 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       pharmacyName: pharmacyName,
       paymentMethod: paymentMethod,
       note: note,
+      createdByName: user?.name || "Current User",
     };
     setCurrentBill(tempBill);
     setShowBillPreview(true);
   };
 
-  // Enhanced Bill Template HTML with CORRECTED Financial Summary
+  // Enhanced Bill Template HTML with bill maker info
   const createEnhancedBillTemplateHTML = (bill, financialSummary, billPaymentMethod) => {
     const getPaymentStatusColor = (paymentMethod) => {
       switch (paymentMethod) {
@@ -1386,6 +1464,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
 
     const currentBillTotal = financialSummary.currentBillTotal ||
       bill.items?.reduce((sum, item) => sum + (parseCurrency(item.price) * item.quantity), 0) || 0;
+
+    // Format bill number for display
+    const displayBillNumber = bill.billNumber === "TEMP0000" ? "TEMP0000" : formatBillNumber(bill.billNumber);
 
     return `
       <div class="bill-template" style="padding-top: 0px;">
@@ -1433,7 +1514,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                 <tr>
                   <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Invoice #:</td>
                   <td style="padding: 3px 0; font-size: 13px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
-                    ${bill.billNumber === "TEMP0000" ? "TEMP0000" : bill.billNumber?.toString().padStart(7, "0")}
+                    ${displayBillNumber}
                   </td>
                 </tr>
                 <tr>
@@ -1442,6 +1523,20 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                     ${formatDate(bill.date || saleDate)}
                   </td>
                 </tr>
+                <tr>
+                  <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Created By:</td>
+                  <td style="padding: 3px 0; font-size: 13px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
+                    ${bill.createdByName || user?.name || "Unknown User"}
+                  </td>
+                </tr>
+                ${bill.updatedByName ? `
+                <tr>
+                  <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 13px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 80px;">Updated By:</td>
+                  <td style="padding: 3px 0; font-size: 13px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
+                    ${bill.updatedByName} (${formatDate(bill.updatedAt || bill.date)})
+                  </td>
+                </tr>
+                ` : ''}
               </table>
             </div>
             <div style="flex: 1; border-radius: 8px; border: 0px dashed #e1e8ed; display: flex; align-items: left; justify-content: center;">
@@ -1563,9 +1658,12 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     }
   };
 
-  // Filter Bills
+  // Filter Bills - updated to work with new bill number format
   const filteredBills = recentBills.filter((bill) => {
-    const matchesBillNumber = !filters.billNumber || bill.billNumber.toString().includes(filters.billNumber);
+    const displayBillNumber = formatBillNumber(bill.billNumber);
+    const matchesBillNumber = !filters.billNumber || 
+      displayBillNumber.toString().includes(filters.billNumber) ||
+      bill.billNumber.toString().includes(filters.billNumber);
     const matchesPharmacy =
       !filters.pharmacyName ||
       (bill.pharmacyName && bill.pharmacyName.toLowerCase().includes(filters.pharmacyName.toLowerCase()));
@@ -1582,7 +1680,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       itemFilters.length === 0 || bill.items.some((item) => itemFilters.includes(item.name));
     const matchesGlobalSearch =
       !filters.globalSearch ||
-      bill.billNumber.toString().includes(filters.globalSearch) ||
+      displayBillNumber.toString().includes(filters.globalSearch) ||
       (bill.pharmacyName &&
         bill.pharmacyName.toLowerCase().includes(filters.globalSearch.toLowerCase())) ||
       bill.items.some(
@@ -1678,7 +1776,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
               <input
                 type="text"
                 style={styles.filterInput}
-                placeholder="Enter bill number"
+                placeholder="Enter bill number (e.g., 26100)"
                 value={filters.billNumber}
                 onChange={(e) => handleFilterChange("billNumber", e.target.value)}
                 onFocus={handleFilterInputFocus}
@@ -1894,7 +1992,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         <div style={styles.modalContent}>
           <div style={styles.modalHeader}>
             <h2 style={styles.modalTitle}>Sales History for {item.name}</h2>
-            <button style={styles.closeButton} onClose={onClose}>
+            <button style={styles.closeButton} onClick={onClose}>
               Close
             </button>
           </div>
@@ -1922,7 +2020,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                         backgroundColor: index % 2 === 0 ? "#f8f9fa" : "white",
                       }}
                     >
-                      <td style={{ padding: "10px" }}>{entry.billNumber}</td>
+                      <td style={{ padding: "10px" }}>{formatBillNumber(entry.billNumber)}</td>
                       <td style={{ padding: "10px" }}>{formatDate(entry.billDate)}</td>
                       <td style={{ padding: "10px", textAlign: "right" }}>
                         {formatCurrency(entry.netPrice)} IQD
@@ -1962,7 +2060,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     );
   };
 
-  // RecentBills Component
+  // RecentBills Component - updated to show formatted bill numbers
   const RecentBills = ({ styles }) => {
     return (
       <div style={styles.recentBillsSection}>
@@ -2002,7 +2100,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                         }}
                         onClick={() => setSelectedBill(selectedBill?.billNumber === bill.billNumber ? null : bill)}
                       >
-                        <td style={styles.tableCellCenter}>{bill.billNumber}</td>
+                        <td style={styles.tableCellCenter}>{formatBillNumber(bill.billNumber)}</td>
                         <td style={styles.tableCell}>{bill.pharmacyName || "N/A"}</td>
                         <td style={styles.tableCellCenterdatee}>{formatDate(bill.date)}</td>
                         <td style={styles.tableCellRightttt}>
@@ -2059,7 +2157,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                           <td colSpan="8" style={styles.detailCell}>
                             <div style={styles.billDetails}>
                               <div style={styles.billDetailsHeader}>
-                                <h4 style={styles.billDetailsTitle}>Bill #{bill.billNumber} Details</h4>
+                                <h4 style={styles.billDetailsTitle}>Bill #{formatBillNumber(bill.billNumber)} Details</h4>
                                 <div style={styles.billDetailsActions}>
                                   <button style={styles.printButton} onClick={() => printBill(bill)}>
                                     Print Bill
@@ -2078,6 +2176,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                                 </div>
                                 <div style={styles.billInfoItem}>
                                   <strong>Date:</strong> {formatDate(bill.date)}
+                                </div>
+                                <div style={styles.billInfoItem}>
+                                  <strong>Created By:</strong> {bill.createdByName || "Unknown"}
                                 </div>
                                 <div style={styles.billInfoItem}>
                                   <strong>Payment Status:</strong>
@@ -2186,7 +2287,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Bill #${billToPrint.billNumber}</title>
+          <title>Bill #${formatBillNumber(billToPrint.billNumber)}</title>
           <meta charset="UTF-8">
           <style>
             @font-face {
@@ -3202,10 +3303,42 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     },
   };
 
+  // BillPreview Component
+  const BillPreview = ({ bill, styles }) => {
+    const financialSummary = calculatePharmacyFinancialSummary(bill.pharmacyId, bill.items);
+    const billPaymentMethod = bill.paymentStatus || paymentMethod;
+    
+    return (
+      <div style={styles.modalOverlay}>
+        <div style={styles.modalContent}>
+          <div style={styles.modalHeader}>
+            <h2 style={styles.modalTitle}>
+              Bill #{bill.billNumber === "TEMP0000" ? "TEMP0000" : formatBillNumber(bill.billNumber)} Preview
+            </h2>
+            <div style={styles.modalActions}>
+              <button style={styles.printButton} onClick={() => printBill(bill)}>
+                Print Bill
+              </button>
+              <button style={styles.closeButton} onClick={closeBillPreview}>
+                Close
+              </button>
+            </div>
+          </div>
+          <div 
+            style={styles.billTemplate}
+            dangerouslySetInnerHTML={{
+              __html: createEnhancedBillTemplateHTML(bill, financialSummary, billPaymentMethod)
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   // Main Render
   return (
     <div style={styles.container}>
-      <div style={styles.header}>{isEditMode ? `Edit Bill #${editingBillNumber}` : "Selling Form"}</div>
+      <div style={styles.header}>{isEditMode ? `Edit Bill #${formatBillNumber(editingBillNumber)}` : "Selling Form"}</div>
       <div style={styles.formContainer}>
         {error && (
           <div style={styles.error}>
