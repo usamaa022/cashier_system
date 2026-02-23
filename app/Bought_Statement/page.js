@@ -160,8 +160,8 @@ export default function BoughtStatementPage() {
                           <th className="p-2 text-center">Bill #</th>
                           <th className="p-2 text-center">Company Bill #</th>
                           <th className="p-2 text-center">Date</th>
-                          <th className="p-2 text-center">Consignment</th>
                           <th className="p-2 text-center">Amount (IQD)</th>
+                          <th className="p-2 text-center">Note</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -178,12 +178,14 @@ export default function BoughtStatementPage() {
                                 <td className="p-2 text-left">
                                   {formatDateToDDMMYYYY(bill.date)}
                                 </td>
-                                <td className="p-2 text-left">
-                                  <ConsignmentBadge isConsignment={bill.isConsignment} />
-                                </td>
                                 <td className="p-2 text-left font-medium text-green-600">
                                   {formatCurrency(billTotal)}
                                 </td>
+                                <td className="p-2 text-left">
+                                  {/* <ConsignmentBadge isConsignment={bill.isConsignment} /> */}
+                                  {bill.billNote }
+                                </td>
+                               
                               </tr>
                             );
                           })
@@ -236,6 +238,7 @@ export default function BoughtStatementPage() {
                               </td>
                               <td className="p-2 text-center w-1/5">
                                 <ConsignmentBadge isConsignment={returnItem.isConsignment} />
+                                
                               </td>
                               <td className="p-2 text-right font-medium text-red-600 w-1/5">
                                 -{formatCurrency(returnItem.returnQuantity * returnItem.returnPrice)}

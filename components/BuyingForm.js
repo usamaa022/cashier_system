@@ -3,33 +3,55 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/data";
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useLocalStorage } from "@/hooks/useLocalStorage";
-import { FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, FiShoppingBag, FiPackage, FiUser, FiCalendar, FiHome, FiCreditCard, FiTruck, FiAlertTriangle, FiX } from "react-icons/fi";
+import { FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, FiShoppingBag, FiPackage, FiUser, FiCalendar, FiHome, FiCreditCard, FiTruck, FiAlertTriangle, FiX, FiRefreshCw } from "react-icons/fi";
+import { Timestamp } from "firebase/firestore";
 
-// Utility functions moved to top level
+// Utility functions
 const formatNumber = (number) => {
-  if (!number && number !== 0) return '';
-  return new Intl.NumberFormat('en-US').format(number);
+  if (!number && number !== 0) return '0';
+  if (Number.isInteger(number)) {
+    return new Intl.NumberFormat('en-US').format(number);
+  } else {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(number);
+  }
 };
 
-const parseFormattedNumber = (formattedString) => {
-  if (!formattedString) return 0;
-  return parseFloat(formattedString.replace(/,/g, '')) || 0;
-};
-
+// Format date to DD/MM/YYYY for display
 const formatDateToDDMMYYYY = (date) => {
   if (!date) return '';
   const d = new Date(date);
+  if (isNaN(d.getTime())) return '';
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
   return `${day}/${month}/${year}`;
 };
 
-const parseDDMMYYYYDate = (dateString) => {
+// Parse DD/MM/YYYY to YYYY-MM-DD for input
+const parseDDMMYYYYToInput = (dateString) => {
   if (!dateString) return '';
-  const [day, month, year] = dateString.split('/');
-  return `${year}-${month}-${day}`;
+  if (dateString.includes('/')) {
+    const [day, month, year] = dateString.split('/');
+    if (day && month && year) {
+      return `${year}-${month}-${day}`;
+    }
+  }
+  return dateString;
+};
+
+// Format YYYY-MM-DD to DD/MM/YYYY for display
+const formatInputToDDMMYYYY = (dateString) => {
+  if (!dateString) return '';
+  if (dateString.includes('-')) {
+    const [year, month, day] = dateString.split('-');
+    if (year && month && day) {
+      return `${day}/${month}/${year}`;
+    }
+  }
+  return dateString;
 };
 
 // Helper function to convert date to YYYY-MM-DD format for input fields
@@ -38,10 +60,9 @@ const formatDateForInput = (date) => {
   
   let dateObj;
   
-  // Handle different date formats
-  if (date.toDate) {
+  if (date?.toDate) {
     dateObj = date.toDate();
-  } else if (date.seconds) {
+  } else if (date?.seconds) {
     dateObj = new Date(date.seconds * 1000);
   } else if (date instanceof Date) {
     dateObj = date;
@@ -64,6 +85,42 @@ const formatDateForInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+// Helper to format date for display
+const formatDateForDisplay = (date) => {
+  if (!date) return 'N/A';
+  
+  try {
+    let dateObj = null;
+    
+    if (date?.toDate && typeof date.toDate === 'function') {
+      dateObj = date.toDate();
+    } else if (date?.seconds) {
+      dateObj = new Date(date.seconds * 1000);
+    } else if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === 'string') {
+      if (date.includes('-')) {
+        const [year, month, day] = date.split('-');
+        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+      } else if (date.includes('/')) {
+        const [day, month, year] = date.split('/');
+        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+      }
+    }
+    
+    if (dateObj && !isNaN(dateObj.getTime())) {
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const year = dateObj.getFullYear();
+      return `${day}/${month}/${year}`;
+    }
+  } catch (e) {
+    console.error("Error formatting date:", e);
+  }
+  
+  return 'N/A';
+};
+
 export default function BuyingForm({ onBillCreated }) {
   // State definitions
   const [companyId, setCompanyId] = useState("");
@@ -78,9 +135,13 @@ export default function BuyingForm({ onBillCreated }) {
   const [billNote, setBillNote] = useState("");
   const [billItems, setBillItems] = useState([]);
   
+  // Currency states
+  const [exchangeRate, setExchangeRate] = useState(1500);
+  const [displayCurrency, setDisplayCurrency] = useState("USD");
+  
   // Bill-level costs
-  const [totalTransportFee, setTotalTransportFee] = useState(0);
-  const [totalExternalExpense, setTotalExternalExpense] = useState(0);
+  const [totalTransportFeeUSD, setTotalTransportFeeUSD] = useState(0);
+  const [totalExternalExpenseUSD, setTotalExternalExpenseUSD] = useState(0);
 
   // Other states
   const [suggestions, setSuggestions] = useState([]);
@@ -95,7 +156,7 @@ export default function BuyingForm({ onBillCreated }) {
 
   // Refs
   const searchInputRef = useRef(null);
-  const companyCodeRef = useRef(null);
+  const companySearchRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -140,41 +201,35 @@ export default function BuyingForm({ onBillCreated }) {
     setExpensePercentage(billData.expensePercentage || 7);
     setBillNote(billData.billNote || "");
     
-    // Set bill-level costs
-    setTotalTransportFee(billData.totalTransportFee || 0);
-    setTotalExternalExpense(billData.totalExternalExpense || 0);
+    // Set exchange rate if available
+    if (billData.exchangeRate) {
+      setExchangeRate(billData.exchangeRate);
+    }
     
-    // Initialize items with correct basePrice and expireDate
+    // Set bill-level costs
+    setTotalTransportFeeUSD(billData.totalTransportFeeUSD || (billData.totalTransportFee ? billData.totalTransportFee / (billData.exchangeRate || 1500) : 0));
+    setTotalExternalExpenseUSD(billData.totalExternalExpenseUSD || (billData.totalExternalExpense ? billData.totalExternalExpense / (billData.exchangeRate || 1500) : 0));
+    
+    // Initialize items with correct dates
     if (billData.items && billData.items.length > 0) {
       const initializedItems = billData.items.map(item => {
-        // Use basePrice if available, otherwise fall back to netPrice
-        const basePrice = item.basePrice || item.netPrice || 0;
+        const basePriceUSD = item.basePriceUSD || (item.basePrice ? item.basePrice / (billData.exchangeRate || 1500) : 0);
         
-        // Handle expireDate properly - convert to YYYY-MM-DD format
+        // Handle expireDate - convert from DD/MM/YYYY to YYYY-MM-DD for input
         let expireDate = "";
-        if (item.expireDate) {
+        if (item.expireDate && item.expireDate !== 'N/A') {
           if (typeof item.expireDate === 'string') {
             if (item.expireDate.includes('/')) {
-              // Convert from DD/MM/YYYY to YYYY-MM-DD
-              expireDate = parseDDMMYYYYDate(item.expireDate);
+              expireDate = parseDDMMYYYYToInput(item.expireDate);
             } else if (item.expireDate.includes('-')) {
-              // Already in YYYY-MM-DD format
               expireDate = item.expireDate;
-            } else {
-              // Try to parse as date string
-              const date = new Date(item.expireDate);
-              if (!isNaN(date.getTime())) {
-                expireDate = formatDateForInput(date);
-              }
             }
-          } else if (item.expireDate instanceof Date) {
-            expireDate = formatDateForInput(item.expireDate);
-          } else if (item.expireDate.toDate) {
-            // Handle Firestore Timestamp
-            expireDate = formatDateForInput(item.expireDate.toDate());
-          } else if (item.expireDate.seconds) {
-            // Handle Firestore Timestamp with seconds
-            expireDate = formatDateForInput(new Date(item.expireDate.seconds * 1000));
+          } else if (item.expireDate?.toDate) {
+            const d = item.expireDate.toDate();
+            expireDate = formatDateForInput(d);
+          } else if (item.expireDate?.seconds) {
+            const d = new Date(item.expireDate.seconds * 1000);
+            expireDate = formatDateForInput(d);
           }
         }
         
@@ -182,13 +237,15 @@ export default function BuyingForm({ onBillCreated }) {
           barcode: item.barcode || "",
           name: item.name || "",
           quantity: item.quantity || 1,
-          basePrice: basePrice,
+          basePriceUSD: basePriceUSD,
+          basePriceIQD: basePriceUSD * (billData.exchangeRate || 1500),
           costRatio: item.costRatio || 0,
-          finalCost: item.finalCost || 0,
-          finalCostPerPiece: item.finalCostPerPiece || item.netPrice || 0,
-          pharmacyPrice: item.pharmacyPrice || item.outPricePharmacy || item.outPrice || 0,
-          storePrice: item.storePrice || item.outPriceStore || item.outPrice || 0,
-          otherPrice: item.otherPrice || item.outPriceOther || item.outPrice || 0,
+          finalCostUSD: item.finalCostUSD || 0,
+          finalCostIQD: item.finalCostIQD || 0,
+          finalCostPerPieceUSD: item.finalCostPerPieceUSD || item.netPriceUSD || (item.netPrice ? item.netPrice / (billData.exchangeRate || 1500) : 0),
+          finalCostPerPieceIQD: item.finalCostPerPieceIQD || item.netPrice || 0,
+          outPriceUSD: item.outPriceUSD || item.outPrice / (billData.exchangeRate || 1500) || 0,
+          outPriceIQD: item.outPrice || 0,
           expireDate: expireDate
         };
       });
@@ -203,42 +260,56 @@ export default function BuyingForm({ onBillCreated }) {
     barcode: "",
     name: "",
     quantity: 1,
-    basePrice: 0,
+    basePriceUSD: 0,
+    basePriceIQD: 0,
     costRatio: 0,
-    finalCost: 0,
-    pharmacyPrice: 0,
-    storePrice: 0,
-    otherPrice: 0,
+    finalCostUSD: 0,
+    finalCostIQD: 0,
+    finalCostPerPieceUSD: 0,
+    finalCostPerPieceIQD: 0,
+    outPriceUSD: 0,
+    outPriceIQD: 0,
     expireDate: ""
   });
 
-  // Calculate final costs for all items
-  const calculateFinalCosts = useCallback((items, transportFee, externalExpense, expensePercent) => {
-    const totalAdditionalCosts = transportFee + externalExpense;
+  // Convert USD to IQD
+  const usdToIQD = useCallback((usdAmount) => {
+    return usdAmount * exchangeRate;
+  }, [exchangeRate]);
+
+  // Convert IQD to USD
+  const iqdToUSD = useCallback((iqdAmount) => {
+    return iqdAmount / exchangeRate;
+  }, [exchangeRate]);
+
+  // Calculate final costs for all items (in USD)
+  const calculateFinalCosts = useCallback((items, transportFeeUSD, externalExpenseUSD, expensePercent) => {
+    const totalAdditionalCostsUSD = transportFeeUSD + externalExpenseUSD;
     const totalRatios = items.reduce((sum, item) => sum + (item.costRatio || 0), 0);
     
     const calculatedItems = items.map(item => {
-      const itemBaseCost = item.basePrice * item.quantity;
-      const allocatedCost = totalAdditionalCosts * (item.costRatio || 0);
+      const itemBaseCostUSD = (item.basePriceUSD || 0) * item.quantity;
+      const allocatedCostUSD = totalAdditionalCostsUSD * (item.costRatio || 0);
       
       // Apply expense percentage to the base cost + allocated costs
       const expenseMultiplier = 1 + (expensePercent / 100);
-      const finalCost = (itemBaseCost + allocatedCost) * expenseMultiplier;
-      const finalCostPerPiece = item.quantity > 0 ? finalCost / item.quantity : 0;
+      const finalCostUSD = (itemBaseCostUSD + allocatedCostUSD) * expenseMultiplier;
+      const finalCostPerPieceUSD = item.quantity > 0 ? finalCostUSD / item.quantity : 0;
+      const finalCostPerPieceIQD = usdToIQD(finalCostPerPieceUSD);
       
-      // Calculate selling prices (these can be manually adjusted later)
-      const baseSellingPrice = finalCostPerPiece;
-      const pharmacyPrice = item.pharmacyPrice > 0 ? item.pharmacyPrice : baseSellingPrice;
-      const storePrice = item.storePrice > 0 ? item.storePrice : baseSellingPrice;
-      const otherPrice = item.otherPrice > 0 ? item.otherPrice : baseSellingPrice;
+      // Calculate selling price (out price)
+      const outPriceUSD = item.outPriceUSD > 0 ? item.outPriceUSD : finalCostPerPieceUSD * 1.2; // Default 20% markup if not set
+      const outPriceIQD = usdToIQD(outPriceUSD);
 
       return {
         ...item,
-        finalCost: parseFloat(finalCost.toFixed(2)),
-        finalCostPerPiece: parseFloat(finalCostPerPiece.toFixed(2)),
-        pharmacyPrice: parseFloat(pharmacyPrice.toFixed(2)),
-        storePrice: parseFloat(storePrice.toFixed(2)),
-        otherPrice: parseFloat(otherPrice.toFixed(2))
+        basePriceIQD: usdToIQD(item.basePriceUSD || 0),
+        finalCostUSD: parseFloat(finalCostUSD.toFixed(2)),
+        finalCostIQD: parseFloat(usdToIQD(finalCostUSD).toFixed(0)),
+        finalCostPerPieceUSD: parseFloat(finalCostPerPieceUSD.toFixed(2)),
+        finalCostPerPieceIQD: parseFloat(finalCostPerPieceIQD.toFixed(0)),
+        outPriceUSD: parseFloat(outPriceUSD.toFixed(2)),
+        outPriceIQD: parseFloat(outPriceIQD.toFixed(0))
       };
     });
 
@@ -247,15 +318,15 @@ export default function BuyingForm({ onBillCreated }) {
       hasRatioError: Math.abs(totalRatios - 1) > 0.01,
       totalRatios
     };
-  }, []);
+  }, [usdToIQD]);
 
-  // Calculate base ratios when items change (base price or quantity)
+  // Calculate base ratios when items change
   const calculateBaseRatios = useCallback((items) => {
-    const totalBaseCost = items.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
+    const totalBaseCostUSD = items.reduce((sum, item) => sum + ((item.basePriceUSD || 0) * item.quantity), 0);
     
-    if (totalBaseCost > 0) {
+    if (totalBaseCostUSD > 0) {
       return items.map(item => {
-        const baseRatio = (item.basePrice * item.quantity) / totalBaseCost;
+        const baseRatio = ((item.basePriceUSD || 0) * item.quantity) / totalBaseCostUSD;
         return {
           ...item,
           costRatio: parseFloat(baseRatio.toFixed(3))
@@ -270,13 +341,13 @@ export default function BuyingForm({ onBillCreated }) {
     if (billItems.length > 0) {
       const { items } = calculateFinalCosts(
         billItems, 
-        totalTransportFee, 
-        totalExternalExpense, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
         expensePercentage
       );
       setBillItems(items);
     }
-  }, [totalTransportFee, totalExternalExpense, expensePercentage, calculateFinalCosts]);
+  }, [totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, calculateFinalCosts, exchangeRate]);
 
   // Auto-calculate base ratios when base prices or quantities change
   useEffect(() => {
@@ -284,39 +355,26 @@ export default function BuyingForm({ onBillCreated }) {
       const itemsWithBaseRatios = calculateBaseRatios(billItems);
       const { items: calculatedItems } = calculateFinalCosts(
         itemsWithBaseRatios, 
-        totalTransportFee, 
-        totalExternalExpense, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
         expensePercentage
       );
       setBillItems(calculatedItems);
     }
   }, [
-    billItems.map(item => `${item.basePrice}-${item.quantity}`).join(','),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(billItems.map(item => `${item.basePriceUSD}-${item.quantity}`)),
     calculateBaseRatios,
     calculateFinalCosts,
-    totalTransportFee,
-    totalExternalExpense,
+    totalTransportFeeUSD,
+    totalExternalExpenseUSD,
     expensePercentage
   ]);
 
-  // Cancel editing and go back - FIXED: Completely reset form
+  // Cancel editing and go back
   const handleCancel = () => {
     // Clear all form state
-    setCompanyId("");
-    setCompanySearch("");
-    setCompanyCode("");
-    setCompanyBillNumber("");
-    setBillDate(formatDateForInput(new Date()));
-    setBranch("Slemany");
-    setPaymentStatus("Unpaid");
-    setIsConsignment(false);
-    setExpensePercentage(7);
-    setBillNote("");
-    setTotalTransportFee(0);
-    setTotalExternalExpense(0);
-    setBillItems([createEmptyItem()]);
-    setError(null);
-    setSearchQuery("");
+    resetForm();
     
     // Clear editing state
     localStorage.removeItem('editingBill');
@@ -327,44 +385,66 @@ export default function BuyingForm({ onBillCreated }) {
     router.push('/buying');
   };
 
-  // Company code lookup on Enter
-  const handleCompanyCodeKeyPress = async (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (companyCode) {
-        setIsLoading(true);
+  // Company search with debounce
+  useEffect(() => {
+    const fetchCompanies = async () => {
+      if (companySearch.length > 0) {
         try {
           const companies = await getCompanies();
-          const company = companies.find(c => c.code == companyCode);
-          if (company) {
-            setCompanyId(company.id);
-            setCompanySearch(company.name);
-            setShowCompanySuggestions(false);
-            setError(null);
-          } else {
-            setError("Company not found with this code.");
-            setCompanyId("");
-            setCompanySearch("");
-          }
+          const results = companies.filter(company =>
+            company.name.toLowerCase().includes(companySearch.toLowerCase()) ||
+            company.code.toString().includes(companySearch)
+          );
+          setCompanySuggestions(results);
+          setShowCompanySuggestions(results.length > 0);
         } catch (error) {
-          console.error("Error fetching company:", error);
-          setError("Failed to fetch company. Please try again.");
-        } finally {
-          setIsLoading(false);
+          console.error("Error fetching companies:", error);
         }
+      } else {
+        setCompanySuggestions([]);
+        setShowCompanySuggestions(false);
       }
-    }
-  };
+    };
+    
+    const timer = setTimeout(fetchCompanies, 300);
+    return () => clearTimeout(timer);
+  }, [companySearch]);
+
+  // Company selection handler
+  const handleCompanySelect = useCallback((company) => {
+    setCompanyId(company.id);
+    setCompanySearch(company.name);
+    setCompanyCode(company.code);
+    setShowCompanySuggestions(false);
+    setError(null);
+  }, []);
 
   // Item selection from search
   const handleItemSelect = useCallback((item) => {
+    // Convert IQD prices to USD if they exist
+    const basePriceUSD = item.outPriceUSD || (item.outPrice ? iqdToUSD(item.outPrice) : 0);
+    
+    // Handle expire date - convert from DD/MM/YYYY to YYYY-MM-DD for input
+    let expireDate = "";
+    if (item.expireDate && item.expireDate !== 'N/A') {
+      if (typeof item.expireDate === 'string') {
+        if (item.expireDate.includes('/')) {
+          expireDate = parseDDMMYYYYToInput(item.expireDate);
+        } else if (item.expireDate.includes('-')) {
+          expireDate = item.expireDate;
+        }
+      }
+    }
+    
     const newItem = {
       ...createEmptyItem(),
       barcode: item.barcode,
       name: item.name,
-      basePrice: item.outPrice || item.netPrice || 0,
-      // Properly handle expireDate from search results
-      expireDate: item.expireDate && item.expireDate !== 'N/A' ? formatDateForInput(new Date(item.expireDate)) : ""
+      basePriceUSD: basePriceUSD,
+      basePriceIQD: usdToIQD(basePriceUSD),
+      outPriceUSD: basePriceUSD * 1.2, // Default 20% markup
+      outPriceIQD: usdToIQD(basePriceUSD * 1.2),
+      expireDate: expireDate
     };
 
     setBillItems(prev => {
@@ -372,8 +452,8 @@ export default function BuyingForm({ onBillCreated }) {
       const itemsWithBaseRatios = calculateBaseRatios(newItems);
       const { items: calculatedItems } = calculateFinalCosts(
         itemsWithBaseRatios, 
-        totalTransportFee, 
-        totalExternalExpense, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
         expensePercentage
       );
       return calculatedItems;
@@ -387,17 +467,21 @@ export default function BuyingForm({ onBillCreated }) {
         searchInputRef.current.focus();
       }
     }, 100);
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFee, totalExternalExpense, expensePercentage]);
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, iqdToUSD, usdToIQD]);
 
   const handleItemChange = useCallback((index, field, value) => {
     setBillItems(prev => {
       const updatedItems = [...prev];
       
-      if (field === 'basePrice' || field === 'pharmacyPrice' || field === 'storePrice' || field === 'otherPrice') {
-        // Parse formatted number for price fields
+      if (field === 'basePriceUSD' || field === 'outPriceUSD') {
+        // Parse number value for price fields
+        const numValue = value === '' ? 0 : parseFloat(value);
+        const usdValue = isNaN(numValue) ? 0 : numValue;
+        
         updatedItems[index] = {
           ...updatedItems[index],
-          [field]: parseFormattedNumber(value)
+          [field]: usdValue,
+          [`${field.replace('USD', 'IQD')}`]: Math.round(usdToIQD(usdValue))
         };
       } else if (field === 'expireDate') {
         // Handle date field - store as YYYY-MM-DD
@@ -405,21 +489,28 @@ export default function BuyingForm({ onBillCreated }) {
           ...updatedItems[index],
           [field]: value
         };
-      } else {
-        // Handle other fields (quantity, barcode, name, costRatio)
+      } else if (field === 'quantity' || field === 'costRatio') {
+        // Handle quantity and cost ratio
+        const numValue = value === '' ? 0 : parseFloat(value);
         updatedItems[index] = {
           ...updatedItems[index],
-          [field]: field === 'quantity' || field === 'costRatio' ? parseFloat(value) || 0 : value
+          [field]: isNaN(numValue) ? 0 : numValue
+        };
+      } else {
+        // Handle other fields (barcode, name)
+        updatedItems[index] = {
+          ...updatedItems[index],
+          [field]: value
         };
       }
       
       // If base price or quantity changed, recalculate base ratios
-      if (field === 'basePrice' || field === 'quantity') {
+      if (field === 'basePriceUSD' || field === 'quantity') {
         const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
         const { items: calculatedItems } = calculateFinalCosts(
           itemsWithBaseRatios, 
-          totalTransportFee, 
-          totalExternalExpense, 
+          totalTransportFeeUSD, 
+          totalExternalExpenseUSD, 
           expensePercentage
         );
         return calculatedItems;
@@ -428,13 +519,13 @@ export default function BuyingForm({ onBillCreated }) {
       // Otherwise just recalculate costs
       const { items: calculatedItems } = calculateFinalCosts(
         updatedItems, 
-        totalTransportFee, 
-        totalExternalExpense, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
         expensePercentage
       );
       return calculatedItems;
     });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFee, totalExternalExpense, expensePercentage]);
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, usdToIQD]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -448,55 +539,155 @@ export default function BuyingForm({ onBillCreated }) {
       }
 
       // Filter out empty items before submission
-      const validItems = billItems.filter(item => item.barcode && item.name && item.quantity > 0 && item.basePrice > 0);
+      const validItems = billItems.filter(item => 
+        item.barcode && 
+        item.name && 
+        item.quantity > 0 && 
+        item.basePriceUSD > 0
+      );
       
       if (validItems.length === 0) {
         setError("Please add at least one valid item.");
         return;
       }
 
-      // Check if ratios cover costs - allow small rounding differences
+      // Check if ratios cover costs
       const totalRatios = validItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
-      if (Math.abs(totalRatios - 1) > 0.01 && totalTransportFee + totalExternalExpense > 0) {
+      if (Math.abs(totalRatios - 1) > 0.01 && totalTransportFeeUSD + totalExternalExpenseUSD > 0) {
         setError(`Cost ratios must add up to 100% to cover all transport and expense costs. Current total: ${(totalRatios * 100).toFixed(1)}%`);
         return;
       }
 
-      // Prepare items for submission - Include all necessary data for store sync
-      const itemsWithCosts = validItems.map(item => ({
-        barcode: item.barcode,
-        name: item.name,
-        quantity: item.quantity,
-        basePrice: item.basePrice,
-        netPrice: item.finalCostPerPiece, // This is the final cost per piece including expenses
-        outPrice: item.pharmacyPrice, // Use pharmacy price as outPrice
-        outPricePharmacy: item.pharmacyPrice,
-        outPriceStore: item.storePrice,
-        outPriceOther: item.otherPrice,
-        // Properly handle expireDate - convert to proper format for storage
-        expireDate: item.expireDate || new Date().toISOString().split('T')[0],
-        branch: branch,
-        transportFee: (totalTransportFee * (item.costRatio || 0)) / item.quantity,
-        externalExpense: (totalExternalExpense * (item.costRatio || 0)) / item.quantity,
-        costRatio: item.costRatio || 0,
-        isConsignment: isConsignment,
-        consignmentOwnerId: isConsignment ? companyId : null
-      }));
+      // Prepare items for submission with proper expire date handling
+      const itemsWithCosts = validItems.map(item => {
+        // Handle expire date - ensure it's properly formatted for storage
+        let expireDateValue = null;
+        
+        if (item.expireDate) {
+          try {
+            // If it's a string in YYYY-MM-DD format (from input)
+            if (typeof item.expireDate === 'string' && item.expireDate.includes('-')) {
+              const [year, month, day] = item.expireDate.split('-');
+              if (year && month && day) {
+                // Create date object at noon UTC to avoid timezone issues
+                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+                if (!isNaN(date.getTime())) {
+                  expireDateValue = date;
+                }
+              }
+            }
+            // If it's a string in DD/MM/YYYY format
+            else if (typeof item.expireDate === 'string' && item.expireDate.includes('/')) {
+              const [day, month, year] = item.expireDate.split('/');
+              if (day && month && year) {
+                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+                if (!isNaN(date.getTime())) {
+                  expireDateValue = date;
+                }
+              }
+            }
+            // If it's already a Date object
+            else if (item.expireDate instanceof Date && !isNaN(item.expireDate.getTime())) {
+              expireDateValue = item.expireDate;
+            }
+          } catch (dateError) {
+            console.error("Error parsing expire date:", dateError, item.expireDate);
+          }
+        }
+        
+        // Calculate transport and expense allocations
+        const itemTransportFeeUSD = (totalTransportFeeUSD * (item.costRatio || 0)) / (item.quantity || 1);
+        const itemExternalExpenseUSD = (totalExternalExpenseUSD * (item.costRatio || 0)) / (item.quantity || 1);
+        
+        return {
+          // Basic info
+          barcode: item.barcode,
+          name: item.name,
+          quantity: parseInt(item.quantity) || 1,
+          
+          // Base prices
+          basePriceUSD: parseFloat(item.basePriceUSD) || 0,
+          basePrice: Math.round(item.basePriceIQD) || 0,
+          
+          // Net prices (cost after expenses)
+          netPriceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
+          netPrice: Math.round(item.finalCostPerPieceIQD) || 0,
+          
+          // Output price (selling price) - only outPrice
+          outPriceUSD: parseFloat(item.outPriceUSD) || 0,
+          outPrice: Math.round(item.outPriceIQD) || 0,
+          
+          // Final costs
+          finalCostUSD: parseFloat(item.finalCostUSD) || 0,
+          finalCostIQD: Math.round(item.finalCostIQD) || 0,
+          finalCostPerPieceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
+          finalCostPerPieceIQD: Math.round(item.finalCostPerPieceIQD) || 0,
+          
+          // Expire date - send as Date object for Timestamp conversion
+          expireDate: expireDateValue,
+          
+          // Branch and consignment
+          branch: branch,
+          isConsignment: isConsignment,
+          consignmentOwnerId: isConsignment ? companyId : null,
+          
+          // Additional costs allocation
+          transportFeeUSD: parseFloat(itemTransportFeeUSD) || 0,
+          transportFee: Math.round(usdToIQD(itemTransportFeeUSD)) || 0,
+          externalExpenseUSD: parseFloat(itemExternalExpenseUSD) || 0,
+          externalExpense: Math.round(usdToIQD(itemExternalExpenseUSD)) || 0,
+          costRatio: parseFloat(item.costRatio) || 0
+        };
+      });
+
+      console.log("Submitting items with expire dates:", itemsWithCosts.map(i => ({ 
+        barcode: i.barcode, 
+        expireDate: i.expireDate,
+        basePriceUSD: i.basePriceUSD,
+        outPriceUSD: i.outPriceUSD,
+        quantity: i.quantity
+      })));
 
       const billNumber = isEditing ? editingBill.billNumber : null;
       
       // Include additional bill-level data
       const additionalData = {
-        expensePercentage: expensePercentage,
-        billNote: billNote,
-        totalTransportFee: totalTransportFee,
-        totalExternalExpense: totalExternalExpense,
-        // Include bill date
-        billDate: billDate
+        exchangeRate: parseFloat(exchangeRate) || 1500,
+        expensePercentage: parseFloat(expensePercentage) || 7,
+        billNote: billNote || "",
+        totalTransportFeeUSD: parseFloat(totalTransportFeeUSD) || 0,
+        totalTransportFee: Math.round(usdToIQD(totalTransportFeeUSD)) || 0,
+        totalExternalExpenseUSD: parseFloat(totalExternalExpenseUSD) || 0,
+        totalExternalExpense: Math.round(usdToIQD(totalExternalExpenseUSD)) || 0,
+        billDate: billDate,
+        currency: "USD"
       };
       
-      // Call createBoughtBill with proper parameters including additionalData
-      // This function handles store synchronization internally
+      // Validate that all required fields are present
+      const missingFields = itemsWithCosts.some(item => {
+        if (!item.barcode) return true;
+        if (!item.name) return true;
+        if (item.quantity <= 0) return true;
+        if (item.basePriceUSD <= 0) return true;
+        return false;
+      });
+      
+      if (missingFields) {
+        setError("All items must have barcode, name, quantity, and base price.");
+        return;
+      }
+      
+      // Call createBoughtBill
+      console.log("Calling createBoughtBill with:", {
+        companyId,
+        itemCount: itemsWithCosts.length,
+        billNumber,
+        paymentStatus,
+        companyBillNumber,
+        isConsignment,
+        additionalData
+      });
+      
       const bill = await createBoughtBill(
         companyId,
         itemsWithCosts,
@@ -508,18 +699,30 @@ export default function BuyingForm({ onBillCreated }) {
       );
 
       if (onBillCreated) onBillCreated(bill);
+      
       alert(`Bill #${bill.billNumber} ${isEditing ? 'updated' : 'created'} successfully!`);
       
-      // Clear editing state and redirect
+      // Clear editing state and reset form
       localStorage.removeItem('editingBill');
+      resetForm();
+      
+      // If editing, redirect to buying list
       if (isEditing) {
         router.push('/buying');
-      } else {
-        resetForm();
       }
     } catch (error) {
-      console.error("Error:", error);
-      setError(error.message || "Failed to create/update bill. Please try again.");
+      console.error("Error in handleSubmit:", error);
+      
+      // Provide more specific error messages
+      if (error.message.includes("expireDate")) {
+        setError("There was an issue with the expire date format. Please check and try again.");
+      } else if (error.message.includes("company")) {
+        setError("Invalid company selection. Please select a valid company.");
+      } else if (error.message.includes("barcode")) {
+        setError("One or more items have invalid barcodes.");
+      } else {
+        setError(error.message || "Failed to create/update bill. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -536,8 +739,9 @@ export default function BuyingForm({ onBillCreated }) {
     setIsConsignment(false);
     setExpensePercentage(7);
     setBillNote("");
-    setTotalTransportFee(0);
-    setTotalExternalExpense(0);
+    setExchangeRate(1500);
+    setTotalTransportFeeUSD(0);
+    setTotalExternalExpenseUSD(0);
     setBillItems([createEmptyItem()]);
     setError(null);
     setSearchQuery("");
@@ -551,49 +755,44 @@ export default function BuyingForm({ onBillCreated }) {
       const itemsWithBaseRatios = calculateBaseRatios(newItems);
       const { items: calculatedItems } = calculateFinalCosts(
         itemsWithBaseRatios, 
-        totalTransportFee, 
-        totalExternalExpense, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
         expensePercentage
       );
       return calculatedItems;
     });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFee, totalExternalExpense, expensePercentage]);
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
 
   const removeItem = useCallback((index) => {
-    if (billItems.length > 1) {
-      setBillItems(prev => {
-        const updatedItems = [...prev];
-        updatedItems.splice(index, 1);
-        const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
-        const { items: calculatedItems } = calculateFinalCosts(
-          itemsWithBaseRatios, 
-          totalTransportFee, 
-          totalExternalExpense, 
-          expensePercentage
-        );
-        return calculatedItems;
-      });
-    }
-  }, [billItems.length, calculateBaseRatios, calculateFinalCosts, totalTransportFee, totalExternalExpense, expensePercentage]);
+    setBillItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems.splice(index, 1);
+      
+      // If all items are removed, add one empty item
+      if (updatedItems.length === 0) {
+        return [createEmptyItem()];
+      }
+      
+      const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
+      const { items: calculatedItems } = calculateFinalCosts(
+        itemsWithBaseRatios, 
+        totalTransportFeeUSD, 
+        totalExternalExpenseUSD, 
+        expensePercentage
+      );
+      return calculatedItems;
+    });
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
 
-  // Company selection handler
-  const handleCompanySelect = useCallback((company) => {
-    setCompanyId(company.id);
-    setCompanySearch(company.name);
-    setCompanyCode(company.code);
-    setShowCompanySuggestions(false);
-    setError(null);
-  }, []);
-
-  // Handle bill-level cost changes with formatting
+  // Handle bill-level cost changes
   const handleTransportFeeChange = (value) => {
-    const numericValue = parseFormattedNumber(value);
-    setTotalTransportFee(numericValue);
+    const numericValue = value === '' ? 0 : parseFloat(value);
+    setTotalTransportFeeUSD(isNaN(numericValue) ? 0 : numericValue);
   };
 
   const handleExternalExpenseChange = (value) => {
-    const numericValue = parseFormattedNumber(value);
-    setTotalExternalExpense(numericValue);
+    const numericValue = value === '' ? 0 : parseFloat(value);
+    setTotalExternalExpenseUSD(isNaN(numericValue) ? 0 : numericValue);
   };
 
   // Handle expense percentage change
@@ -602,29 +801,37 @@ export default function BuyingForm({ onBillCreated }) {
     setExpensePercentage(numericValue);
   };
 
-  // Fetch companies for suggestions
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      if (companySearch.length > 0) {
-        try {
-          const companies = await getCompanies();
-          const results = companies.filter(company =>
-            company.name.toLowerCase().includes(companySearch.toLowerCase())
-          );
-          setCompanySuggestions(results);
-          setShowCompanySuggestions(results.length > 0);
-        } catch (error) {
-          console.error("Error fetching companies:", error);
-        }
-      } else {
-        setCompanySuggestions([]);
-        setShowCompanySuggestions(false);
-      }
-    };
-    
-    const timer = setTimeout(fetchCompanies, 300);
-    return () => clearTimeout(timer);
-  }, [companySearch]);
+  // Handle exchange rate change
+  const handleExchangeRateChange = (value) => {
+    const numericValue = parseFloat(value) || 0;
+    if (numericValue > 0) {
+      setExchangeRate(numericValue);
+      
+      // Recalculate all IQD values based on new exchange rate
+      setBillItems(prev => {
+        const updatedItems = prev.map(item => ({
+          ...item,
+          basePriceIQD: usdToIQD(item.basePriceUSD || 0),
+          finalCostIQD: usdToIQD(item.finalCostUSD || 0),
+          finalCostPerPieceIQD: usdToIQD(item.finalCostPerPieceUSD || 0),
+          outPriceIQD: usdToIQD(item.outPriceUSD || 0)
+        }));
+        
+        const { items: calculatedItems } = calculateFinalCosts(
+          updatedItems, 
+          totalTransportFeeUSD, 
+          totalExternalExpenseUSD, 
+          expensePercentage
+        );
+        return calculatedItems;
+      });
+    }
+  };
+
+  // Toggle display currency
+  const toggleDisplayCurrency = () => {
+    setDisplayCurrency(prev => prev === "USD" ? "IQD" : "USD");
+  };
 
   // Fetch items for suggestions
   useEffect(() => {
@@ -648,23 +855,184 @@ export default function BuyingForm({ onBillCreated }) {
   }, [searchQuery]);
 
   // Calculate totals for display
-  const totalBaseCost = billItems.reduce((sum, item) => sum + (item.basePrice * item.quantity), 0);
-  const totalPharmacyPrice = billItems.reduce((sum, item) => sum + (item.pharmacyPrice * item.quantity), 0);
-  const totalStorePrice = billItems.reduce((sum, item) => sum + (item.storePrice * item.quantity), 0);
-  const totalOtherPrice = billItems.reduce((sum, item) => sum + (item.otherPrice * item.quantity), 0);
-  const totalFinalCost = billItems.reduce((sum, item) => sum + (item.finalCost || 0), 0);
+  const totalBaseCostUSD = billItems.reduce((sum, item) => sum + ((item.basePriceUSD || 0) * item.quantity), 0);
+  const totalBaseCostIQD = usdToIQD(totalBaseCostUSD);
+  const totalOutPriceUSD = billItems.reduce((sum, item) => sum + ((item.outPriceUSD || 0) * item.quantity), 0);
+  const totalFinalCostUSD = billItems.reduce((sum, item) => sum + (item.finalCostUSD || 0), 0);
   const totalRatios = billItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
+
+  // Count valid items
+  const validItemsCount = billItems.filter(item => item.barcode || item.name).length;
 
   return (
     <div className="min-h-screen bg-gray-50 py-6">
+      <style jsx>{`
+        .form-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+        .form-group {
+          flex: 1;
+          min-width: 180px;
+        }
+        .form-group label {
+          display: block;
+          font-size: 13px;
+          font-weight: 500;
+          color: #4a5568;
+          margin-bottom: 4px;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+          width: 91%;
+          padding: 8px 12px;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          font-size: 14px;
+          transition: border-color 0.2s;
+        }
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+          outline: none;
+          border-color: #4299e1;
+          box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+        .section-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #2d3748;
+          margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .company-section {
+          background-color: #f8fafc;
+          padding: 16px;
+          border-radius: 8px;
+          margin-bottom: 24px;
+        }
+        .expenses-section {
+          background-color: #ebf8ff;
+          padding: 16px;
+          border-radius: 8px;
+          margin-bottom: 24px;
+        }
+        .currency-section {
+          background-color: #f0fff4;
+          padding: 16px;
+          border-radius: 8px;
+          margin-bottom: 24px;
+          border: 1px solid #c6f6d5;
+        }
+        .total-base {
+          background-color: #f3e8ff;
+          padding: 12px 16px;
+          border-radius: 6px;
+          color: #6b46c1;
+          font-weight: 600;
+          display: inline-block;
+          margin-bottom: 24px;
+        }
+        .checkbox-group {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .checkbox-group input[type="checkbox"] {
+          width: auto;
+          margin-right: 4px;
+        }
+        .checkbox-group label {
+          margin-bottom: 0;
+          font-weight: normal;
+        }
+        .input-with-suffix {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .input-with-suffix input {
+          flex: 1;
+        }
+        .input-with-suffix span {
+          color: #718096;
+          font-size: 14px;
+        }
+        .suggestions-dropdown {
+          position: absolute;
+          z-index: 10;
+          margin-top: 4px;
+          width: 100%;
+          background-color: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 6px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+          max-height: 240px;
+          overflow-y: auto;
+        }
+        .suggestion-item {
+          padding: 8px 12px;
+          cursor: pointer;
+          border-bottom: 1px solid #edf2f7;
+        }
+        .suggestion-item:last-child {
+          border-bottom: none;
+        }
+        .suggestion-item:hover {
+          background-color: #f7fafc;
+        }
+        .suggestion-name {
+          font-weight: 500;
+          color: #2d3748;
+        }
+        .suggestion-details {
+          font-size: 12px;
+          color: #718096;
+          margin-top: 2px;
+        }
+        .delete-btn {
+          color: #e53e3e;
+          padding: 4px;
+          border-radius: 4px;
+          transition: all 0.2s;
+        }
+        .delete-btn:hover {
+          background-color: #fff5f5;
+          color: #c53030;
+        }
+        .currency-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 8px;
+          background-color: white;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .currency-toggle:hover {
+          background-color: #f7fafc;
+        }
+        .highlight-match {
+          background-color: #fef3c7;
+          font-weight: 500;
+        }
+      `}</style>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">
-                {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
+                {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill (USD Base)"}
               </h1>
+              <p className="text-sm text-gray-600 mt-1">Bill numbers start from 660001</p>
             </div>
             {isEditing && (
               <button
@@ -687,92 +1055,67 @@ export default function BuyingForm({ onBillCreated }) {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit}>
             {/* Company Information */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Company Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Row 1 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Code</label>
-                  <input
-                    ref={companyCodeRef}
-                    type="text"
-                    className="clean-input"
-                    value={companyCode}
-                    onChange={(e) => setCompanyCode(e.target.value)}
-                    onKeyPress={handleCompanyCodeKeyPress}
-                    placeholder="Enter company code and press Enter"
-                  />
-                </div>
-
-                <div className="relative">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
-                  <input
-                    type="text"
-                    className="clean-input"
-                    value={companySearch}
-                    onChange={(e) => setCompanySearch(e.target.value)}
-                    placeholder="Search company by name"
-                    required
-                  />
+            <div className="company-section">
+              <h2 className="section-title">Company Information</h2>
+              
+              <div className="form-row">
+                <div className="form-group" style={{ flex: 2, position: 'relative' }}>
+                  <label>Company Search (Code or Name)</label>
+                  <div style={{ position: 'relative' }}>
+                    <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a0aec0' }} />
+                    <input
+                      ref={companySearchRef}
+                      type="text"
+                      style={{ paddingLeft: '36px'}}
+                      value={companySearch}
+                      onChange={(e) => setCompanySearch(e.target.value)}
+                      placeholder="Search company by code or name..."
+                      required
+                    />
+                  </div>
                   {showCompanySuggestions && companySuggestions.length > 0 && (
-                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                    <div className="suggestions-dropdown">
                       {companySuggestions.map((company) => (
                         <div
                           key={company.id}
-                          className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                          className="suggestion-item"
                           onClick={() => handleCompanySelect(company)}
                         >
-                          <div className="font-medium">{company.name}</div>
-                          <div className="text-sm text-gray-500">Code: {company.code}</div>
+                          <div className="suggestion-name">{company.name}</div>
+                          <div className="suggestion-details">
+                            Code: {company.code}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Row 2 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Bill Date</label>
+                <div className="form-group">
+                  <label>Bill Date</label>
                   <input
                     type="date"
-                    className="clean-input"
                     value={billDate}
                     onChange={(e) => setBillDate(e.target.value)}
                     required
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Company Bill Number</label>
+                <div className="form-group">
+                  <label>Company Bill Number</label>
                   <input
                     type="text"
-                    className="clean-input"
                     value={companyBillNumber}
                     onChange={(e) => setCompanyBillNumber(e.target.value)}
-                    placeholder="Optional"
+                    placeholder="Enter company bill #"
                   />
                 </div>
 
-                {/* Row 3 */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                <div className="form-group">
+                  <label>Payment Method</label>
                   <select
-                    className="clean-input"
-                    value={branch}
-                    onChange={(e) => setBranch(e.target.value)}
-                    required
-                  >
-                    <option value="Slemany">Slemany</option>
-                    <option value="Erbil">Erbil</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
-                  <select
-                    className="clean-input"
                     value={paymentStatus}
                     onChange={(e) => setPaymentStatus(e.target.value)}
                     required
@@ -784,90 +1127,150 @@ export default function BuyingForm({ onBillCreated }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                
-
-                
+              <div className="form-row" style={{ marginTop: '8px' }}>
+                <div className="form-group">
+                  <label>Branch</label>
+                  <select
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    required
+                  >
+                    <option value="Slemany">Slemany</option>
+                    <option value="Erbil">Erbil</option>
+                  </select>
+                </div>
               </div>
-
-              
             </div>
 
-            {/* Bill-level Costs */}
-            
+            {/* Currency Section */}
+            <div className="currency-section">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-title" style={{ borderBottomColor: '#9ae6b4', marginBottom: 0 }}>Currency Settings</h2>
+                <button
+                  type="button"
+                  onClick={toggleDisplayCurrency}
+                  className="currency-toggle"
+                >
+                  <FiRefreshCw className="h-3 w-3" />
+                  Show in {displayCurrency === "USD" ? "IQD" : "USD"}
+                </button>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group" style={{ maxWidth: '300px' }}>
+                  <label>Exchange Rate (1 USD = ? IQD)</label>
+                  <div className="input-with-suffix">
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={exchangeRate}
+                      onChange={(e) => handleExchangeRateChange(e.target.value)}
+                      placeholder="1500"
+                      required
+                    />
+                    <span>IQD</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">All prices are entered in USD and converted to IQD</p>
+                </div>
+                
+                <div className="form-group" style={{ maxWidth: '200px' }}>
+                  <label>Base Currency</label>
+                  <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md text-sm">
+                    <FiDollarSign className="mr-1 text-green-600" />
+                    <span className="font-medium">USD</span>
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {/* Items Search */}
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Add Items</h2>
-              <div className="relative">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search Items</label>
-                <div className="relative">
-                  <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <div style={{ marginBottom: '24px' }}>
+              <h2 className="section-title">Add Items</h2>
+              <div className="form-group" style={{ maxWidth: '500px', position: 'relative' }}>
+                <label>Search Items</label>
+                <div style={{ position: 'relative' }}>
+                  <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a0aec0' }} />
                   <input
                     ref={searchInputRef}
                     type="text"
-                    className="clean-input pl-10"
+                    style={{ paddingLeft: '36px' }}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by barcode or name to add items..."
+                    placeholder="Search by barcode or name..."
                   />
                 </div>
                 
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
-                    {suggestions.map((item) => (
-                      <div
-                        key={item.id}
-                        className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                        onClick={() => handleItemSelect(item)}
-                      >
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-sm text-gray-500">
-                          Barcode: {item.barcode} | Price: {formatNumber(item.outPrice || item.netPrice)} IQD
-                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${item.expireDate}`}
+                  <div className="suggestions-dropdown">
+                    {suggestions.map((item) => {
+                      const searchLower = searchQuery.toLowerCase();
+                      const nameLower = item.name.toLowerCase();
+                      const nameParts = item.name.split(' ');
+                      
+                      return (
+                        <div
+                          key={item.id}
+                          className="suggestion-item"
+                          onClick={() => handleItemSelect(item)}
+                        >
+                          <div className="suggestion-name">
+                            {item.name.split(' ').map((word, idx) => {
+                              const wordLower = word.toLowerCase();
+                              const shouldHighlight = wordLower.includes(searchLower) || 
+                                                     searchLower.split(' ').some(term => wordLower.includes(term));
+                              return (
+                                <span key={idx} className={shouldHighlight ? 'highlight-match' : ''}>
+                                  {word}{idx < nameParts.length - 1 ? ' ' : ''}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          <div className="suggestion-details">
+                            Barcode: {item.barcode} | 
+                            {displayCurrency === "USD" ? (
+                              <> Price: ${formatNumber(item.outPriceUSD || iqdToUSD(item.outPrice || 0))}</>
+                            ) : (
+                              <> Price: {formatNumber(item.outPrice || 0)} IQD</>
+                            )}
+                            {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${formatDateForDisplay(item.expireDate)}`}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Items Table */}
-            <div>
+            {/* Items Table - Simplified with only Out Price */}
+            <div style={{ marginBottom: '24px' }}>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">Bill Items ({billItems.filter(item => item.barcode || item.name).length})</h2>
-                {/* <button
+                <h2 className="section-title" style={{ marginBottom: 0 }}>Bill Items ({validItemsCount})</h2>
+                <button
                   type="button"
                   onClick={addItem}
-                  className="clean-btn clean-btn-secondary flex items-center"
+                  className="clean-btn clean-btn-secondary flex items-center text-sm"
                 >
-                  <FiPlus className="mr-2 h-4 w-4" />
-                  Add Empty Item
-                </button> */}
+                  <FiPlus className="mr-1 h-3 w-3" />
+                  Add Empty Row
+                </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="clean-table">
                   <thead>
                     <tr>
-                      <th className="w-48">Barcode</th>
-                      <th className="w-64">Item Name</th>
-                      <th className="w-20 text-center">Qty</th>
+                      <th className="w-32">Barcode</th>
+                      <th className="w-48">Item Name</th>
+                      <th className="w-16 text-center">Qty</th>
                       <th className="w-24 text-right">Base Price</th>
-                      <th className="w-24 text-right">Sub Total Base Price</th>
-                      <th className="w-24 text-right">
-                        <div className="flex items-center justify-end">
-                        
-                          Cost Ratio %
-                        </div>
-                      </th>
-                      <th className="w-24 text-right">Final Cost</th>
-                      <th className="w-28 text-right">Pharmacy Price</th>
-                      <th className="w-28 text-right">Store Price</th>
-                      <th className="w-28 text-right">Other Price</th>
-                      <th className="w-24 text-center">Expire Date</th>
-                      <th className="w-20 text-center">Actions</th>
+                      <th className="w-24 text-right">Sub Total</th>
+                      <th className="w-20 text-center">Cost Ratio %</th>
+                      <th className="w-24 text-right">Cost/Piece</th>
+                      <th className="w-24 text-right">Out Price</th>
+                      <th className="w-28 text-center">Expire Date</th>
+                      <th className="w-16 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -876,102 +1279,98 @@ export default function BuyingForm({ onBillCreated }) {
                         <td>
                           <input
                             className="clean-input text-sm"
-                            value={item.barcode}
+                            value={item.barcode || ''}
                             onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
-                            required
+                            required={item.name ? true : false}
                           />
                         </td>
                         <td>
                           <input
                             className="clean-input text-sm"
-                            value={item.name}
+                            value={item.name || ''}
                             onChange={(e) => handleItemChange(index, "name", e.target.value)}
-                            required
+                            required={item.barcode ? true : false}
                           />
                         </td>
                         <td>
                           <input
                             type="number"
                             min="1"
+                            step="1"
                             className="clean-input text-sm text-center"
-                            value={item.quantity}
+                            value={item.quantity || 1}
                             onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                            required
+                            required={item.barcode ? true : false}
                           />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="clean-input text-sm text-center"
-                            value={formatNumber(item.basePrice)}
-                            onChange={(e) => handleItemChange(index, "basePrice", e.target.value)}
-                            required
-                          />
-                        </td>
-                        <td className="text-center text-sm font-medium">
-                          {formatNumber(item.basePrice * item.quantity)}
                         </td>
                         <td>
                           <input
                             type="number"
+                            step="0.01"
                             min="0"
-                            max="1"
-                            step="0.001"
-                            className={`clean-input text-sm text-center ${Math.abs(totalRatios - 1) > 0.01 ? 'border-red-300' : ''}`}
-                            value={item.costRatio}
-                            onChange={(e) => handleItemChange(index, "costRatio", e.target.value)}
-                            title="What percentage of transport/expense costs should this item bear?"
+                            className="clean-input text-sm text-right"
+                            value={displayCurrency === "USD" ? (item.basePriceUSD || '') : (item.basePriceIQD || '')}
+                            onChange={(e) => handleItemChange(index, "basePriceUSD", e.target.value)}
+                            required={item.barcode ? true : false}
+                            placeholder="0.00"
                           />
                         </td>
-                        <td className="text-center text-sm font-medium text-green-600">
-                          {formatNumber(item.finalCostPerPiece || 0)}
+                        <td className="text-right text-sm font-medium">
+                          {displayCurrency === "USD" 
+                            ? `$${formatNumber((item.basePriceUSD || 0) * (item.quantity || 1))}`
+                            : `${formatNumber((item.basePriceIQD || 0) * (item.quantity || 1))} IQD`}
+                        </td>
+                        <td>
+                          <div className="input-with-suffix">
+                            <input
+                              type="number"
+                              min="0"
+                              max="1"
+                              step="0.001"
+                              className={`clean-input text-sm text-center ${Math.abs(totalRatios - 1) > 0.01 ? 'border-red-300' : ''}`}
+                              value={item.costRatio || 0}
+                              onChange={(e) => handleItemChange(index, "costRatio", e.target.value)}
+                            />
+                            <span>%</span>
+                          </div>
+                        </td>
+                        <td className="text-right text-sm font-medium text-green-600">
+                          {displayCurrency === "USD" 
+                            ? `$${formatNumber(item.finalCostPerPieceUSD || 0)}`
+                            : `${formatNumber(item.finalCostPerPieceIQD || 0)} IQD`}
                         </td>
                         <td>
                           <input
-                            type="text"
-                            className="clean-input text-sm text-center"
-                            value={formatNumber(item.pharmacyPrice)}
-                            onChange={(e) => handleItemChange(index, "pharmacyPrice", e.target.value)}
-                            required
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="clean-input text-sm text-center"
-                            value={formatNumber(item.storePrice)}
-                            onChange={(e) => handleItemChange(index, "storePrice", e.target.value)}
-                            required
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="clean-input text-sm text-center"
-                            value={formatNumber(item.otherPrice)}
-                            onChange={(e) => handleItemChange(index, "otherPrice", e.target.value)}
-                            required
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="clean-input text-sm text-right"
+                            value={displayCurrency === "USD" ? (item.outPriceUSD || '') : (item.outPriceIQD || '')}
+                            onChange={(e) => handleItemChange(index, "outPriceUSD", e.target.value)}
+                            required={item.barcode ? true : false}
+                            placeholder="0.00"
                           />
                         </td>
                         <td>
                           <input
                             type="date"
                             className="clean-input text-sm"
-                            value={item.expireDate}
+                            value={item.expireDate || ''}
                             onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
                           />
+                          <div className="text-xs text-gray-500 mt-1">
+                            {item.expireDate && formatInputToDDMMYYYY(item.expireDate)}
+                          </div>
                         </td>
                         <td className="text-center">
-                          {/* Hide delete icon when only one non-empty item remains */}
-                          {billItems.filter(item => item.barcode || item.name).length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeItem(index)}
-                              className="text-red-600 hover:text-red-800 p-1"
-                            >
-                              <FiTrash2 className="h-4 w-4" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => removeItem(index)}
+                            className="delete-btn"
+                            title="Delete item"
+                          >
+                            <FiTrash2 className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -980,50 +1379,66 @@ export default function BuyingForm({ onBillCreated }) {
               </div>
             </div>
 
-            {/* Pricing Summary */}
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div>
-                  <div className="text-gray-600">Total Base IQD</div>
-                  <div className="font-semibold text-purple-600">{formatNumber(totalBaseCost)} IQD</div>
-                </div>
-               
-              </div>
+            {/* Total Base Price */}
+            <div className="total-base">
+              Total Base: {displayCurrency === "USD" 
+                ? `$${formatNumber(totalBaseCostUSD)} (${formatNumber(totalBaseCostIQD)} IQD)`
+                : `${formatNumber(totalBaseCostIQD)} IQD ($${formatNumber(totalBaseCostUSD)})`}
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <FiTruck className="mr-2 text-blue-600" />
-                خەرجی مادەکە
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                <input
-                    type="text"
-                    className="clean-input text-left "
-                    style={{width: '200px',}}
-                    value={formatNumber(totalTransportFee)}
+            {/* Expenses Section */}
+            <div className="expenses-section">
+              <h2 className="section-title" style={{ borderBottomColor: '#90cdf4' }}>Additional Costs (USD)</h2>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Transport Fee ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={totalTransportFeeUSD}
                     onChange={(e) => handleTransportFeeChange(e.target.value)}
-                    placeholder="0"
+                    placeholder="0.00"
                   />
-                  <label className="block text-sm font-medium text-gray-700 mb-1"> :خەرجی گواستنەوە </label>
-                
+                  <span className="text-xs text-gray-500">
+                    IQD: {formatNumber(usdToIQD(totalTransportFeeUSD))}
+                  </span>
                 </div>
-                <div>
-                <input
-                    type="text"
-                    className="clean-input text-left"
-                    style={{width: '200px',}}
-                    value={formatNumber(totalExternalExpense)}
+
+                <div className="form-group">
+                  <label>Other Expense ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={totalExternalExpenseUSD}
                     onChange={(e) => handleExternalExpenseChange(e.target.value)}
-                    placeholder="0"
+                    placeholder="0.00"
                   />
-                  <label className="block text-sm font-medium text-gray-700 mb-1"> :خەرجی تر</label>
-                  
+                  <span className="text-xs text-gray-500">
+                    IQD: {formatNumber(usdToIQD(totalExternalExpenseUSD))}
+                  </span>
+                </div>
+
+                <div className="form-group">
+                  <label>Monthly Expense %</label>
+                  <div className="input-with-suffix">
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={expensePercentage}
+                      onChange={(e) => handleExpensePercentageChange(e.target.value)}
+                    />
+                    <span>%</span>
+                  </div>
                 </div>
               </div>
-              <div className="mt-3 text-sm text-gray-600">
-                <p>کۆی ئەم خەرجیانە بە پێی نرخی مادەکە دابەش دەکرێتەوە </p>
+
+              <div style={{ marginTop: '8px', marginBottom: '12px', fontSize: '13px', color: '#4a5568' }}>
+                <p>Additional costs are distributed based on item value ratios</p>
                 <p className="flex items-center mt-1">
                   <FiAlertTriangle className="text-yellow-500 mr-1 h-4 w-4" />
                   <span className={Math.abs(totalRatios - 1) > 0.01 ? 'text-red-600 font-medium' : 'text-green-600'}>
@@ -1031,47 +1446,32 @@ export default function BuyingForm({ onBillCreated }) {
                   </span>
                 </p>
               </div>
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Bill Notes</label>
+
+              <div className="form-group" style={{ maxWidth: '100%' }}>
+                <label>Bill Notes</label>
                 <textarea
                   className="clean-input"
-                  rows={3}
+                  rows={2}
                   value={billNote}
                   onChange={(e) => setBillNote(e.target.value)}
                   placeholder="Add any notes for this bill..."
+                  style={{ resize: 'vertical' }}
                 />
               </div>
-              <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-700">Monthly Expense Percentage:</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className="clean-input w-20 text-center"
-                      value={expensePercentage}
-                      onChange={(e) => handleExpensePercentageChange(e.target.value)}
-                    />
-                    <span className="text-gray-500">%</span>
-                  </div>
-                </div>
-              
-              <div className="flex items-center">
-                  <input
-                    id="consignment"
-                    type="checkbox"
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    checked={isConsignment}
-                    onChange={(e) => setIsConsignment(e.target.checked)}
-                  />
-                  <label htmlFor="consignment" className="ml-2 text-sm text-gray-700">
-                    Consignment (تحت صرف)
-                  </label>
-                </div>
-                
-            </div>
 
+              <div className="checkbox-group" style={{ marginTop: '12px' }}>
+                <input
+                  id="consignment"
+                  type="checkbox"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  checked={isConsignment}
+                  onChange={(e) => setIsConsignment(e.target.checked)}
+                />
+                <label htmlFor="consignment" className="text-sm text-gray-700">
+                  Consignment (تحت صرف)
+                </label>
+              </div>
+            </div>
 
             {/* Actions */}
             <div className="flex justify-between items-center pt-4 border-t">
