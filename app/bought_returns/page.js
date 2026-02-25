@@ -48,10 +48,6 @@ export default function BoughtReturnHistory() {
       background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
       padding: "2rem 1rem"
     },
-    // wrapper: {
-    //   maxWidth: "1400px",
-    //   margin: "0 auto"
-    // },
     header: {
       textAlign: "center",
       marginBottom: "2rem"
@@ -201,7 +197,6 @@ export default function BoughtReturnHistory() {
       boxShadow: "0 4px 6px rgba(16, 185, 129, 0.3)"
     },
     modal: {
-      
       position: "fixed",
       top: 0,
       left: 0,
@@ -314,6 +309,41 @@ export default function BoughtReturnHistory() {
     } catch (error) {
       return "N/A";
     }
+  };
+
+  // Helper function to calculate available quantity for an item
+  const calculateAvailableQuantity = (billNumber, barcode, excludeReturnId = null) => {
+    // Find the original bill
+    const originalBill = boughtBills.find(bill => String(bill.billNumber) === String(billNumber));
+    if (!originalBill) {
+      console.log("Original bill not found for bill number:", billNumber);
+      return 0;
+    }
+    
+    // Find the original item
+    const originalItem = originalBill.items?.find(item => String(item.barcode) === String(barcode));
+    if (!originalItem) {
+      console.log("Original item not found for barcode:", barcode);
+      return 0;
+    }
+    
+    const originalPurchasedQuantity = originalItem.quantity || 0;
+    
+    // Calculate total returned quantity for this item (excluding current return if specified)
+    const allReturnsForItem = allReturns.filter(r => 
+      r && 
+      String(r.billNumber) === String(billNumber) && 
+      String(r.barcode) === String(barcode) &&
+      (excludeReturnId ? String(r.id) !== String(excludeReturnId) : true)
+    );
+    
+    const totalReturned = allReturnsForItem.reduce((sum, r) => sum + (r.returnQuantity || 0), 0);
+    
+    // Available quantity = original purchased - total returned
+    const available = originalPurchasedQuantity - totalReturned;
+    console.log(`Bill: ${billNumber}, Barcode: ${barcode}, Original: ${originalPurchasedQuantity}, Returned: ${totalReturned}, Available: ${available}`);
+    
+    return available;
   };
 
   // Fetch all returns
@@ -512,25 +542,34 @@ export default function BoughtReturnHistory() {
     try {
       const existingReturns = await getReturnsForCompany(selectedCompany.id);
       const existingReturnItems = existingReturns.filter(item => 
-        item && item.billNumber === bill.billNumber
+        item && String(item.billNumber) === String(bill.billNumber)
       );
       
       const validReturnItems = bill.items
         .filter(item => item && item.barcode)
-        .map((item) => ({
-          ...item,
-          returnQuantity: 0,
-          returnPriceUSD: item.outPriceUSD || (item.outPrice ? item.outPrice / (bill.exchangeRate || 1500) : 0),
-          availableQuantity: item.quantity || 0,
-          previouslyReturned: existingReturnItems
-            .filter(returnItem => returnItem && returnItem.barcode === item.barcode)
-            .reduce((sum, returnItem) => sum + (returnItem.returnQuantity || 0), 0),
-          netPrice: item.netPrice || 0,
-          outPrice: item.outPrice || 0,
-          isConsignment: item.isConsignment || false,
-          consignmentOwnerId: item.consignmentOwnerId || null,
-          expireDate: item.expireDate ? formatDate(item.expireDate) : 'N/A'
-        }));
+        .map((item) => {
+          // Calculate already returned quantity for this item
+          const previouslyReturned = existingReturnItems
+            .filter(returnItem => returnItem && String(returnItem.barcode) === String(item.barcode))
+            .reduce((sum, returnItem) => sum + (returnItem.returnQuantity || 0), 0);
+          
+          // Calculate available quantity
+          const availableQuantity = (item.quantity || 0) - previouslyReturned;
+          
+          return {
+            ...item,
+            returnQuantity: 0,
+            returnPriceUSD: item.outPriceUSD || (item.outPrice ? item.outPrice / (bill.exchangeRate || 1500) : 0),
+            availableQuantity: availableQuantity, // This is the actual available quantity
+            originalQuantity: item.quantity || 0,
+            previouslyReturned: previouslyReturned,
+            netPrice: item.netPrice || 0,
+            outPrice: item.outPrice || 0,
+            isConsignment: item.isConsignment || false,
+            consignmentOwnerId: item.consignmentOwnerId || null,
+            expireDate: item.expireDate ? formatDate(item.expireDate) : 'N/A'
+          };
+        });
       
       setReturnItems(validReturnItems);
     } catch (error) {
@@ -570,16 +609,7 @@ export default function BoughtReturnHistory() {
       return;
     }
     
-    const returnNumber = returnItem.returnNumber || returnItem.id?.slice(-6);
-    if (!returnNumber) {
-      alert("Invalid return: missing return number");
-      return;
-    }
-    
-    setEditingReturn({
-      ...returnItem,
-      returnNumber: returnNumber
-    });
+    setEditingReturn(returnItem);
     
     setEditItems([{
       ...returnItem,
@@ -612,62 +642,124 @@ export default function BoughtReturnHistory() {
     setEditNote("");
   };
 
-  const handleSubmitEdit = async () => {
-    if (!editingReturn || !editingReturn.returnNumber) {
-      alert("Invalid return item");
+// In your page component (app/bought_returns/page.js)
+// Replace your existing handleSubmitEdit function with this:
+
+const handleSubmitEdit = async () => {
+  if (!editingReturn || !editingReturn.id) {
+    alert("Invalid return item: missing ID");
+    return;
+  }
+  
+  const editedItem = editItems[0];
+  if (!editedItem) {
+    alert("No item data found");
+    return;
+  }
+  
+  if (editedItem.returnQuantity <= 0) {
+    alert("Return quantity must be greater than 0");
+    return;
+  }
+  
+  if (editedItem.returnPriceUSD <= 0) {
+    alert("Return price must be greater than 0");
+    return;
+  }
+
+  try {
+    // Find the original bill to check maximum available quantity
+    const originalBill = boughtBills.find(bill => 
+      bill && String(bill.billNumber) === String(editingReturn.billNumber)
+    );
+    
+    if (!originalBill) {
+      alert("Original bill not found. Cannot validate quantity.");
       return;
     }
+
+    const originalItem = originalBill.items?.find(item => 
+      item && String(item.barcode) === String(editingReturn.barcode)
+    );
     
-    const editedItem = editItems[0];
-    if (!editedItem) return;
-    
-    if (editedItem.returnQuantity <= 0) {
-      alert("Return quantity must be greater than 0");
+    if (!originalItem) {
+      alert("Original item not found in bill. Cannot validate quantity.");
       return;
     }
+
+    // Calculate total returned quantity for this item (excluding current return being edited)
+    const allReturnsForItem = allReturns.filter(r => 
+      r && 
+      String(r.billNumber) === String(editingReturn.billNumber) && 
+      String(r.barcode) === String(editingReturn.barcode) &&
+      String(r.id) !== String(editingReturn.id) // Exclude current return
+    );
     
-    if (editedItem.returnPriceUSD <= 0) {
-      alert("Return price must be greater than 0");
+    const totalPreviouslyReturned = allReturnsForItem.reduce((sum, r) => sum + (r.returnQuantity || 0), 0);
+    const originalPurchasedQuantity = originalItem.quantity || 0;
+    const maxAvailableForReturn = originalPurchasedQuantity - totalPreviouslyReturned;
+    
+    // Validate against max available quantity
+    if (editedItem.returnQuantity > maxAvailableForReturn) {
+      alert(
+        `Cannot return more than ${maxAvailableForReturn}.\n\n` +
+        `Original purchased: ${originalPurchasedQuantity}\n` +
+        `Already returned (excluding this): ${totalPreviouslyReturned}\n` +
+        `Maximum allowed now: ${maxAvailableForReturn}`
+      );
       return;
     }
+
+    // Prepare the updated item data - make sure no undefined values
+    const updatedItem = {
+      id: editingReturn.id,
+      barcode: String(editingReturn.barcode || ""),
+      name: String(editingReturn.name || ""),
+      returnQuantity: Number(editedItem.returnQuantity) || 0,
+      returnPrice: Number(editedItem.returnPriceUSD) || 0,
+      returnNote: String(editNote || ""),
+      billNumber: String(editingReturn.billNumber || ""),
+      quantity: Number(originalItem.quantity) || 0,
+      netPrice: Number(originalItem.netPrice) || 0,
+      outPrice: Number(originalItem.outPrice) || 0,
+      originalPrice: Number(editingReturn.originalPrice) || 0,
+      expireDate: editingReturn.expireDate === 'N/A' ? null : editingReturn.expireDate,
+      isConsignment: Boolean(editingReturn.isConsignment) || false,
+      consignmentOwnerId: editingReturn.consignmentOwnerId || null,
+      companyId: editingReturn.companyId || null,
+      returnDate: editingReturn.returnDate || new Date()
+    };
+
+    console.log("Updating return with ID:", editingReturn.id);
+    console.log("Updated item data:", updatedItem);
+
+    // Call the update function with the return ID
+    const result = await updateBoughtReturnItems(editingReturn.id, [updatedItem]);
+    console.log("Update result:", result);
     
-    try {
-      const returnBillNumber = editingReturn.returnNumber;
-      
-      const updatedItem = {
-        barcode: editingReturn.barcode,
-        name: editingReturn.name,
-        returnQuantity: editedItem.returnQuantity,
-        returnPrice: editedItem.returnPriceUSD,
-        returnNote: editNote,
-        billNumber: editingReturn.billNumber,
-        quantity: editingReturn.quantity || 0,
-        netPrice: editingReturn.netPrice || 0,
-        outPrice: editingReturn.outPrice || 0,
-        originalPrice: editingReturn.originalPrice || 0,
-        expireDate: editingReturn.expireDate === 'N/A' ? null : editingReturn.expireDate,
-        isConsignment: editingReturn.isConsignment || false,
-        consignmentOwnerId: editingReturn.consignmentOwnerId || null,
-      };
-      
-      console.log("Updating return with item:", updatedItem);
-      
-      const result = await updateBoughtReturnItems(returnBillNumber, [updatedItem]);
-      console.log("Update result:", result);
-      
-      alert("Return updated successfully!");
-      
-      setEditingReturn(null);
-      setEditItems([]);
-      setEditNote("");
-      
-      await fetchAllReturns();
-      
-    } catch (error) {
-      console.error("Error updating return:", error);
-      alert(`Failed to update return: ${error.message}`);
+    alert("Return updated successfully! Quantity has been adjusted.");
+    
+    // Close edit modal
+    setEditingReturn(null);
+    setEditItems([]);
+    setEditNote("");
+    
+    // Refresh the returns list
+    await fetchAllReturns();
+    
+  } catch (error) {
+    console.error("Error updating return:", error);
+    
+    // More detailed error message
+    let errorMessage = "Failed to update return";
+    if (error.message) {
+      errorMessage += `: ${error.message}`;
     }
-  };
+    
+    alert(errorMessage);
+  }
+};
+
   const calculateItemTotal = (item) => {
     return (item.returnPriceUSD || 0) * (item.returnQuantity || 0);
   };
@@ -690,12 +782,12 @@ export default function BoughtReturnHistory() {
       return;
     }
     
-    const invalidItems = itemsToReturn.filter(item =>
-      item.returnQuantity > (item.availableQuantity || 0)
-    );
-    if (invalidItems.length > 0) {
-      alert(`You cannot return more than the purchased quantity for: ${invalidItems.map(item => item.name).join(", ")}`);
-      return;
+    // Validate each item against available quantity
+    for (const item of itemsToReturn) {
+      if (item.returnQuantity > item.availableQuantity) {
+        alert(`Cannot return more than ${item.availableQuantity} of ${item.name}. Only ${item.availableQuantity} remain in this bill.`);
+        return;
+      }
     }
     
     try {
@@ -715,7 +807,7 @@ export default function BoughtReturnHistory() {
           barcode: String(item.barcode),
           name: String(item.name),
           billNumber: selectedBill?.billNumber ? String(selectedBill.billNumber) : "",
-          quantity: Number(item.availableQuantity) || 0,
+          quantity: Number(item.originalQuantity) || 0,
           returnQuantity: returnQuantity,
           returnPrice: returnPrice,
           returnNote: returnNote,
@@ -773,7 +865,7 @@ export default function BoughtReturnHistory() {
       
       let matchesBillNumber = true;
       if (filters.billNumber && returnItem.billNumber) {
-        matchesBillNumber = returnItem.billNumber.toString().includes(filters.billNumber);
+        matchesBillNumber = String(returnItem.billNumber).includes(filters.billNumber);
       }
       
       let matchesItemName = true;
@@ -783,7 +875,7 @@ export default function BoughtReturnHistory() {
       
       let matchesBarcode = true;
       if (filters.barcode && returnItem.barcode) {
-        matchesBarcode = returnItem.barcode.toLowerCase().includes(filters.barcode.toLowerCase());
+        matchesBarcode = String(returnItem.barcode).toLowerCase().includes(filters.barcode.toLowerCase());
       }
       
       let matchesPaymentStatus = true;
@@ -809,7 +901,7 @@ export default function BoughtReturnHistory() {
     
     let matchesBillNumber = true;
     if (filters.billNumber && bill.billNumber) {
-      matchesBillNumber = bill.billNumber.toString().includes(filters.billNumber);
+      matchesBillNumber = String(bill.billNumber).includes(filters.billNumber);
     }
     
     let matchesItemName = true;
@@ -822,7 +914,7 @@ export default function BoughtReturnHistory() {
     let matchesBarcode = true;
     if (filters.barcode && bill.items) {
       matchesBarcode = bill.items.some(item =>
-        item && item.barcode && item.barcode.toLowerCase().includes(filters.barcode.toLowerCase())
+        item && item.barcode && String(item.barcode).toLowerCase().includes(filters.barcode.toLowerCase())
       );
     }
     
@@ -1036,7 +1128,7 @@ export default function BoughtReturnHistory() {
                       <th style={styles.th}>Return Price</th>
                       <th style={styles.th}>Total</th>
                       <th style={styles.th}>Expire Date</th>
-                      <th style={styles.th}>Note</th>
+                      <th style={styles.th}>Note (max-width: 200px)</th>
                       <th style={styles.th}>Status</th>
                       <th style={styles.th}>Actions</th>
                     </tr>
@@ -1086,9 +1178,9 @@ export default function BoughtReturnHistory() {
                               ${formatCurrency(itemTotal)}
                             </td>
                             <td style={styles.td}>{returnItem.expireDate || 'N/A'}</td>
-                            <td style={{...styles.td, maxWidth: "150px"}}>
+                            <td style={{...styles.td, maxWidth: "200px", wordWrap: "break-word", whiteSpace: "normal"}}>
                               <span style={{ color: "#6b7280" }} title={returnItem.returnNote}>
-                                {returnItem.returnNote ? returnItem.returnNote.substring(0, 20) + (returnItem.returnNote.length > 20 ? '...' : '') : '-'}
+                                {returnItem.returnNote ? returnItem.returnNote.substring(0, 50) + (returnItem.returnNote.length > 50 ? '...' : '') : '-'}
                               </span>
                             </td>
                             <td style={styles.td}>
@@ -1149,7 +1241,31 @@ export default function BoughtReturnHistory() {
                   </div>
                   
                   <div style={styles.modalBody}>
-                    <p style={{ color: "#6b7280", marginBottom: "1rem" }}>Return #{editingReturn.returnNumber}</p>
+                    <p style={{ color: "#6b7280", marginBottom: "1rem" }}>Return #{editingReturn.returnNumber || editingReturn.id?.slice(-6)}</p>
+                    
+                    {/* Show available quantity info */}
+                    {(() => {
+                      const availableQty = calculateAvailableQuantity(
+                        editingReturn.billNumber, 
+                        editingReturn.barcode, 
+                        editingReturn.id
+                      );
+                      return (
+                        <div style={{ 
+                          background: availableQty > 0 ? "#f3f4f6" : "#fee2e2", 
+                          padding: "0.75rem", 
+                          borderRadius: "8px", 
+                          marginBottom: "1rem",
+                          border: `1px solid ${availableQty > 0 ? "#e5e7eb" : "#fecaca"}`
+                        }}>
+                          <p style={{ fontSize: "0.875rem", color: availableQty > 0 ? "#4b5563" : "#b91c1c" }}>
+                            <strong>Available quantity in bill:</strong> {availableQty} items
+                            {availableQty === 0 && " (No items left to return)"}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
                       <div>
                         <label style={{...styles.label, marginBottom: "0.25rem"}}>Barcode</label>
@@ -1174,6 +1290,11 @@ export default function BoughtReturnHistory() {
                         <input
                           type="number"
                           min="1"
+                          max={calculateAvailableQuantity(
+                            editingReturn.billNumber, 
+                            editingReturn.barcode, 
+                            editingReturn.id
+                          )}
                           value={editItems[0]?.returnQuantity || 0}
                           onChange={(e) => handleEditQuantityChange(e.target.value)}
                           style={styles.input}
@@ -1301,7 +1422,9 @@ export default function BoughtReturnHistory() {
                                             <tr>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Barcode</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Item Name</th>
-                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Bought Qty</th>
+                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Original Qty</th>
+                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Returned</th>
+                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Available</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Return Qty</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Return Price</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Item Total</th>
@@ -1318,6 +1441,16 @@ export default function BoughtReturnHistory() {
                                                 <tr key={index} className="hover-row">
                                                   <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem" }}>{item.barcode || 'N/A'}</td>
                                                   <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem", fontWeight: "500" }}>{item.name || 'N/A'}</td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                                    <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
+                                                      {item.originalQuantity || 0}
+                                                    </span>
+                                                  </td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
+                                                    <span style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
+                                                      {item.previouslyReturned || 0}
+                                                    </span>
+                                                  </td>
                                                   <td style={{ padding: "0.75rem", textAlign: "center" }}>
                                                     <span style={{ background: "#dcfce7", color: "#166534", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
                                                       {item.availableQuantity || 0}
@@ -1357,7 +1490,7 @@ export default function BoughtReturnHistory() {
                                           </tbody>
                                           <tfoot style={{ background: "#dbeafe" }}>
                                             <tr>
-                                              <td colSpan="5" style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600" }}>Grand Total:</td>
+                                              <td colSpan="7" style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600" }}>Grand Total:</td>
                                               <td style={{ padding: "0.75rem", textAlign: "center", fontWeight: "700", color: "#059669" }}>
                                                 ${formatCurrency(calculateGrandTotal())}
                                               </td>
@@ -1404,8 +1537,6 @@ export default function BoughtReturnHistory() {
                 </div>
               </div>
             )}
-
-          
           </div>
         </div>
       </div>
