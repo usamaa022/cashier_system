@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getCompanies, searchInitializedItems, createBoughtBill } from "@/lib/data";
+import { getCompanies, searchInitializedItems, createBoughtBill, updateBoughtBill } from "@/lib/data";
 import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
 import { FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, FiShoppingBag, FiPackage, FiUser, FiCalendar, FiHome, FiCreditCard, FiTruck, FiAlertTriangle, FiX, FiRefreshCw } from "react-icons/fi";
@@ -135,11 +135,11 @@ export default function BuyingForm({ onBillCreated }) {
   const [billNote, setBillNote] = useState("");
   const [billItems, setBillItems] = useState([]);
   
-  // Currency states
+  // Currency states - USD is base, IQD only for display
   const [exchangeRate, setExchangeRate] = useState(1500);
   const [displayCurrency, setDisplayCurrency] = useState("USD");
   
-  // Bill-level costs
+  // Bill-level costs (always in USD)
   const [totalTransportFeeUSD, setTotalTransportFeeUSD] = useState(0);
   const [totalExternalExpenseUSD, setTotalExternalExpenseUSD] = useState(0);
 
@@ -160,10 +160,22 @@ export default function BuyingForm({ onBillCreated }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Create empty item with USD only
+  const createEmptyItem = () => ({
+    barcode: "",
+    name: "",
+    quantity: 1,
+    basePriceUSD: 0,  // Only USD
+    costRatio: 0,
+    finalCostPerPieceUSD: 0,
+    outPriceUSD: 0,   // Only USD
+    expireDate: ""
+  });
+
   // Check if we're in edit mode
   useEffect(() => {
     const editParam = searchParams.get('edit');
-    if (editParam) {
+    if (editParam === 'true') {
       const storedBill = localStorage.getItem('editingBill');
       if (storedBill) {
         try {
@@ -206,16 +218,14 @@ export default function BuyingForm({ onBillCreated }) {
       setExchangeRate(billData.exchangeRate);
     }
     
-    // Set bill-level costs
-    setTotalTransportFeeUSD(billData.totalTransportFeeUSD || (billData.totalTransportFee ? billData.totalTransportFee / (billData.exchangeRate || 1500) : 0));
-    setTotalExternalExpenseUSD(billData.totalExternalExpenseUSD || (billData.totalExternalExpense ? billData.totalExternalExpense / (billData.exchangeRate || 1500) : 0));
+    // Set bill-level costs (all in USD)
+    setTotalTransportFeeUSD(billData.totalTransportFeeUSD || 0);
+    setTotalExternalExpenseUSD(billData.totalExternalExpenseUSD || 0);
     
-    // Initialize items with correct dates
+    // Initialize items with USD prices only
     if (billData.items && billData.items.length > 0) {
       const initializedItems = billData.items.map(item => {
-        const basePriceUSD = item.basePriceUSD || (item.basePrice ? item.basePrice / (billData.exchangeRate || 1500) : 0);
-        
-        // Handle expireDate - convert from DD/MM/YYYY to YYYY-MM-DD for input
+        // Handle expireDate
         let expireDate = "";
         if (item.expireDate && item.expireDate !== 'N/A') {
           if (typeof item.expireDate === 'string') {
@@ -237,49 +247,22 @@ export default function BuyingForm({ onBillCreated }) {
           barcode: item.barcode || "",
           name: item.name || "",
           quantity: item.quantity || 1,
-          basePriceUSD: basePriceUSD,
-          basePriceIQD: basePriceUSD * (billData.exchangeRate || 1500),
+          basePriceUSD: item.basePriceUSD || 0,  // Use USD
           costRatio: item.costRatio || 0,
-          finalCostUSD: item.finalCostUSD || 0,
-          finalCostIQD: item.finalCostIQD || 0,
-          finalCostPerPieceUSD: item.finalCostPerPieceUSD || item.netPriceUSD || (item.netPrice ? item.netPrice / (billData.exchangeRate || 1500) : 0),
-          finalCostPerPieceIQD: item.finalCostPerPieceIQD || item.netPrice || 0,
-          outPriceUSD: item.outPriceUSD || item.outPrice / (billData.exchangeRate || 1500) || 0,
-          outPriceIQD: item.outPrice || 0,
+          finalCostPerPieceUSD: item.finalCostPerPieceUSD || item.netPriceUSD || 0,
+          outPriceUSD: item.outPriceUSD || 0,    // Use USD
           expireDate: expireDate
         };
       });
       
-      console.log("Initialized items with expire dates:", initializedItems);
+      console.log("Initialized items:", initializedItems);
       setBillItems(initializedItems);
     }
   };
 
-  // Helper functions
-  const createEmptyItem = () => ({
-    barcode: "",
-    name: "",
-    quantity: 1,
-    basePriceUSD: 0,
-    basePriceIQD: 0,
-    costRatio: 0,
-    finalCostUSD: 0,
-    finalCostIQD: 0,
-    finalCostPerPieceUSD: 0,
-    finalCostPerPieceIQD: 0,
-    outPriceUSD: 0,
-    outPriceIQD: 0,
-    expireDate: ""
-  });
-
-  // Convert USD to IQD
+  // USD to IQD conversion (for display only)
   const usdToIQD = useCallback((usdAmount) => {
     return usdAmount * exchangeRate;
-  }, [exchangeRate]);
-
-  // Convert IQD to USD
-  const iqdToUSD = useCallback((iqdAmount) => {
-    return iqdAmount / exchangeRate;
   }, [exchangeRate]);
 
   // Calculate final costs for all items (in USD)
@@ -295,30 +278,20 @@ export default function BuyingForm({ onBillCreated }) {
       const expenseMultiplier = 1 + (expensePercent / 100);
       const finalCostUSD = (itemBaseCostUSD + allocatedCostUSD) * expenseMultiplier;
       const finalCostPerPieceUSD = item.quantity > 0 ? finalCostUSD / item.quantity : 0;
-      const finalCostPerPieceIQD = usdToIQD(finalCostPerPieceUSD);
-      
-      // Calculate selling price (out price)
-      const outPriceUSD = item.outPriceUSD > 0 ? item.outPriceUSD : finalCostPerPieceUSD * 1.2; // Default 20% markup if not set
-      const outPriceIQD = usdToIQD(outPriceUSD);
 
       return {
         ...item,
-        basePriceIQD: usdToIQD(item.basePriceUSD || 0),
         finalCostUSD: parseFloat(finalCostUSD.toFixed(2)),
-        finalCostIQD: parseFloat(usdToIQD(finalCostUSD).toFixed(0)),
-        finalCostPerPieceUSD: parseFloat(finalCostPerPieceUSD.toFixed(2)),
-        finalCostPerPieceIQD: parseFloat(finalCostPerPieceIQD.toFixed(0)),
-        outPriceUSD: parseFloat(outPriceUSD.toFixed(2)),
-        outPriceIQD: parseFloat(outPriceIQD.toFixed(0))
+        finalCostPerPieceUSD: parseFloat(finalCostPerPieceUSD.toFixed(2))
       };
     });
 
     return {
       items: calculatedItems,
-      hasRatioError: Math.abs(totalRatios - 1) > 0.01,
+      hasRatioError: Math.abs(totalRatios - 1) > 0.01 && totalAdditionalCostsUSD > 0,
       totalRatios
     };
-  }, [usdToIQD]);
+  }, []);
 
   // Calculate base ratios when items change
   const calculateBaseRatios = useCallback((items) => {
@@ -347,7 +320,7 @@ export default function BuyingForm({ onBillCreated }) {
       );
       setBillItems(items);
     }
-  }, [totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, calculateFinalCosts, exchangeRate]);
+  }, [totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, calculateFinalCosts]);
 
   // Auto-calculate base ratios when base prices or quantities change
   useEffect(() => {
@@ -362,7 +335,6 @@ export default function BuyingForm({ onBillCreated }) {
       setBillItems(calculatedItems);
     }
   }, [
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     JSON.stringify(billItems.map(item => `${item.basePriceUSD}-${item.quantity}`)),
     calculateBaseRatios,
     calculateFinalCosts,
@@ -373,15 +345,10 @@ export default function BuyingForm({ onBillCreated }) {
 
   // Cancel editing and go back
   const handleCancel = () => {
-    // Clear all form state
     resetForm();
-    
-    // Clear editing state
     localStorage.removeItem('editingBill');
     setIsEditing(false);
     setEditingBill(null);
-    
-    // Navigate back
     router.push('/buying');
   };
 
@@ -421,10 +388,10 @@ export default function BuyingForm({ onBillCreated }) {
 
   // Item selection from search
   const handleItemSelect = useCallback((item) => {
-    // Convert IQD prices to USD if they exist
-    const basePriceUSD = item.outPriceUSD || (item.outPrice ? iqdToUSD(item.outPrice) : 0);
+    // Get USD price from the item
+    const basePriceUSD = item.outPriceUSD || 0;
     
-    // Handle expire date - convert from DD/MM/YYYY to YYYY-MM-DD for input
+    // Handle expire date
     let expireDate = "";
     if (item.expireDate && item.expireDate !== 'N/A') {
       if (typeof item.expireDate === 'string') {
@@ -441,9 +408,7 @@ export default function BuyingForm({ onBillCreated }) {
       barcode: item.barcode,
       name: item.name,
       basePriceUSD: basePriceUSD,
-      basePriceIQD: usdToIQD(basePriceUSD),
       outPriceUSD: basePriceUSD * 1.2, // Default 20% markup
-      outPriceIQD: usdToIQD(basePriceUSD * 1.2),
       expireDate: expireDate
     };
 
@@ -467,7 +432,7 @@ export default function BuyingForm({ onBillCreated }) {
         searchInputRef.current.focus();
       }
     }, 100);
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, iqdToUSD, usdToIQD]);
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
 
   const handleItemChange = useCallback((index, field, value) => {
     setBillItems(prev => {
@@ -480,31 +445,27 @@ export default function BuyingForm({ onBillCreated }) {
         
         updatedItems[index] = {
           ...updatedItems[index],
-          [field]: usdValue,
-          [`${field.replace('USD', 'IQD')}`]: Math.round(usdToIQD(usdValue))
+          [field]: usdValue
         };
       } else if (field === 'expireDate') {
-        // Handle date field - store as YYYY-MM-DD
         updatedItems[index] = {
           ...updatedItems[index],
           [field]: value
         };
       } else if (field === 'quantity' || field === 'costRatio') {
-        // Handle quantity and cost ratio
         const numValue = value === '' ? 0 : parseFloat(value);
         updatedItems[index] = {
           ...updatedItems[index],
           [field]: isNaN(numValue) ? 0 : numValue
         };
       } else {
-        // Handle other fields (barcode, name)
         updatedItems[index] = {
           ...updatedItems[index],
           [field]: value
         };
       }
       
-      // If base price or quantity changed, recalculate base ratios
+      // Recalculate if base price or quantity changed
       if (field === 'basePriceUSD' || field === 'quantity') {
         const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
         const { items: calculatedItems } = calculateFinalCosts(
@@ -516,7 +477,7 @@ export default function BuyingForm({ onBillCreated }) {
         return calculatedItems;
       }
       
-      // Otherwise just recalculate costs
+      // Recalculate costs
       const { items: calculatedItems } = calculateFinalCosts(
         updatedItems, 
         totalTransportFeeUSD, 
@@ -525,7 +486,7 @@ export default function BuyingForm({ onBillCreated }) {
       );
       return calculatedItems;
     });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, usdToIQD]);
+  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -553,31 +514,27 @@ export default function BuyingForm({ onBillCreated }) {
 
       // Check if ratios cover costs
       const totalRatios = validItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
-      if (Math.abs(totalRatios - 1) > 0.01 && totalTransportFeeUSD + totalExternalExpenseUSD > 0) {
+      if (Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0) {
         setError(`Cost ratios must add up to 100% to cover all transport and expense costs. Current total: ${(totalRatios * 100).toFixed(1)}%`);
         return;
       }
 
-      // Prepare items for submission with proper expire date handling
+      // Prepare items for submission (all prices in USD)
       const itemsWithCosts = validItems.map(item => {
-        // Handle expire date - ensure it's properly formatted for storage
+        // Handle expire date
         let expireDateValue = null;
         
         if (item.expireDate) {
           try {
-            // If it's a string in YYYY-MM-DD format (from input)
             if (typeof item.expireDate === 'string' && item.expireDate.includes('-')) {
               const [year, month, day] = item.expireDate.split('-');
               if (year && month && day) {
-                // Create date object at noon UTC to avoid timezone issues
                 const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
                 if (!isNaN(date.getTime())) {
                   expireDateValue = date;
                 }
               }
-            }
-            // If it's a string in DD/MM/YYYY format
-            else if (typeof item.expireDate === 'string' && item.expireDate.includes('/')) {
+            } else if (typeof item.expireDate === 'string' && item.expireDate.includes('/')) {
               const [day, month, year] = item.expireDate.split('/');
               if (day && month && year) {
                 const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
@@ -585,17 +542,15 @@ export default function BuyingForm({ onBillCreated }) {
                   expireDateValue = date;
                 }
               }
-            }
-            // If it's already a Date object
-            else if (item.expireDate instanceof Date && !isNaN(item.expireDate.getTime())) {
+            } else if (item.expireDate instanceof Date && !isNaN(item.expireDate.getTime())) {
               expireDateValue = item.expireDate;
             }
           } catch (dateError) {
-            console.error("Error parsing expire date:", dateError, item.expireDate);
+            console.error("Error parsing expire date:", dateError);
           }
         }
         
-        // Calculate transport and expense allocations
+        // Calculate transport and expense allocations (in USD)
         const itemTransportFeeUSD = (totalTransportFeeUSD * (item.costRatio || 0)) / (item.quantity || 1);
         const itemExternalExpenseUSD = (totalExternalExpenseUSD * (item.costRatio || 0)) / (item.quantity || 1);
         
@@ -605,25 +560,23 @@ export default function BuyingForm({ onBillCreated }) {
           name: item.name,
           quantity: parseInt(item.quantity) || 1,
           
-          // Base prices
+          // ALL PRICES IN USD - source of truth
           basePriceUSD: parseFloat(item.basePriceUSD) || 0,
-          basePrice: Math.round(item.basePriceIQD) || 0,
-          
-          // Net prices (cost after expenses)
           netPriceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
-          netPrice: Math.round(item.finalCostPerPieceIQD) || 0,
-          
-          // Output price (selling price) - only outPrice
           outPriceUSD: parseFloat(item.outPriceUSD) || 0,
-          outPrice: Math.round(item.outPriceIQD) || 0,
           
-          // Final costs
+          // IQD prices (calculated for display only)
+          basePrice: Math.round((parseFloat(item.basePriceUSD) || 0) * exchangeRate),
+          netPrice: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
+          outPrice: Math.round((parseFloat(item.outPriceUSD) || 0) * exchangeRate),
+          
+          // Final costs in USD
           finalCostUSD: parseFloat(item.finalCostUSD) || 0,
-          finalCostIQD: Math.round(item.finalCostIQD) || 0,
           finalCostPerPieceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
-          finalCostPerPieceIQD: Math.round(item.finalCostPerPieceIQD) || 0,
+          finalCostIQD: Math.round((parseFloat(item.finalCostUSD) || 0) * exchangeRate),
+          finalCostPerPieceIQD: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
           
-          // Expire date - send as Date object for Timestamp conversion
+          // Expire date
           expireDate: expireDateValue,
           
           // Branch and consignment
@@ -631,39 +584,20 @@ export default function BuyingForm({ onBillCreated }) {
           isConsignment: isConsignment,
           consignmentOwnerId: isConsignment ? companyId : null,
           
-          // Additional costs allocation
+          // Additional costs allocation (USD)
           transportFeeUSD: parseFloat(itemTransportFeeUSD) || 0,
-          transportFee: Math.round(usdToIQD(itemTransportFeeUSD)) || 0,
           externalExpenseUSD: parseFloat(itemExternalExpenseUSD) || 0,
-          externalExpense: Math.round(usdToIQD(itemExternalExpenseUSD)) || 0,
           costRatio: parseFloat(item.costRatio) || 0
         };
       });
 
-      console.log("Submitting items with expire dates:", itemsWithCosts.map(i => ({ 
+      console.log("Submitting items:", itemsWithCosts.map(i => ({ 
         barcode: i.barcode, 
-        expireDate: i.expireDate,
         basePriceUSD: i.basePriceUSD,
-        outPriceUSD: i.outPriceUSD,
-        quantity: i.quantity
+        outPriceUSD: i.outPriceUSD
       })));
 
-      const billNumber = isEditing ? editingBill.billNumber : null;
-      
-      // Include additional bill-level data
-      const additionalData = {
-        exchangeRate: parseFloat(exchangeRate) || 1500,
-        expensePercentage: parseFloat(expensePercentage) || 7,
-        billNote: billNote || "",
-        totalTransportFeeUSD: parseFloat(totalTransportFeeUSD) || 0,
-        totalTransportFee: Math.round(usdToIQD(totalTransportFeeUSD)) || 0,
-        totalExternalExpenseUSD: parseFloat(totalExternalExpenseUSD) || 0,
-        totalExternalExpense: Math.round(usdToIQD(totalExternalExpenseUSD)) || 0,
-        billDate: billDate,
-        currency: "USD"
-      };
-      
-      // Validate that all required fields are present
+      // Validate required fields
       const missingFields = itemsWithCosts.some(item => {
         if (!item.barcode) return true;
         if (!item.name) return true;
@@ -677,52 +611,66 @@ export default function BuyingForm({ onBillCreated }) {
         return;
       }
       
-      // Call createBoughtBill
-      console.log("Calling createBoughtBill with:", {
-        companyId,
-        itemCount: itemsWithCosts.length,
-        billNumber,
-        paymentStatus,
-        companyBillNumber,
-        isConsignment,
-        additionalData
-      });
+      // Prepare additional bill data
+      const additionalData = {
+        exchangeRate: parseFloat(exchangeRate) || 1500,
+        expensePercentage: parseFloat(expensePercentage) || 7,
+        billNote: billNote || "",
+        totalTransportFeeUSD: parseFloat(totalTransportFeeUSD) || 0,
+        totalTransportFee: Math.round(usdToIQD(totalTransportFeeUSD)) || 0,
+        totalExternalExpenseUSD: parseFloat(totalExternalExpenseUSD) || 0,
+        totalExternalExpense: Math.round(usdToIQD(totalExternalExpenseUSD)) || 0,
+        billDate: billDate,
+        currency: "USD"
+      };
       
-      const bill = await createBoughtBill(
-        companyId,
-        itemsWithCosts,
-        billNumber,
-        paymentStatus,
-        companyBillNumber,
-        isConsignment,
-        additionalData
-      );
-
-      if (onBillCreated) onBillCreated(bill);
-      
-      alert(`Bill #${bill.billNumber} ${isEditing ? 'updated' : 'created'} successfully!`);
-      
-      // Clear editing state and reset form
-      localStorage.removeItem('editingBill');
-      resetForm();
-      
-      // If editing, redirect to buying list
       if (isEditing) {
+        // Update existing bill
+        await updateBoughtBill(editingBill.billNumber, {
+          companyId,
+          companyBillNumber,
+          date: billDate,
+          paymentStatus,
+          isConsignment,
+          items: itemsWithCosts,
+          exchangeRate,
+          expensePercentage,
+          billNote,
+          totalTransportFeeUSD,
+          totalExternalExpenseUSD,
+          branch
+        });
+        
+        alert(`Bill #${editingBill.billNumber} updated successfully!`);
+        
+        // Clear editing state
+        localStorage.removeItem('editingBill');
+        
+        // Navigate back
         router.push('/buying');
+        
+      } else {
+        // Create new bill
+        const bill = await createBoughtBill(
+          companyId,
+          itemsWithCosts,
+          null, // null for new bill
+          paymentStatus,
+          companyBillNumber,
+          isConsignment,
+          additionalData
+        );
+        
+        if (onBillCreated) onBillCreated(bill);
+        alert(`Bill #${bill.billNumber} created successfully!`);
+        
+        // Reset form
+        resetForm();
       }
+      
     } catch (error) {
       console.error("Error in handleSubmit:", error);
-      
-      // Provide more specific error messages
-      if (error.message.includes("expireDate")) {
-        setError("There was an issue with the expire date format. Please check and try again.");
-      } else if (error.message.includes("company")) {
-        setError("Invalid company selection. Please select a valid company.");
-      } else if (error.message.includes("barcode")) {
-        setError("One or more items have invalid barcodes.");
-      } else {
-        setError(error.message || "Failed to create/update bill. Please try again.");
-      }
+      setError(error.message || `Failed to ${isEditing ? 'update' : 'create'} bill. Please try again.`);
     } finally {
       setIsLoading(false);
     }
@@ -768,7 +716,6 @@ export default function BuyingForm({ onBillCreated }) {
       const updatedItems = [...prev];
       updatedItems.splice(index, 1);
       
-      // If all items are removed, add one empty item
       if (updatedItems.length === 0) {
         return [createEmptyItem()];
       }
@@ -795,36 +742,15 @@ export default function BuyingForm({ onBillCreated }) {
     setTotalExternalExpenseUSD(isNaN(numericValue) ? 0 : numericValue);
   };
 
-  // Handle expense percentage change
   const handleExpensePercentageChange = (value) => {
     const numericValue = parseFloat(value) || 0;
     setExpensePercentage(numericValue);
   };
 
-  // Handle exchange rate change
   const handleExchangeRateChange = (value) => {
     const numericValue = parseFloat(value) || 0;
     if (numericValue > 0) {
       setExchangeRate(numericValue);
-      
-      // Recalculate all IQD values based on new exchange rate
-      setBillItems(prev => {
-        const updatedItems = prev.map(item => ({
-          ...item,
-          basePriceIQD: usdToIQD(item.basePriceUSD || 0),
-          finalCostIQD: usdToIQD(item.finalCostUSD || 0),
-          finalCostPerPieceIQD: usdToIQD(item.finalCostPerPieceUSD || 0),
-          outPriceIQD: usdToIQD(item.outPriceUSD || 0)
-        }));
-        
-        const { items: calculatedItems } = calculateFinalCosts(
-          updatedItems, 
-          totalTransportFeeUSD, 
-          totalExternalExpenseUSD, 
-          expensePercentage
-        );
-        return calculatedItems;
-      });
     }
   };
 
@@ -854,9 +780,8 @@ export default function BuyingForm({ onBillCreated }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Calculate totals for display
+  // Calculate totals in USD
   const totalBaseCostUSD = billItems.reduce((sum, item) => sum + ((item.basePriceUSD || 0) * item.quantity), 0);
-  const totalBaseCostIQD = usdToIQD(totalBaseCostUSD);
   const totalOutPriceUSD = billItems.reduce((sum, item) => sum + ((item.outPriceUSD || 0) * item.quantity), 0);
   const totalFinalCostUSD = billItems.reduce((sum, item) => sum + (item.finalCostUSD || 0), 0);
   const totalRatios = billItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
@@ -1022,6 +947,12 @@ export default function BuyingForm({ onBillCreated }) {
           background-color: #fef3c7;
           font-weight: 500;
         }
+        .iqd-hint {
+          font-size: 11px;
+          color: #718096;
+          margin-top: 2px;
+          text-align: right;
+        }
       `}</style>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1032,7 +963,7 @@ export default function BuyingForm({ onBillCreated }) {
               <h1 className="text-2xl font-semibold text-gray-900">
                 {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill (USD Base)"}
               </h1>
-              <p className="text-sm text-gray-600 mt-1">Bill numbers start from 660001</p>
+              <p className="text-sm text-gray-600 mt-1">All prices are in USD - IQD shown for reference only</p>
             </div>
             {isEditing && (
               <button
@@ -1171,14 +1102,14 @@ export default function BuyingForm({ onBillCreated }) {
                     />
                     <span>IQD</span>
                   </div>
-                  {/* <p className="text-xs text-gray-500 mt-1">All prices are entered in USD and converted to IQD</p> */}
+                  <p className="text-xs text-gray-500 mt-1">Used only for IQD display</p>
                 </div>
                 
                 <div className="form-group" style={{ maxWidth: '200px' }}>
                   <label>Base Currency</label>
                   <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md text-sm">
                     <FiDollarSign className="mr-1 text-green-600" />
-                    <span className="font-medium">USD</span>
+                    <span className="font-medium">USD (All calculations)</span>
                   </div>
                 </div>
               </div>
@@ -1203,47 +1134,26 @@ export default function BuyingForm({ onBillCreated }) {
                 
                 {showSuggestions && suggestions.length > 0 && (
                   <div className="suggestions-dropdown">
-                    {suggestions.map((item) => {
-                      const searchLower = searchQuery.toLowerCase();
-                      const nameLower = item.name.toLowerCase();
-                      const nameParts = item.name.split(' ');
-                      
-                      return (
-                        <div
-                          key={item.id}
-                          className="suggestion-item"
-                          onClick={() => handleItemSelect(item)}
-                        >
-                          <div className="suggestion-name">
-                            {item.name.split(' ').map((word, idx) => {
-                              const wordLower = word.toLowerCase();
-                              const shouldHighlight = wordLower.includes(searchLower) || 
-                                                     searchLower.split(' ').some(term => wordLower.includes(term));
-                              return (
-                                <span key={idx} className={shouldHighlight ? 'highlight-match' : ''}>
-                                  {word}{idx < nameParts.length - 1 ? ' ' : ''}
-                                </span>
-                              );
-                            })}
-                          </div>
-                          <div className="suggestion-details">
-                            Barcode: {item.barcode} | 
-                            {displayCurrency === "USD" ? (
-                              <> Price: ${formatNumber(item.outPriceUSD || iqdToUSD(item.outPrice || 0))}</>
-                            ) : (
-                              <> Price: {formatNumber(item.outPrice || 0)} IQD</>
-                            )}
-                            {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${formatDateForDisplay(item.expireDate)}`}
-                          </div>
+                    {suggestions.map((item) => (
+                      <div
+                        key={item.id}
+                        className="suggestion-item"
+                        onClick={() => handleItemSelect(item)}
+                      >
+                        <div className="suggestion-name">{item.name}</div>
+                        <div className="suggestion-details">
+                          Barcode: {item.barcode} | 
+                          Price: ${formatNumber(item.outPriceUSD || 0)}
+                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${formatDateForDisplay(item.expireDate)}`}
                         </div>
-                      );
-                    })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Items Table - Simplified with only Out Price */}
+            {/* Items Table */}
             <div style={{ marginBottom: '24px' }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="section-title" style={{ marginBottom: 0 }}>Bill Items ({validItemsCount})</h2>
@@ -1264,11 +1174,11 @@ export default function BuyingForm({ onBillCreated }) {
                       <th className="w-32">Barcode</th>
                       <th className="w-48">Item Name</th>
                       <th className="w-16 text-center">Qty</th>
-                      <th className="w-24 text-right">Base Price</th>
+                      <th className="w-24 text-right">Base Price ($)</th>
                       <th className="w-24 text-right">Sub Total</th>
                       <th className="w-20 text-center">Cost Ratio %</th>
                       <th className="w-24 text-right">Cost/Piece</th>
-                      <th className="w-24 text-right">Out Price</th>
+                      <th className="w-24 text-right">Out Price ($)</th>
                       <th className="w-28 text-center">Expire Date</th>
                       <th className="w-16 text-center">Actions</th>
                     </tr>
@@ -1309,16 +1219,21 @@ export default function BuyingForm({ onBillCreated }) {
                             step="0.01"
                             min="0"
                             className="clean-input text-sm text-right"
-                            value={displayCurrency === "USD" ? (item.basePriceUSD || '') : (item.basePriceIQD || '')}
+                            value={item.basePriceUSD || ''}
                             onChange={(e) => handleItemChange(index, "basePriceUSD", e.target.value)}
                             required={item.barcode ? true : false}
                             placeholder="0.00"
                           />
+                          {displayCurrency === "IQD" && (
+                            <div className="iqd-hint">
+                              ≈ {formatNumber(usdToIQD(item.basePriceUSD || 0))} IQD
+                            </div>
+                          )}
                         </td>
                         <td className="text-right text-sm font-medium">
                           {displayCurrency === "USD" 
                             ? `$${formatNumber((item.basePriceUSD || 0) * (item.quantity || 1))}`
-                            : `${formatNumber((item.basePriceIQD || 0) * (item.quantity || 1))} IQD`}
+                            : `${formatNumber(usdToIQD((item.basePriceUSD || 0) * (item.quantity || 1)))} IQD`}
                         </td>
                         <td>
                           <div className="input-with-suffix">
@@ -1337,7 +1252,7 @@ export default function BuyingForm({ onBillCreated }) {
                         <td className="text-right text-sm font-medium text-green-600">
                           {displayCurrency === "USD" 
                             ? `$${formatNumber(item.finalCostPerPieceUSD || 0)}`
-                            : `${formatNumber(item.finalCostPerPieceIQD || 0)} IQD`}
+                            : `${formatNumber(usdToIQD(item.finalCostPerPieceUSD || 0))} IQD`}
                         </td>
                         <td>
                           <input
@@ -1345,11 +1260,16 @@ export default function BuyingForm({ onBillCreated }) {
                             step="0.01"
                             min="0"
                             className="clean-input text-sm text-right"
-                            value={displayCurrency === "USD" ? (item.outPriceUSD || '') : (item.outPriceIQD || '')}
+                            value={item.outPriceUSD || ''}
                             onChange={(e) => handleItemChange(index, "outPriceUSD", e.target.value)}
                             required={item.barcode ? true : false}
                             placeholder="0.00"
                           />
+                          {displayCurrency === "IQD" && (
+                            <div className="iqd-hint">
+                              ≈ {formatNumber(usdToIQD(item.outPriceUSD || 0))} IQD
+                            </div>
+                          )}
                         </td>
                         <td>
                           <input
@@ -1382,8 +1302,8 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Total Base Price */}
             <div className="total-base">
               Total Base: {displayCurrency === "USD" 
-                ? `$${formatNumber(totalBaseCostUSD)} (${formatNumber(totalBaseCostIQD)} IQD)`
-                : `${formatNumber(totalBaseCostIQD)} IQD ($${formatNumber(totalBaseCostUSD)})`}
+                ? `$${formatNumber(totalBaseCostUSD)}`
+                : `${formatNumber(usdToIQD(totalBaseCostUSD))} IQD ($${formatNumber(totalBaseCostUSD)})`}
             </div>
 
             {/* Expenses Section */}
@@ -1401,9 +1321,11 @@ export default function BuyingForm({ onBillCreated }) {
                     onChange={(e) => handleTransportFeeChange(e.target.value)}
                     placeholder="0.00"
                   />
-                  <span className="text-xs text-gray-500">
-                    IQD: {formatNumber(usdToIQD(totalTransportFeeUSD))}
-                  </span>
+                  {displayCurrency === "IQD" && (
+                    <span className="text-xs text-gray-500">
+                      IQD: {formatNumber(usdToIQD(totalTransportFeeUSD))}
+                    </span>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -1416,9 +1338,11 @@ export default function BuyingForm({ onBillCreated }) {
                     onChange={(e) => handleExternalExpenseChange(e.target.value)}
                     placeholder="0.00"
                   />
-                  <span className="text-xs text-gray-500">
-                    IQD: {formatNumber(usdToIQD(totalExternalExpenseUSD))}
-                  </span>
+                  {displayCurrency === "IQD" && (
+                    <span className="text-xs text-gray-500">
+                      IQD: {formatNumber(usdToIQD(totalExternalExpenseUSD))}
+                    </span>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -1441,8 +1365,9 @@ export default function BuyingForm({ onBillCreated }) {
                 <p>Additional costs are distributed based on item value ratios</p>
                 <p className="flex items-center mt-1">
                   <FiAlertTriangle className="text-yellow-500 mr-1 h-4 w-4" />
-                  <span className={Math.abs(totalRatios - 1) > 0.01 ? 'text-red-600 font-medium' : 'text-green-600'}>
-                    Current ratio total: {(totalRatios * 100).toFixed(1)}% {Math.abs(totalRatios - 1) > 0.01 ? '(Must be 100%)' : '(Good)'}
+                  <span className={Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
+                    Current ratio total: {(totalRatios * 100).toFixed(1)}% 
+                    {Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0 ? ' (Must be 100%)' : ' (Good)'}
                   </span>
                 </p>
               </div>

@@ -565,7 +565,7 @@ export default function StorePage() {
                   cursor: 'pointer'
                 }}
               >
-                Export
+                Export to Excel
               </button>
               <button
                 onClick={handleRefresh}

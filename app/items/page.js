@@ -1,330 +1,6 @@
-// "use client";
-// import { useState, useEffect } from "react";
-// import { getInitializedItems, addInitializedItem, updateInitializedItem, deleteInitializedItem, searchInitializedItems } from "@/lib/data";
-// import Card from "@/components/Card";
-// import { FiPlus, FiEdit, FiTrash2, FiSearch, FiPackage } from "react-icons/fi";
-
-// export default function ItemsPage() {
-//   const [formData, setFormData] = useState({
-//     barcode: "",
-//     name: "",
-//     netPrice: 0,
-//     outPricePharmacy: 0,
-//     outPriceStore: 0,
-//     outPriceOther: 0,
-//   });
-//   const [items, setItems] = useState([]);
-//   const [searchQuery, setSearchQuery] = useState("");
-//   const [editingItem, setEditingItem] = useState(null);
-//   const [error, setError] = useState("");
-//   const [loading, setLoading] = useState(true);
-//   const [success, setSuccess] = useState("");
-
-//   useEffect(() => {
-//     fetchItems();
-//   }, []);
-
-//   const fetchItems = async () => {
-//     try {
-//       const items = await getInitializedItems();
-//       setItems(items);
-//     } catch (err) {
-//       setError(err.message);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   useEffect(() => {
-//     const searchItems = async () => {
-//       if (searchQuery.trim() === "") {
-//         fetchItems();
-//       } else {
-//         const results = await searchInitializedItems(searchQuery);
-//         setItems(results);
-//       }
-//     };
-//     searchItems();
-//   }, [searchQuery]);
-
-//   const handleSubmit = async (e) => {
-//     e.preventDefault();
-//     setError("");
-//     setSuccess("");
-    
-//     try {
-//       if (editingItem) {
-//         await updateInitializedItem({ ...formData, id: editingItem.id });
-//         setSuccess("Item updated successfully!");
-//       } else {
-//         await addInitializedItem(formData);
-//         setSuccess("Item added successfully!");
-//       }
-      
-//       await fetchItems();
-//       resetForm();
-//     } catch (err) {
-//       setError(err.message);
-//     }
-//   };
-
-//   const handleEdit = (item) => {
-//     setEditingItem(item);
-//     setFormData({
-//       barcode: item.barcode,
-//       name: item.name,
-//       netPrice: item.netPrice,
-//       outPricePharmacy: item.outPricePharmacy || 0,
-//       outPriceStore: item.outPriceStore || 0,
-//       outPriceOther: item.outPriceOther || 0,
-//     });
-//   };
-
-//   const handleDelete = async (itemId) => {
-//     if (confirm("Are you sure you want to delete this item?")) {
-//       try {
-//         await deleteInitializedItem(itemId);
-//         await fetchItems();
-//         setSuccess("Item deleted successfully!");
-//       } catch (err) {
-//         setError(err.message);
-//       }
-//     }
-//   };
-
-//   const resetForm = () => {
-//     setFormData({
-//       barcode: "",
-//       name: "",
-//       netPrice: 0,
-//       outPricePharmacy: 0,
-//       outPriceStore: 0,
-//       outPriceOther: 0,
-//     });
-//     setEditingItem(null);
-//   };
-
-//   if (loading) return (
-//     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-//       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-//     </div>
-//   );
-
-//   return (
-//     <div className="min-h-screen bg-gray-50 py-6">
-//       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-//         {/* Header */}
-//         <div className="mb-8">
-//           <h1 className="text-2xl font-semibold text-gray-900">Item Management</h1>
-//           <p className="text-gray-600 mt-1">Manage your product catalog and pricing</p>
-//         </div>
-
-//         {/* Add/Edit Item Card */}
-//         <div className="clean-card p-6 mb-6">
-//           <div className="flex items-center justify-between mb-6">
-//             <h2 className="text-lg font-semibold text-gray-900">
-//               {editingItem ? "Edit Item" : "Add New Item"}
-//             </h2>
-//             {editingItem && (
-//               <button
-//                 onClick={resetForm}
-//                 className="text-sm text-gray-600 hover:text-gray-800"
-//               >
-//                 Cancel Edit
-//               </button>
-//             )}
-//           </div>
-
-//           {/* Alerts */}
-//           {error && (
-//             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-//               <p className="text-sm text-red-700">{error}</p>
-//             </div>
-//           )}
-
-//           {success && (
-//             <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-//               <p className="text-sm text-green-700">{success}</p>
-//             </div>
-//           )}
-
-//           <form onSubmit={handleSubmit}>
-//             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Barcode *</label>
-//                 <input
-//                   className="clean-input"
-//                   placeholder="Enter unique barcode"
-//                   value={formData.barcode}
-//                   onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-//                   required
-//                   readOnly={!!editingItem}
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
-//                 <input
-//                   className="clean-input"
-//                   placeholder="Enter item name"
-//                   value={formData.name}
-//                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-//                   required
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Net Price (IQD) *</label>
-//                 <input
-//                   type="number"
-//                   min="0"
-//                   step="0.01"
-//                   className="clean-input"
-//                   placeholder="0.00"
-//                   value={formData.netPrice}
-//                   onChange={(e) => setFormData({ ...formData, netPrice: +e.target.value })}
-//                   required
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Pharmacy Price (IQD) *</label>
-//                 <input
-//                   type="number"
-//                   min="0"
-//                   step="0.01"
-//                   className="clean-input"
-//                   placeholder="0.00"
-//                   value={formData.outPricePharmacy}
-//                   onChange={(e) => setFormData({ ...formData, outPricePharmacy: +e.target.value })}
-//                   required
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Store Price (IQD) *</label>
-//                 <input
-//                   type="number"
-//                   min="0"
-//                   step="0.01"
-//                   className="clean-input"
-//                   placeholder="0.00"
-//                   value={formData.outPriceStore}
-//                   onChange={(e) => setFormData({ ...formData, outPriceStore: +e.target.value })}
-//                   required
-//                 />
-//               </div>
-
-//               <div>
-//                 <label className="block text-sm font-medium text-gray-700 mb-1">Other Price (IQD) *</label>
-//                 <input
-//                   type="number"
-//                   min="0"
-//                   step="0.01"
-//                   className="clean-input"
-//                   placeholder="0.00"
-//                   value={formData.outPriceOther}
-//                   onChange={(e) => setFormData({ ...formData, outPriceOther: +e.target.value })}
-//                   required
-//                 />
-//               </div>
-//             </div>
-
-//             <div className="flex justify-end">
-//               <button
-//                 type="submit"
-//                 className="clean-btn clean-btn-primary flex items-center"
-//               >
-//                 <FiPlus className="mr-2 h-4 w-4" />
-//                 {editingItem ? "Update Item" : "Add Item"}
-//               </button>
-//             </div>
-//           </form>
-//         </div>
-
-//         {/* Item List Card */}
-//         <div className="clean-card p-6">
-//           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-//             <h2 className="text-lg font-semibold text-gray-900 mb-4 sm:mb-0">
-//               Item List ({items.length} items)
-//             </h2>
-            
-//             <div className="relative w-full sm:w-64">
-//               <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-//               <input
-//                 className="clean-input pl-10"
-//                 placeholder="Search items..."
-//                 value={searchQuery}
-//                 onChange={(e) => setSearchQuery(e.target.value)}
-//               />
-//             </div>
-//           </div>
-
-//           <div className="overflow-hidden border border-gray-200 rounded-lg">
-//             <table className="clean-table">
-//               <thead>
-//                 <tr>
-//                   <th>Barcode</th>
-//                   <th>Name</th>
-//                   <th className="text-right">Net Price</th>
-//                   <th className="text-right">Pharmacy</th>
-//                   <th className="text-right">Store</th>
-//                   <th className="text-right">Other</th>
-//                   <th className="text-center">Actions</th>
-//                 </tr>
-//               </thead>
-//               <tbody>
-//                 {items.map((item) => (
-//                   <tr key={item.id}>
-//                     <td className="font-medium text-gray-900">{item.barcode}</td>
-//                     <td className="text-gray-900">{item.name}</td>
-//                     <td className="text-right font-medium">{item.netPrice.toFixed(2)}</td>
-//                     <td className="text-right text-blue-600 font-medium">{item.outPricePharmacy?.toFixed(2) || '0.00'}</td>
-//                     <td className="text-right text-green-600 font-medium">{item.outPriceStore?.toFixed(2) || '0.00'}</td>
-//                     <td className="text-right text-gray-600 font-medium">{item.outPriceOther?.toFixed(2) || '0.00'}</td>
-//                     <td className="text-center">
-//                       <div className="flex items-center justify-center space-x-2">
-//                         <button
-//                           onClick={() => handleEdit(item)}
-//                           className="text-blue-600 hover:text-blue-800 p-1"
-//                           title="Edit item"
-//                         >
-//                           <FiEdit className="h-4 w-4" />
-//                         </button>
-//                         <button
-//                           onClick={() => handleDelete(item.id)}
-//                           className="text-red-600 hover:text-red-800 p-1"
-//                           title="Delete item"
-//                         >
-//                           <FiTrash2 className="h-4 w-4" />
-//                         </button>
-//                       </div>
-//                     </td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-
-//             {items.length === 0 && (
-//               <div className="text-center py-8">
-//                 <FiPackage className="mx-auto h-8 w-8 text-gray-400" />
-//                 <h3 className="mt-2 text-sm font-medium text-gray-900">No items</h3>
-//                 <p className="mt-1 text-sm text-gray-500">
-//                   {searchQuery ? "No items match your search" : "Get started by adding your first item"}
-//                 </p>
-//               </div>
-//             )}
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
 "use client";
 import { useState, useEffect } from "react";
 import { getInitializedItems, addInitializedItem, updateInitializedItem, deleteInitializedItem, searchInitializedItems } from "@/lib/data";
-import { FiPlus, FiEdit, FiTrash2, FiSearch, FiPackage, FiRefreshCw, FiHash, FiType } from "react-icons/fi";
 
 // Format currency in USD
 const formatUSD = (amount) => {
@@ -349,7 +25,7 @@ export default function ItemsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState("");
-  const [barcodeMode, setBarcodeMode] = useState("auto"); // "auto" or "manual"
+  const [barcodeMode, setBarcodeMode] = useState("auto");
   const [nextBarcode, setNextBarcode] = useState("ar1000");
   const [barcodeError, setBarcodeError] = useState("");
 
@@ -388,14 +64,12 @@ export default function ItemsPage() {
     searchItems();
   }, [searchQuery]);
 
-  // Generate next available barcode in sequence ar1000, ar1001, ar1002, etc.
   const generateNextBarcode = () => {
     if (items.length === 0) {
       setNextBarcode("ar1000");
       return;
     }
 
-    // Extract all barcodes that match the pattern ar[number]
     const barcodeNumbers = items
       .map(item => item.barcode)
       .filter(barcode => barcode && barcode.toLowerCase().startsWith('ar'))
@@ -410,13 +84,11 @@ export default function ItemsPage() {
       return;
     }
 
-    // Find the highest number
     const maxNumber = Math.max(...barcodeNumbers);
     const nextNumber = maxNumber + 1;
     setNextBarcode(`ar${nextNumber}`);
   };
 
-  // Check if barcode already exists
   const checkBarcodeExists = (barcode, excludeId = null) => {
     return items.some(item => 
       item.barcode.toLowerCase() === barcode.toLowerCase() && 
@@ -424,7 +96,6 @@ export default function ItemsPage() {
     );
   };
 
-  // Handle barcode mode change
   const handleBarcodeModeChange = (mode) => {
     setBarcodeMode(mode);
     setBarcodeError("");
@@ -437,12 +108,10 @@ export default function ItemsPage() {
     }
   };
 
-  // Handle manual barcode input
   const handleManualBarcodeChange = (e) => {
     const value = e.target.value;
     setFormData({ ...formData, barcode: value });
     
-    // Check if barcode exists
     if (value && checkBarcodeExists(value, editingItem?.id)) {
       const existingItem = items.find(item => 
         item.barcode.toLowerCase() === value.toLowerCase() && 
@@ -460,13 +129,11 @@ export default function ItemsPage() {
     setSuccess("");
     setBarcodeError("");
     
-    // Validate barcode
     if (!formData.barcode.trim()) {
       setBarcodeError("Barcode is required");
       return;
     }
 
-    // Check for duplicate barcode
     if (checkBarcodeExists(formData.barcode, editingItem?.id)) {
       const existingItem = items.find(item => 
         item.barcode.toLowerCase() === formData.barcode.toLowerCase() && 
@@ -477,16 +144,14 @@ export default function ItemsPage() {
     }
     
     try {
-      // Prepare data with USD prices
       const itemData = {
         barcode: formData.barcode,
         name: formData.name,
         outPrice: parseFloat(formData.outPrice) || 0,
-        // Keep the other fields for backward compatibility but set to same value
         outPricePharmacy: parseFloat(formData.outPrice) || 0,
         outPriceStore: parseFloat(formData.outPrice) || 0,
         outPriceOther: parseFloat(formData.outPrice) || 0,
-        netPrice: 0, // You might want to calculate this differently
+        netPrice: 0,
       };
 
       if (editingItem) {
@@ -537,61 +202,123 @@ export default function ItemsPage() {
     setBarcodeError("");
   };
 
+  const handleCancel = () => {
+    resetForm();
+  };
+
   if (loading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    }}>
+      <div style={{
+        background: 'white',
+        padding: '2rem',
+        borderRadius: '16px',
+        boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '3px solid #e0e7ff',
+          borderTopColor: '#667eea',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          margin: '0 auto 1rem'
+        }} />
+        <p style={{ color: '#4a5568' }}>Loading...</p>
+      </div>
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div style={{
+      minHeight: '100vh',
+      background: '#f8fafc',
+      padding: '2rem 1rem'
+    }}>
+      <div style={{
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Item Management</h1>
-          <p className="text-gray-600 mt-2">Manage your product catalog with auto-generated barcodes</p>
+        <div style={{
+          marginBottom: '2rem'
+        }}>
+          <h1 style={{
+            fontSize: '2rem',
+            fontWeight: '600',
+            color: '#1e293b',
+            marginBottom: '0.5rem'
+          }}>
+            Item Management
+          </h1>
+        
         </div>
 
         {/* Add/Edit Item Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
-                {editingItem ? "✏️ Edit Item" : "➕ Add New Item"}
-              </h2>
-              {editingItem && (
-                <button
-                  onClick={resetForm}
-                  className="mt-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-                >
-                  ← Back to adding new item
-                </button>
-              )}
-            </div>
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)',
+          padding: '1.5rem',
+          marginBottom: '2rem'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '1.5rem'
+          }}>
+            <h2 style={{
+              fontSize: '1.35rem',
+              fontWeight: '600',
+              color: '#1e293b'
+            }}>
+              {editingItem ? 'Edit Item' : 'Add New Item'}
+            </h2>
             {!editingItem && (
-              <div className="flex gap-3">
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
-                  type="button"
                   onClick={() => handleBarcodeModeChange("auto")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
-                    barcodeMode === "auto"
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: '1px solid',
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                    background: barcodeMode === "auto" ? '#3b82f6' : 'white',
+                    borderColor: barcodeMode === "auto" ? '#3b82f6' : '#e2e8f0',
+                    color: barcodeMode === "auto" ? 'white' : '#64748b',
+                    transition: 'all 0.2s'
+                  }}
                 >
-                  <FiRefreshCw className="h-4 w-4" />
                   Auto Barcode
                 </button>
                 <button
-                  type="button"
                   onClick={() => handleBarcodeModeChange("manual")}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
-                    barcodeMode === "manual"
-                      ? "bg-indigo-600 text-white shadow-lg shadow-indigo-200"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    border: '1px solid',
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                    background: barcodeMode === "manual" ? '#3b82f6' : 'white',
+                    borderColor: barcodeMode === "manual" ? '#3b82f6' : '#e2e8f0',
+                    color: barcodeMode === "manual" ? 'white' : '#64748b',
+                    transition: 'all 0.2s'
+                  }}
                 >
-                  <FiHash className="h-4 w-4" />
                   Manual Barcode
                 </button>
               </div>
@@ -600,108 +327,203 @@ export default function ItemsPage() {
 
           {/* Alerts */}
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-500 rounded-r-lg">
-              <p className="text-sm text-red-700">{error}</p>
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.75rem',
+              background: '#fef2f2',
+              border: '1px solid #fee2e2',
+              borderRadius: '6px',
+              color: '#dc2626',
+              fontSize: '1.2rem'
+            }}>
+              {error}
             </div>
           )}
 
           {success && (
-            <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded-r-lg">
-              <p className="text-sm text-green-700">{success}</p>
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.75rem',
+              background: '#f0fdf4',
+              border: '1px solid #dcfce7',
+              borderRadius: '6px',
+              color: '#16a34a',
+              fontSize: '1.2rem'
+            }}>
+              {success}
             </div>
           )}
 
           {barcodeError && (
-            <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded-r-lg">
-              <p className="text-sm text-yellow-700">{barcodeError}</p>
+            <div style={{
+              marginBottom: '1rem',
+              padding: '0.75rem',
+              background: '#fffbeb',
+              border: '1px solid #fef3c7',
+              borderRadius: '6px',
+              color: '#b45309',
+              fontSize: '1.2rem'
+            }}>
+              {barcodeError}
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '1rem',
+              marginBottom: '1.5rem'
+            }}>
               {/* Barcode Field */}
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Barcode <span className="text-red-500">*</span>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '1.2rem',
+                  fontWeight: '500',
+                  color: '#475569',
+                  marginBottom: '0.25rem'
+                }}>
+                  Barcode <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <div className="relative">
-                  <FiHash className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <input
-                    className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-indigo-200 transition-all duration-200 ${
-                      barcodeError 
-                        ? "border-yellow-300 bg-yellow-50" 
-                        : barcodeMode === "auto" && !editingItem
-                        ? "border-indigo-300 bg-indigo-50"
-                        : "border-gray-200 hover:border-indigo-200"
-                    }`}
-                    placeholder={barcodeMode === "auto" ? "Auto-generated barcode" : "Enter barcode manually"}
-                    value={formData.barcode}
-                    onChange={handleManualBarcodeChange}
-                    readOnly={(barcodeMode === "auto" && !editingItem) || (editingItem && barcodeMode === "auto")}
-                    required
-                  />
-                </div>
+                <input
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    border: `1px solid ${
+                      barcodeError ? '#f59e0b' : '#e2e8f0'
+                    }`,
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    outline: 'none',
+                    background: barcodeError ? '#fffbeb' : 'white',
+                    fontFamily: 'monospace'
+                  }}
+                  placeholder={barcodeMode === "auto" ? "Auto-generated" : "Enter barcode"}
+                  value={formData.barcode}
+                  onChange={handleManualBarcodeChange}
+                  readOnly={(barcodeMode === "auto" && !editingItem) || (editingItem && barcodeMode === "auto")}
+                  required
+                />
                 {barcodeMode === "auto" && !editingItem && (
-                  <p className="text-sm text-indigo-600 font-medium">
-                    Next available: {nextBarcode}
-                  </p>
-                )}
-                {barcodeMode === "manual" && (
-                  <p className="text-sm text-gray-500">
-                    Enter any unique barcode (e.g., {nextBarcode})
+                  <p style={{
+                    marginTop: '0.25rem',
+                    fontSize: '1.2rem',
+                    color: '#3b82f6'
+                  }}>
+                    Next: {nextBarcode}
                   </p>
                 )}
               </div>
 
               {/* Item Name Field */}
-              <div className="space-y-2 lg:col-span-2">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Item Name <span className="text-red-500">*</span>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '1.2rem',
+                  fontWeight: '500',
+                  color: '#475569',
+                  marginBottom: '0.25rem'
+                }}>
+                  Item Name <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <div className="relative">
-                  <FiType className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-                  <input
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all duration-200 hover:border-indigo-200"
-                    placeholder="Enter item name (e.g., Paracetamol 500mg)"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required
-                  />
-                </div>
+                <input
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    outline: 'none'
+                  }}
+                  placeholder="Enter item name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
               </div>
 
-              {/* Out Price Field - USD */}
-              <div className="space-y-2 lg:col-span-1">
-                <label className="block text-sm font-semibold text-gray-700">
-                  Price (USD) <span className="text-red-500">*</span>
+              {/* Price Field */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '1.2rem',
+                  fontWeight: '500',
+                  color: '#475569',
+                  marginBottom: '0.25rem'
+                }}>
+                  Price (USD) <span style={{ color: '#ef4444' }}>*</span>
                 </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-medium">$</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="w-full pl-8 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all duration-200 hover:border-indigo-200"
-                    placeholder="0.00"
-                    value={formData.outPrice}
-                    onChange={(e) => setFormData({ ...formData, outPrice: +e.target.value })}
-                    required
-                  />
-                </div>
-                {formData.outPrice > 0 && (
-                  <p className="text-sm text-green-600 font-medium">
-                    {formatUSD(formData.outPrice)}
-                  </p>
-                )}
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  style={{
+                    width: '100%',
+                    padding: '0.625rem',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    outline: 'none'
+                  }}
+                  placeholder="0.00"
+                  value={formData.outPrice}
+                  onChange={(e) => setFormData({ ...formData, outPrice: +e.target.value })}
+                  required
+                />
               </div>
             </div>
 
-            <div className="mt-8 flex justify-end">
+            <div style={{
+              display: 'flex',
+              gap: '0.75rem',
+              justifyContent: 'flex-end'
+            }}>
+              {editingItem && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  style={{
+                    padding: '0.625rem 1.25rem',
+                    background: '#f1f5f9',
+                    color: '#475569',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '1.2rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = '#e2e8f0';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = '#f1f5f9';
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
               <button
                 type="submit"
-                className="px-8 py-3 bg-indigo-600 text-white font-semibold rounded-xl hover:bg-indigo-700 focus:ring-4 focus:ring-indigo-200 transition-all duration-200 flex items-center gap-2 shadow-lg shadow-indigo-200"
+                style={{
+                  padding: '0.625rem 1.5rem',
+                  background: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '1.2rem',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#2563eb';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#3b82f6';
+                }}
               >
-                <FiPlus className="h-5 w-5" />
                 {editingItem ? "Update Item" : "Add Item"}
               </button>
             </div>
@@ -709,69 +531,196 @@ export default function ItemsPage() {
         </div>
 
         {/* Item List Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-900">
-                Item List
-              </h2>
-              <p className="text-gray-600 mt-1">
-                Total {items.length} item{items.length !== 1 ? 's' : ''} in catalog
-              </p>
+        <div style={{
+          background: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 1px 3px 0 rgba(0,0,0,0.1)',
+          overflow: 'hidden'
+        }}>
+          {/* Search Header */}
+          <div style={{
+            padding: '1rem',
+            borderBottom: '1px solid #e2e8f0',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '1rem'
+          }}>
+            <div style={{ color: '#64748b' }}>
+              Total Items: <strong style={{ color: '#1e293b' }}>{items.length}</strong>
             </div>
-            
-            <div className="relative w-full sm:w-80 mt-4 sm:mt-0">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-200 focus:border-indigo-300 transition-all duration-200"
-                placeholder="Search by name or barcode..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            <input
+              style={{
+                padding: '0.5rem 1rem',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                fontSize: '1.2rem',
+                width: '250px',
+                outline: 'none'
+              }}
+              placeholder="Search by name or barcode..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
 
-          <div className="overflow-hidden border-2 border-gray-100 rounded-xl">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Barcode</th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Item Name</th>
-                  <th className="px-6 py-4 text-right text-sm font-semibold text-gray-700">Price (USD)</th>
-                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Actions</th>
+          {/* Table */}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{
+              width: '100%',
+              borderCollapse: 'collapse',
+              minWidth: '600px'
+            }}>
+              <thead>
+                <tr style={{
+                  background: '#f8fafc',
+                  borderBottom: '1px solid #e2e8f0'
+                }}>
+                  <th style={{
+                    padding: '0.75rem 1rem',
+                    textAlign: 'left',
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    color: '#475569'
+                  }}>#</th>
+                  <th style={{
+                    padding: '0.75rem 1rem',
+                    textAlign: 'left',
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    color: '#475569'
+                  }}>Barcode</th>
+                  <th style={{
+                    padding: '0.75rem 1rem',
+                    textAlign: 'left',
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    color: '#475569'
+                  }}>Item Name</th>
+                  <th style={{
+                    padding: '0.75rem 1rem',
+                    textAlign: 'right',
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    color: '#475569'
+                  }}>Price</th>
+                  <th style={{
+                    padding: '0.75rem 1rem',
+                    textAlign: 'center',
+                    fontSize: '1.2rem',
+                    fontWeight: '600',
+                    color: '#475569'
+                  }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
-                {items.map((item) => (
-                  <tr key={item.id} className="hover:bg-indigo-50 transition-colors duration-150">
-                    <td className="px-6 py-4">
-                      <span className="font-mono text-sm font-medium text-gray-900 bg-indigo-50 px-3 py-1 rounded-full">
+              <tbody>
+                {items.map((item, index) => (
+                  <tr 
+                    key={item.id} 
+                    style={{
+                      borderBottom: '1px solid #e2e8f0',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
+                  >
+                    <td style={{
+                      padding: '0.75rem 1rem',
+                      color: '#64748b',
+                      fontSize: '1.2rem'
+                    }}>
+                      {index + 1}
+                    </td>
+                    <td style={{
+                      padding: '0.75rem 1rem'
+                    }}>
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '0.25rem 0.5rem',
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        borderRadius: '4px',
+                        fontSize: '01.2rem',
+                        fontFamily: 'monospace'
+                      }}>
                         {item.barcode}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="font-medium text-gray-900">{item.name}</span>
+                    <td style={{
+                      padding: '0.75rem 1rem',
+                      color: '#1e293b',
+                      fontWeight: '500',
+                      fontSize: '1.2rem'
+                    }}>
+                      {item.name}
                     </td>
-                    <td className="px-6 py-4 text-right">
-                      <span className="font-semibold text-green-600">
-                        {formatUSD(item.outPrice || item.outPricePharmacy || 0)}
-                      </span>
+                    <td style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'right',
+                      color: '#059669',
+                      fontWeight: '600',
+                      fontSize: '1.2rem'
+                    }}>
+                      {formatUSD(item.outPrice || item.outPricePharmacy || 0)}
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center space-x-3">
+                    <td style={{
+                      padding: '0.75rem 1rem',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem'
+                      }}>
                         <button
                           onClick={() => handleEdit(item)}
-                          className="p-2 text-indigo-600 hover:bg-indigo-100 rounded-lg transition-colors duration-200"
-                          title="Edit item"
+                          style={{
+                            padding: '0.375rem',
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = '#eff6ff';
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'none';
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                          title="Edit"
                         >
-                          <FiEdit className="h-5 w-5" />
+                          ✏️
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
-                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors duration-200"
-                          title="Delete item"
+                          style={{
+                            padding: '0.375rem',
+                            background: 'none',
+                            border: 'none',
+                            color: '#ef4444',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '1rem',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = '#fef2f2';
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'none';
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                          title="Delete"
                         >
-                          <FiTrash2 className="h-5 w-5" />
+                          🗑️
                         </button>
                       </div>
                     </td>
@@ -781,41 +730,18 @@ export default function ItemsPage() {
             </table>
 
             {items.length === 0 && (
-              <div className="text-center py-16">
-                <div className="bg-indigo-50 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                  <FiPackage className="h-10 w-10 text-indigo-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">No items found</h3>
-                <p className="text-gray-600">
-                  {searchQuery 
-                    ? "No items match your search criteria" 
-                    : "Get started by adding your first item above"}
+              <div style={{
+                textAlign: 'center',
+                padding: '3rem 1rem',
+                color: '#64748b'
+              }}>
+                <p style={{ marginBottom: '0.5rem' }}>No items found</p>
+                <p style={{ fontSize: '1.2rem' }}>
+                  {searchQuery ? "Try a different search" : "Add your first item above"}
                 </p>
               </div>
             )}
           </div>
-
-          {/* Summary Cards */}
-          {items.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
-              <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl p-4">
-                <p className="text-sm text-indigo-600 font-medium mb-1">Total Items</p>
-                <p className="text-2xl font-bold text-indigo-900">{items.length}</p>
-              </div>
-              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4">
-                <p className="text-sm text-green-600 font-medium mb-1">Average Price</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {formatUSD(items.reduce((sum, item) => sum + (item.outPrice || item.outPricePharmacy || 0), 0) / items.length)}
-                </p>
-              </div>
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
-                <p className="text-sm text-purple-600 font-medium mb-1">Unique Barcodes</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {new Set(items.map(item => item.barcode)).size}
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

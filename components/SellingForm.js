@@ -1789,12 +1789,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                   </td>
                 </tr>
                 ${bill.updatedByName ? `
-                <tr>
-                  <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Updated By:</td>
-                  <td style="padding: 3px 0; font-size: 16px; color: #34495e; font-weight: 500; font-family: 'NRT-Reg', sans-serif;">
-                    ${getDisplayName(bill.updatedByName)} (${formatDate(bill.updatedAt || bill.date)})
-                  </td>
-                </tr>
+             
                 ` : ''}
               </table>
             </div>
