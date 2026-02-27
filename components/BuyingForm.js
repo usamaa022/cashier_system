@@ -1171,7 +1171,7 @@ export default function BuyingForm({ onBillCreated }) {
                     />
                     <span>IQD</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">All prices are entered in USD and converted to IQD</p>
+                  {/* <p className="text-xs text-gray-500 mt-1">All prices are entered in USD and converted to IQD</p> */}
                 </div>
                 
                 <div className="form-group" style={{ maxWidth: '200px' }}>

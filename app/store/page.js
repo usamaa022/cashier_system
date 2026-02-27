@@ -1,81 +1,65 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { getStoreItems, updateStoreItem, checkDocumentExists, getItemAttachments } from "@/lib/data";
+import { getStoreItems, updateStoreItem } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import * as XLSX from 'xlsx';
+import { onSnapshot, collection, query, where, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-// Helper function to format date
+// Helper functions
 const formatDate = (date) => {
   if (!date) return "N/A";
   try {
-    let dateObj = null;
-    if (date && typeof date === 'object') {
-      if ('toDate' in date && typeof date.toDate === 'function') {
-        dateObj = date.toDate();
-      } else if (date.seconds !== undefined) {
-        dateObj = new Date(date.seconds * 1000);
-      } else if (date._seconds !== undefined) {
-        dateObj = new Date(date._seconds * 1000);
-      }
-    }
-    if (!dateObj && date instanceof Date) {
+    let dateObj;
+    if (date?.toDate) {
+      dateObj = date.toDate();
+    } else if (date?.seconds) {
+      dateObj = new Date(date.seconds * 1000);
+    } else if (date instanceof Date) {
       dateObj = date;
+    } else if (typeof date === 'string') {
+      dateObj = new Date(date);
     }
-    if (!dateObj && typeof date === 'string') {
-      if (date.includes('/')) {
-        const [day, month, year] = date.split('/');
-        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-      } else if (date.includes('-')) {
-        const [year, month, day] = date.split('-');
-        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-      } else {
-        dateObj = new Date(date);
-      }
-    }
+
     if (!dateObj || isNaN(dateObj.getTime())) return "N/A";
+
     const day = String(dateObj.getDate()).padStart(2, '0');
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const year = dateObj.getFullYear();
     return `${day}/${month}/${year}`;
-  } catch (error) {
+  } catch {
     return "N/A";
   }
 };
 
-// Helper function to format date and time
 const formatDateTime = (date) => {
   if (!date) return "N/A";
   try {
-    let dateObj = null;
-    if (date && typeof date === 'object') {
-      if ('toDate' in date && typeof date.toDate === 'function') {
-        dateObj = date.toDate();
-      } else if (date.seconds !== undefined) {
-        dateObj = new Date(date.seconds * 1000);
-      } else if (date._seconds !== undefined) {
-        dateObj = new Date(date._seconds * 1000);
-      }
-    }
-    if (!dateObj && date instanceof Date) {
+    let dateObj;
+    if (date?.toDate) {
+      dateObj = date.toDate();
+    } else if (date?.seconds) {
+      dateObj = new Date(date.seconds * 1000);
+    } else if (date instanceof Date) {
       dateObj = date;
-    }
-    if (!dateObj && typeof date === 'string') {
+    } else if (typeof date === 'string') {
       dateObj = new Date(date);
     }
+
     if (!dateObj || isNaN(dateObj.getTime())) return "N/A";
+
     const day = String(dateObj.getDate()).padStart(2, '0');
     const month = String(dateObj.getMonth() + 1).padStart(2, '0');
     const year = dateObj.getFullYear();
     const hours = String(dateObj.getHours()).padStart(2, '0');
     const minutes = String(dateObj.getMinutes()).padStart(2, '0');
     return `${day}/${month}/${year} ${hours}:${minutes}`;
-  } catch (error) {
+  } catch {
     return "N/A";
   }
 };
 
-// Helper function to format currency in USD
 const formatUSD = (amount) => {
   if (amount === undefined || amount === null) return "$0.00";
   return new Intl.NumberFormat('en-US', {
@@ -86,7 +70,6 @@ const formatUSD = (amount) => {
   }).format(amount);
 };
 
-// Helper function to format currency in IQD
 const formatIQD = (amount) => {
   if (amount === undefined || amount === null) return "0 IQD";
   return new Intl.NumberFormat('ar-IQ', {
@@ -95,38 +78,58 @@ const formatIQD = (amount) => {
   }).format(amount) + " IQD";
 };
 
-// Helper function to get branch style
 const getBranchStyle = (branch) => {
-  if (branch === "Slemany") {
+  const styles = {
+    Slemany: { bg: '#dcfce7', text: '#166534' },
+    Erbil: { bg: '#dbeafe', text: '#1e40af' },
+    default: { bg: '#f3f4f6', text: '#4b5563' }
+  };
+  return {
+    backgroundColor: styles[branch]?.bg || styles.default.bg,
+    color: styles[branch]?.text || styles.default.text,
+    padding: '4px 8px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontWeight: '500'
+  };
+};
+
+const getExpiryStyle = (expireDate) => {
+  if (!expireDate) return {
+    backgroundColor: '#f3f4f6',
+    color: '#6b7280',
+    status: 'N/A'
+  };
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expireDate);
+  expiry.setHours(0, 0, 0, 0);
+  const oneYearFromNow = new Date();
+  oneYearFromNow.setFullYear(today.getFullYear() + 1);
+
+  if (expiry < today) {
     return {
-      backgroundColor: '#dcfce7',
-      color: '#166534',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontWeight: '500'
+      backgroundColor: '#fee2e2',
+      color: '#991b1b',
+      status: 'Expired'
     };
-  } else if (branch === "Erbil") {
+  } else if (expiry <= oneYearFromNow) {
     return {
-      backgroundColor: '#dbeafe',
-      color: '#1e40af',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontWeight: '500'
+      backgroundColor: '#fdcb98',
+      color: '#9f5103',
+      status: 'Expiring Soon'
     };
   } else {
     return {
-      backgroundColor: '#f3f4f6',
-      color: '#4b5563',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontWeight: '500'
+      backgroundColor: '#dcfce7',
+      color: '#166534',
+      status: 'Safe'
     };
   }
 };
 
+// Main component
 export default function StorePage() {
   const { user } = useAuth();
   const router = useRouter();
@@ -136,191 +139,178 @@ export default function StorePage() {
   const [billSearch, setBillSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [groupedItems, setGroupedItems] = useState({});
+  const [expireBefore, setExpireBefore] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [branchFilter, setBranchFilter] = useState("Slemany");
   const [currencyDisplay, setCurrencyDisplay] = useState("USD");
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({
     quantity: '',
+    basePriceUSD: '',
     netPriceUSD: '',
     outPriceUSD: '',
     exchangeRate: '1500'
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [attachments, setAttachments] = useState({});
-  const [selectedBatchForAttachments, setSelectedBatchForAttachments] = useState(null);
+  const [branchFilter, setBranchFilter] = useState(
+    user?.role === "superAdmin" ? "All Stores" : user?.branch || "Slemany"
+  );
 
-  // Memoized fetch function to prevent unnecessary re-renders
-  const fetchStoreItems = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Fetch store items with proper error handling and fallback
+  useEffect(() => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
 
-      const items = await getStoreItems();
+    setIsLoading(true);
+    setError(null);
 
-      if (!items || items.length === 0) {
-        setStoreItems([]);
-        setGroupedItems({});
-        setIsLoading(false);
-        return;
-      }
+    const setupQuery = () => {
+      try {
+        let q;
 
-      let filteredItems;
-
-      if (user?.role === "superAdmin") {
-        if (branchFilter === "All Stores") {
-          filteredItems = items.filter(item => item.quantity > 0);
+        if (user.role === "superAdmin" && branchFilter !== "All Stores") {
+          // Try with composite query first
+          q = query(
+            collection(db, "storeItems"),
+            where("branch", "==", branchFilter),
+            where("quantity", ">", 0),
+            orderBy("createdAt", "desc")
+          );
+        } else if (user.role !== "superAdmin") {
+          q = query(
+            collection(db, "storeItems"),
+            where("branch", "==", user.branch),
+            where("quantity", ">", 0),
+            orderBy("createdAt", "desc")
+          );
         } else {
-          filteredItems = items.filter(item =>
-            item.branch === branchFilter && item.quantity > 0
+          q = query(
+            collection(db, "storeItems"),
+            where("quantity", ">", 0),
+            orderBy("createdAt", "desc")
           );
         }
-      } else {
-        const userBranch = user?.branch || "Slemany";
-        filteredItems = items.filter(item =>
-          item.branch === userBranch && item.quantity > 0
-        );
-      }
 
-      // Group items by unique combination
-      const grouped = {};
-      filteredItems.forEach(item => {
-        const key = `${item.barcode}-${item.netPriceUSD || 0}-${item.outPriceUSD || 0}-${item.branch}`;
+        return onSnapshot(
+          q,
+          (querySnapshot) => {
+            const items = [];
+            querySnapshot.forEach((doc) => {
+              items.push({ id: doc.id, ...doc.data() });
+            });
+            processItems(items);
+          },
+          (error) => {
+            console.error("Firestore error:", error);
+            setError("Failed to load items. Please try again.");
 
-        if (!grouped[key]) {
-          grouped[key] = {
-            id: key,
-            barcode: item.barcode,
-            name: item.name,
-            netPriceUSD: item.netPriceUSD || 0,
-            outPriceUSD: item.outPriceUSD || 0,
-            netPriceIQD: item.netPrice || 0,
-            outPriceIQD: item.outPrice || 0,
-            exchangeRate: item.exchangeRate || 1500,
-            branch: item.branch,
-            totalQuantity: 0,
-            batches: [],
-            branches: new Set(),
-            boughtBillNumbers: new Set(),
-            createdDates: []
-          };
-        }
+            // Fallback query if composite index is missing
+            if (error.code === "failed-precondition" && error.message.includes("requires an index")) {
+              console.warn("Composite index missing, using fallback query");
 
-        // Extract bill number from various possible fields
-        let billNumber = 'N/A';
-        if (item.boughtBillNumber && item.boughtBillNumber !== 'N/A') {
-          billNumber = item.boughtBillNumber;
-        } else if (item.billNumber && item.billNumber !== 'N/A') {
-          billNumber = item.billNumber;
-        } else if (item.bill_number && item.bill_number !== 'N/A') {
-          billNumber = item.bill_number;
-        } else if (item.billNo && item.billNo !== 'N/A') {
-          billNumber = item.billNo;
-        } else if (item.billNum && item.billNum !== 'N/A') {
-          billNumber = item.billNum;
-        } else {
-          // Try to find any field that contains 'bill'
-          for (const key in item) {
-            if (key.toLowerCase().includes('bill') && item[key] && item[key] !== 'N/A') {
-              billNumber = item[key];
-              break;
-            }
-          }
-        }
-
-        grouped[key].totalQuantity += item.quantity;
-        grouped[key].batches.push({
-          id: item.id,
-          quantity: item.quantity,
-          expireDate: item.expireDate,
-          boughtBillNumber: billNumber,
-          createdAt: item.createdAt,
-          hasAttachments: false
-        });
-        grouped[key].branches.add(item.branch);
-        grouped[key].boughtBillNumbers.add(billNumber);
-        if (item.createdAt) {
-          grouped[key].createdDates.push(item.createdAt);
-        }
-      });
-
-      // Process grouped items
-      Object.keys(grouped).forEach(key => {
-        grouped[key].branches = Array.from(grouped[key].branches);
-        grouped[key].boughtBillNumbers = Array.from(grouped[key].boughtBillNumbers);
-
-        // Find earliest creation date
-        if (grouped[key].createdDates.length > 0) {
-          const validDates = grouped[key].createdDates.filter(d => d && d.getTime);
-          if (validDates.length > 0) {
-            grouped[key].earliestCreatedAt = new Date(
-              Math.min(...validDates.map(d => d.getTime()))
-            );
-          } else {
-            grouped[key].earliestCreatedAt = null;
-          }
-        } else {
-          grouped[key].earliestCreatedAt = null;
-        }
-      });
-
-      setGroupedItems(grouped);
-
-      // Sort items after grouping
-      const sorted = sortItems(Object.values(grouped), sortConfig.key, sortConfig.direction, currencyDisplay);
-      setStoreItems(sorted);
-
-      // Fetch attachments
-      fetchAllAttachments(Object.values(grouped));
-
-    } catch (err) {
-      console.error("Error in fetchStoreItems:", err);
-      setError("Failed to load store items. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, branchFilter, currencyDisplay, sortConfig]);
-
-  const fetchAllAttachments = async (items) => {
-    try {
-      const attachmentsMap = {};
-      const updatedGroupedItems = { ...groupedItems };
-
-      for (const item of items) {
-        for (const batch of item.batches) {
-          const billNumber = batch.boughtBillNumber;
-
-          if (billNumber && billNumber !== 'N/A') {
-            const batchAttachments = await getItemAttachments(billNumber);
-
-            if (batchAttachments && batchAttachments.length > 0) {
-              attachmentsMap[batch.id] = batchAttachments;
-
-              // Update the batch to indicate it has attachments
-              if (updatedGroupedItems[item.id]) {
-                const batchIndex = updatedGroupedItems[item.id].batches.findIndex(b => b.id === batch.id);
-                if (batchIndex !== -1) {
-                  updatedGroupedItems[item.id].batches[batchIndex].hasAttachments = true;
-                }
+              let fallbackQuery;
+              if (user.role === "superAdmin" && branchFilter !== "All Stores") {
+                fallbackQuery = query(
+                  collection(db, "storeItems"),
+                  where("branch", "==", branchFilter),
+                  orderBy("createdAt", "desc")
+                );
+              } else if (user.role !== "superAdmin") {
+                fallbackQuery = query(
+                  collection(db, "storeItems"),
+                  where("branch", "==", user.branch),
+                  orderBy("createdAt", "desc")
+                );
+              } else {
+                fallbackQuery = query(
+                  collection(db, "storeItems"),
+                  orderBy("createdAt", "desc")
+                );
               }
+
+              return onSnapshot(
+                fallbackQuery,
+                (fallbackSnapshot) => {
+                  const allItems = [];
+                  fallbackSnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (data.quantity > 0) {
+                      allItems.push({ id: doc.id, ...data });
+                    }
+                  });
+                  processItems(allItems);
+                },
+                (fallbackError) => {
+                  console.error("Fallback query failed:", fallbackError);
+                  setError("Failed to load items with fallback query. Please try again later.");
+                  setIsLoading(false);
+                }
+              );
             }
           }
-        }
+        );
+      } catch (err) {
+        console.error("Error setting up query:", err);
+        setError("Failed to set up data connection. Please refresh the page.");
+        setIsLoading(false);
+        return () => {}; // Return empty cleanup function
       }
+    };
 
-      setAttachments(attachmentsMap);
-      setGroupedItems(updatedGroupedItems);
+    const processItems = (items) => {
+      try {
+        const grouped = {};
+        items.forEach(item => {
+          // Create a unique key based on all identifying fields
+          const key = `${item.barcode}-${item.basePriceUSD || 0}-${item.netPriceUSD || 0}-${item.outPriceUSD || 0}-${item.branch}-${item.boughtBillNumber}`;
 
-    } catch (error) {
-      console.error("Error in fetchAllAttachments:", error);
-    }
-  };
+          if (!grouped[key]) {
+            grouped[key] = {
+              id: item.id,
+              barcode: item.barcode,
+              name: item.name,
+              basePriceUSD: item.basePriceUSD || 0,
+              netPriceUSD: item.netPriceUSD || 0,
+              outPriceUSD: item.outPriceUSD || 0,
+              basePriceIQD: item.basePrice || 0,
+              netPriceIQD: item.netPrice || 0,
+              outPriceIQD: item.outPrice || 0,
+              exchangeRate: item.exchangeRate || 1500,
+              branch: item.branch,
+              boughtBillNumber: item.boughtBillNumber,
+              totalQuantity: 0,
+              expireDate: item.expireDate?.toDate ? item.expireDate.toDate() : item.expireDate,
+              createdAt: item.createdAt?.toDate ? item.createdAt.toDate() : item.createdAt
+            };
+          }
+          grouped[key].totalQuantity += item.quantity;
+        });
 
-  const sortItems = useCallback((items, key, direction, currency) => {
+        setStoreItems(Object.values(grouped));
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Error processing items:", err);
+        setIsLoading(false);
+      }
+    };
+
+    const unsubscribe = setupQuery();
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, [user, router, branchFilter]);
+
+  // Sort items
+  const sortItems = useCallback((items) => {
     return [...items].sort((a, b) => {
+      const key = sortConfig.key;
+      const direction = sortConfig.direction;
+
       if (key === 'name') {
         return direction === 'asc'
           ? a.name?.localeCompare(b.name)
@@ -333,70 +323,80 @@ export default function StorePage() {
         return direction === 'asc'
           ? a.totalQuantity - b.totalQuantity
           : b.totalQuantity - a.totalQuantity;
+      } else if (key === 'basePrice') {
+        const priceA = currencyDisplay === 'USD' ? a.basePriceUSD : a.basePriceIQD;
+        const priceB = currencyDisplay === 'USD' ? b.basePriceUSD : b.basePriceIQD;
+        return direction === 'asc' ? priceA - priceB : priceB - priceA;
       } else if (key === 'netPrice') {
-        const priceA = currency === 'USD' ? a.netPriceUSD : a.netPriceIQD;
-        const priceB = currency === 'USD' ? b.netPriceUSD : b.netPriceIQD;
-        return direction === 'asc'
-          ? priceA - priceB
-          : priceB - priceA;
+        const priceA = currencyDisplay === 'USD' ? a.netPriceUSD : a.netPriceIQD;
+        const priceB = currencyDisplay === 'USD' ? b.netPriceUSD : b.netPriceIQD;
+        return direction === 'asc' ? priceA - priceB : priceB - priceA;
       } else if (key === 'outPrice') {
-        const priceA = currency === 'USD' ? a.outPriceUSD : a.outPriceIQD;
-        const priceB = currency === 'USD' ? b.outPriceUSD : b.outPriceIQD;
-        return direction === 'asc'
-          ? priceA - priceB
-          : priceB - priceA;
+        const priceA = currencyDisplay === 'USD' ? a.outPriceUSD : a.outPriceIQD;
+        const priceB = currencyDisplay === 'USD' ? b.outPriceUSD : b.outPriceIQD;
+        return direction === 'asc' ? priceA - priceB : priceB - priceA;
       } else if (key === 'branch') {
-        const branchA = a.branches.length > 1 ? 'Multiple' : a.branches[0];
-        const branchB = b.branches.length > 1 ? 'Multiple' : b.branches[0];
         return direction === 'asc'
-          ? branchA.localeCompare(branchB)
-          : branchB.localeCompare(branchA);
+          ? a.branch.localeCompare(b.branch)
+          : b.branch.localeCompare(a.branch);
       } else if (key === 'boughtBill') {
-        const billA = a.boughtBillNumbers.length > 1 ? 'Multiple' : a.boughtBillNumbers[0] || 'N/A';
-        const billB = b.boughtBillNumbers.length > 1 ? 'Multiple' : b.boughtBillNumbers[0] || 'N/A';
         return direction === 'asc'
-          ? String(billA).localeCompare(String(billB))
-          : String(billB).localeCompare(String(billA));
+          ? String(a.boughtBillNumber).localeCompare(String(b.boughtBillNumber))
+          : String(b.boughtBillNumber).localeCompare(String(a.boughtBillNumber));
       } else if (key === 'createdAt') {
-        const dateA = a.earliestCreatedAt ? new Date(a.earliestCreatedAt) : new Date(0);
-        const dateB = b.earliestCreatedAt ? new Date(b.earliestCreatedAt) : new Date(0);
-        return direction === 'asc'
-          ? dateA - dateB
-          : dateB - dateA;
+        const dateA = a.createdAt ? new Date(a.createdAt) : new Date(0);
+        const dateB = b.createdAt ? new Date(b.createdAt) : new Date(0);
+        return direction === 'asc' ? dateA - dateB : dateB - dateA;
+      } else if (key === 'expireDate') {
+        const dateA = a.expireDate ? new Date(a.expireDate) : new Date(0);
+        const dateB = b.expireDate ? new Date(b.expireDate) : new Date(0);
+        return direction === 'asc' ? dateA - dateB : dateB - dateA;
       }
       return 0;
     });
-  }, []);
+  }, [sortConfig, currencyDisplay]);
 
-  const handleSort = useCallback((key) => {
+  const handleSort = (key) => {
     const newDirection = sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc';
     setSortConfig({ key, direction: newDirection });
-
-    const sorted = sortItems(
-      Object.values(groupedItems),
-      key,
-      newDirection,
-      currencyDisplay
-    );
-    setStoreItems(sorted);
-  }, [groupedItems, currencyDisplay, sortConfig]);
+  };
 
   const getSortIcon = (key) => {
     if (sortConfig.key !== key) return '↕️';
     return sortConfig.direction === 'asc' ? '↑' : '↓';
   };
 
-  useEffect(() => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-    fetchStoreItems();
-  }, [user, router, branchFilter, fetchStoreItems]);
+  const handleBranchChange = (e) => {
+    setBranchFilter(e.target.value);
+  };
+
+  const handleCurrencyChange = (e) => {
+    setCurrencyDisplay(e.target.value);
+  };
+
+  const handleRefresh = () => {
+    setIsLoading(true);
+    setTimeout(() => setIsLoading(false), 500);
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setBarcodeSearch("");
+    setBillSearch("");
+    setFromDate("");
+    setToDate("");
+    setExpireBefore("");
+  };
+
+  const handleExpireBeforeChange = (e) => {
+    setExpireBefore(e.target.value);
+  };
 
   // Filter items based on search criteria
   const filteredItems = useMemo(() => {
-    return storeItems.filter(item => {
+    const sorted = sortItems(storeItems);
+
+    return sorted.filter(item => {
       const matchesName = !searchQuery ||
         item.name?.toLowerCase().includes(searchQuery.toLowerCase());
 
@@ -404,21 +404,17 @@ export default function StorePage() {
         item.barcode?.toLowerCase().includes(barcodeSearch.toLowerCase());
 
       const matchesBill = !billSearch ||
-        item.boughtBillNumbers.some(bill =>
-          String(bill).toLowerCase().includes(billSearch.toLowerCase())
-        );
+        String(item.boughtBillNumber).toLowerCase().includes(billSearch.toLowerCase());
 
       let matchesDateRange = true;
       if (fromDate || toDate) {
-        const itemDate = item.earliestCreatedAt ? new Date(item.earliestCreatedAt) : null;
-
+        const itemDate = item.createdAt ? new Date(item.createdAt) : null;
         if (itemDate) {
           if (fromDate) {
             const from = new Date(fromDate);
             from.setHours(0, 0, 0, 0);
             if (itemDate < from) matchesDateRange = false;
           }
-
           if (toDate) {
             const to = new Date(toDate);
             to.setHours(23, 59, 59, 999);
@@ -427,92 +423,78 @@ export default function StorePage() {
         }
       }
 
-      return matchesName && matchesBarcode && matchesBill && matchesDateRange;
-    });
-  }, [storeItems, searchQuery, barcodeSearch, billSearch, fromDate, toDate]);
+      let matchesExpireBefore = true;
+      if (expireBefore) {
+        const expireDate = new Date(expireBefore);
+        expireDate.setHours(23, 59, 59, 999);
+        if (item.expireDate && new Date(item.expireDate) > expireDate) {
+          matchesExpireBefore = false;
+        }
+      }
 
-  // Calculate total quantity and value
+      return matchesName && matchesBarcode && matchesBill && matchesDateRange && matchesExpireBefore;
+    });
+  }, [storeItems, searchQuery, barcodeSearch, billSearch, fromDate, toDate, expireBefore, sortItems]);
+
+  // Calculate totals
   const totalQuantity = useMemo(() => {
     return filteredItems.reduce((sum, item) => sum + item.totalQuantity, 0);
   }, [filteredItems]);
 
-  const totalValueUSD = useMemo(() => {
+  const totalBaseValueUSD = useMemo(() => {
+    return filteredItems.reduce((sum, item) => sum + (item.basePriceUSD * item.totalQuantity), 0);
+  }, [filteredItems]);
+
+  const totalNetValueUSD = useMemo(() => {
     return filteredItems.reduce((sum, item) => sum + (item.netPriceUSD * item.totalQuantity), 0);
   }, [filteredItems]);
 
-  const totalValueIQD = useMemo(() => {
+  const totalBaseValueIQD = useMemo(() => {
+    return filteredItems.reduce((sum, item) => sum + (item.basePriceIQD * item.totalQuantity), 0);
+  }, [filteredItems]);
+
+  const totalNetValueIQD = useMemo(() => {
     return filteredItems.reduce((sum, item) => sum + (item.netPriceIQD * item.totalQuantity), 0);
   }, [filteredItems]);
 
-  // Handle currency change
-  const handleCurrencyChange = useCallback((e) => {
-    setCurrencyDisplay(e.target.value);
-    const sorted = sortItems(
-      Object.values(groupedItems),
-      sortConfig.key,
-      sortConfig.direction,
-      e.target.value
-    );
-    setStoreItems(sorted);
-  }, [groupedItems, sortConfig]);
-
-  // Handle refresh
-  const handleRefresh = useCallback(() => {
-    fetchStoreItems();
-  }, [fetchStoreItems]);
-
-  // Handle branch change
-  const handleBranchChange = useCallback((e) => {
-    setBranchFilter(e.target.value);
-  }, []);
-
-  // Handle clear filters
-  const clearFilters = useCallback(() => {
-    setSearchQuery("");
-    setBarcodeSearch("");
-    setBillSearch("");
-    setFromDate("");
-    setToDate("");
-  }, []);
-
-  // Export to Excel function
+  // Export to Excel
   const exportToExcel = () => {
     try {
       const exportData = filteredItems.map(item => {
-        const batchDetails = item.batches.map(batch =>
-          `${batch.quantity} (${formatDate(batch.expireDate)}) [Bill: ${batch.boughtBillNumber}]`
-        ).join('; ');
-
+        const expiryStyle = getExpiryStyle(item.expireDate);
         return {
           'Item Name': item.name,
           'Barcode': item.barcode,
-          'Branch': item.branches.length > 1 ? 'Multiple' : item.branches[0],
-          'Bought Bill #': item.boughtBillNumbers.length > 1 ? 'Multiple' : item.boughtBillNumbers[0],
-          'Added Date': formatDateTime(item.earliestCreatedAt),
+          'Branch': item.branch,
+          'Bought Bill #': item.boughtBillNumber,
+          'Added Date': formatDateTime(item.createdAt),
+          'Base Price (USD)': formatUSD(item.basePriceUSD),
+          'Base Price (IQD)': formatIQD(item.basePriceIQD),
           'Net Price (USD)': formatUSD(item.netPriceUSD),
           'Net Price (IQD)': formatIQD(item.netPriceIQD),
           'Out Price (USD)': formatUSD(item.outPriceUSD),
           'Out Price (IQD)': formatIQD(item.outPriceIQD),
           'Exchange Rate': item.exchangeRate || 1500,
           'Total Quantity': item.totalQuantity,
-          'Total Value (USD)': formatUSD(item.netPriceUSD * item.totalQuantity),
-          'Total Value (IQD)': formatIQD(item.netPriceIQD * item.totalQuantity),
-          'Batches': batchDetails,
-          'Earliest Expiry': item.batches.length > 0
-            ? formatDate(item.batches.sort((a, b) =>
-                new Date(a.expireDate) - new Date(b.expireDate)
-              )[0].expireDate)
-            : 'N/A'
+          'Total Base Value (USD)': formatUSD(item.basePriceUSD * item.totalQuantity),
+          'Total Base Value (IQD)': formatIQD(item.basePriceIQD * item.totalQuantity),
+          'Total Net Value (USD)': formatUSD(item.netPriceUSD * item.totalQuantity),
+          'Total Net Value (IQD)': formatIQD(item.netPriceIQD * item.totalQuantity),
+          'Profit per Item (USD)': formatUSD(item.outPriceUSD - item.netPriceUSD),
+          'Profit per Item (IQD)': formatIQD(item.outPriceIQD - item.netPriceIQD),
+          'Expiry Date': item.expireDate ? formatDate(item.expireDate) : 'N/A',
+          'Expiry Status': item.expireDate ? expiryStyle.status : 'N/A'
         };
       });
 
       const ws = XLSX.utils.json_to_sheet(exportData);
-
       const colWidths = [
         { wch: 40 }, { wch: 20 }, { wch: 15 }, { wch: 15 },
         { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-        { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 18 },
-        { wch: 18 }, { wch: 40 }, { wch: 15 }
+        { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 12 },
+        { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 15 },
+        { wch: 15 }
       ];
       ws['!cols'] = colWidths;
 
@@ -524,17 +506,13 @@ export default function StorePage() {
       const filename = `store_inventory_${branchFilter}_${dateStr}.xlsx`;
 
       XLSX.writeFile(wb, filename);
-
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       setError("Failed to export data. Please try again.");
     }
   };
 
-  // Render UI
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   if (isLoading) {
     return (
@@ -545,8 +523,8 @@ export default function StorePage() {
             borderRadius: '9999px',
             height: '40px',
             width: '40px',
-            borderTop: '2px solid var(--primary)',
-            borderBottom: '2px solid var(--primary)'
+            borderTop: '2px solid #3b82f6',
+            borderBottom: '2px solid #3b82f6'
           }}></div>
         </div>
       </div>
@@ -555,57 +533,50 @@ export default function StorePage() {
 
   return (
     <div style={{ width: '100%', minHeight: '100vh', padding: '1rem', backgroundColor: '#f3f4f6' }}>
-      <div className="card" style={{ maxWidth: '100%', overflow: 'hidden' }}>
+      <div style={{ maxWidth: '100%', overflow: 'hidden', backgroundColor: 'white', borderRadius: '8px', padding: '1.5rem' }}>
         {/* Header and controls */}
         <div style={{ marginBottom: '1.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#1f2937' }}>Store Inventory</h2>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
               <select
                 value={currencyDisplay}
                 onChange={handleCurrencyChange}
-                className="input"
                 style={{
-                  width: '120px',
-                  padding: '8px',
+                  padding: '8px 12px',
                   fontSize: '14px',
                   backgroundColor: '#3b82f6',
                   color: 'white',
                   border: 'none',
-                  fontWeight: '500',
                   borderRadius: '6px'
                 }}
               >
-                <option value="USD" style={{ backgroundColor: 'white', color: 'black' }}>$ USD</option>
-                <option value="IQD" style={{ backgroundColor: 'white', color: 'black' }}>IQD</option>
+                <option value="USD">$ USD</option>
+                <option value="IQD">IQD</option>
               </select>
               <button
                 onClick={exportToExcel}
-                className="btn btn-success"
                 style={{
                   padding: '8px 16px',
-                  fontSize: '14px',
                   backgroundColor: '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '6px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
+                  cursor: 'pointer'
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
                 Export
               </button>
               <button
                 onClick={handleRefresh}
-                className="btn btn-secondary"
-                style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
               >
                 Refresh
               </button>
@@ -615,161 +586,120 @@ export default function StorePage() {
           {error && (
             <div style={{
               padding: '1rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.2)',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fecaca',
               borderRadius: '8px',
-              color: '#dc2626',
-              marginBottom: '1rem',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
+              color: '#991b1b',
+              marginBottom: '1rem'
             }}>
-              <span>{error}</span>
+              {error}
               <button
                 onClick={handleRefresh}
-                style={{ padding: '4px 8px', fontSize: '12px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                style={{
+                  marginLeft: '1rem',
+                  padding: '4px 8px',
+                  backgroundColor: '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
               >
-                Refresh Now
+                Retry
               </button>
             </div>
           )}
 
+          {/* Branch filter for superAdmin */}
           {user?.role === "superAdmin" && (
             <div style={{ marginBottom: '1rem' }}>
-              <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', color: '#1f2937', marginBottom: '4px' }}>Branch:</label>
+              <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Branch:</label>
               <select
                 value={branchFilter}
                 onChange={handleBranchChange}
                 style={{
                   padding: '8px 12px',
-                  fontSize: '14px',
-                  border: '2px solid #e5e7eb',
-                  borderRadius: '8px',
-                  maxWidth: '200px',
-                  backgroundColor: 'white'
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  width: '200px'
                 }}
               >
                 <option value="Slemany">Slemany</option>
                 <option value="Erbil">Erbil</option>
                 <option value="All Stores">All Stores</option>
               </select>
-              <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '8px' }}>
-                (Auto-updates)
-              </span>
             </div>
           )}
 
-          {/* Enhanced Search Section */}
+          {/* Search Section */}
           <div style={{
-            marginBottom: '1.5rem',
             padding: '1rem',
             backgroundColor: '#f9fafb',
             borderRadius: '8px',
-            border: '1px solid #e5e7eb'
+            border: '1px solid #e5e7eb',
+            marginBottom: '1.5rem'
           }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-              gap: '1rem',
-              marginBottom: '0.5rem'
-            }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#4b5563', marginBottom: '4px' }}>
-                  Item Name
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>Item Name</label>
                 <input
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    width: '100%'
-                  }}
                   placeholder="Search by name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                 />
               </div>
-
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#4b5563', marginBottom: '4px' }}>
-                  Barcode
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>Barcode</label>
                 <input
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    width: '100%'
-                  }}
                   placeholder="Search by barcode..."
                   value={barcodeSearch}
                   onChange={(e) => setBarcodeSearch(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                 />
               </div>
-
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#4b5563', marginBottom: '4px' }}>
-                  Bill Number
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>Bill Number</label>
                 <input
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    width: '100%'
-                  }}
                   placeholder="Search by bill #..."
                   value={billSearch}
                   onChange={(e) => setBillSearch(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                 />
               </div>
-
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#4b5563', marginBottom: '4px' }}>
-                  From Date
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>From Date</label>
                 <input
                   type="date"
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    width: '100%'
-                  }}
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                 />
               </div>
-
               <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '500', color: '#4b5563', marginBottom: '4px' }}>
-                  To Date
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>To Date</label>
                 <input
                   type="date"
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '14px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    width: '100%'
-                  }}
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '12px', fontWeight: '500' }}>Expires Before</label>
+                <input
+                  type="date"
+                  value={expireBefore}
+                  onChange={handleExpireBeforeChange}
+                  style={{ width: '100%', padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                 />
               </div>
             </div>
-
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
               <button
                 onClick={clearFilters}
                 style={{
                   padding: '6px 12px',
-                  fontSize: '13px',
                   backgroundColor: '#6b7280',
                   color: 'white',
                   border: 'none',
@@ -782,245 +712,200 @@ export default function StorePage() {
             </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <div style={{ fontSize: '14px', color: '#6b7280' }}>
               Showing {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
-              {user.role !== "superAdmin" && ` in ${user.branch} branch`}
-              {user.role === "superAdmin" && branchFilter !== "All Stores" && ` in ${branchFilter} branch`}
+              {user.role === "superAdmin" && branchFilter !== "All Stores" && ` in ${branchFilter}`}
               {user.role === "superAdmin" && branchFilter === "All Stores" && ` across all branches`}
+              {user.role !== "superAdmin" && ` in ${user.branch}`}
             </div>
-            <div style={{ fontSize: '14px', color: '#1f2937', fontWeight: '600' }}>
-              Total Value: {currencyDisplay === 'USD' ? formatUSD(totalValueUSD) : formatIQD(totalValueIQD)}
+            <div style={{ fontSize: '14px', fontWeight: '600' }}>
+              Total Net Value: {currencyDisplay === 'USD' ? formatUSD(totalNetValueUSD) : formatIQD(totalNetValueIQD)}
             </div>
           </div>
         </div>
 
-        {/* Render table only if filteredItems is not empty */}
+        {/* Table */}
         {filteredItems.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <div style={{
-              margin: '0 auto 16px',
-              height: '48px',
-              width: '48px',
-              borderRadius: '9999px',
-              backgroundColor: '#f3f4f6',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
+          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', borderRadius: '8px' }}>
+            <div style={{ margin: '0 auto 16px', height: '48px', width: '48px', borderRadius: '9999px', backgroundColor: '#f3f4f6' }}>
               <svg style={{ height: '24px', width: '24px', color: '#9ca3af' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
               </svg>
             </div>
-            <h3 style={{ marginBottom: '8px', fontSize: '18px', fontWeight: '600', color: '#1f2937' }}>
-              {searchQuery || barcodeSearch || billSearch || fromDate || toDate ? "No items found" : "No items in inventory"}
+            <h3 style={{ marginBottom: '8px', fontSize: '18px', fontWeight: '600' }}>
+              {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore ? "No items found" : "No items in inventory"}
             </h3>
             <p style={{ color: '#6b7280' }}>
-              {searchQuery || barcodeSearch || billSearch || fromDate || toDate ? "Try adjusting your search filters" : "Items will appear here once added to the store"}
+              {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore
+                ? "Try adjusting your search filters"
+                : "Items will appear here once added to the store"}
             </p>
           </div>
         ) : (
-          <div style={{
-            overflowX: 'auto',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            maxWidth: '100%',
-            WebkitOverflowScrolling: 'touch'
-          }}>
-            <div style={{ minWidth: '1500px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('barcode')}>
-                      Barcode {getSortIcon('barcode')}
+          <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1400px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f9fafb' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('barcode')}>
+                    Barcode {getSortIcon('barcode')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', minWidth: '250px' }} onClick={() => handleSort('name')}>
+                    Item Name {getSortIcon('name')}
+                  </th>
+                  {user?.role === "superAdmin" && (
+                    <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('branch')}>
+                      Branch {getSortIcon('branch')}
                     </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer', minWidth: '300px' }}
-                      onClick={() => handleSort('name')}>
-                      Item Name {getSortIcon('name')}
-                    </th>
-                    {user?.role === "superAdmin" && (
-                      <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                        onClick={() => handleSort('branch')}>
-                        Branch {getSortIcon('branch')}
-                      </th>
-                    )}
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('boughtBill')}>
-                      Bought Bill # {getSortIcon('boughtBill')}
-                    </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('createdAt')}>
-                      Added Date {getSortIcon('createdAt')}
-                    </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('netPrice')}>
-                      Net Price {currencyDisplay === 'USD' ? '(USD)' : '(IQD)'} {getSortIcon('netPrice')}
-                    </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('outPrice')}>
-                      Out Price {currencyDisplay === 'USD' ? '(USD)' : '(IQD)'} {getSortIcon('outPrice')}
-                    </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left', cursor: 'pointer' }}
-                      onClick={() => handleSort('quantity')}>
-                      Total Qty {getSortIcon('quantity')}
-                    </th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left' }}>Batches</th>
-                    <th style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#4b5563', textAlign: 'left' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredItems.map((item, index) => (
-                    <tr key={index} style={{ borderBottom: '1px solid #e5e7eb', transition: 'background-color 0.2s' }}>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#4b5563', fontFamily: 'monospace' }}>{item.barcode}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#1f2937', fontWeight: '500', minWidth: '300px' }}>{item.name}</td>
+                  )}
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('boughtBill')}>
+                    Bought Bill # {getSortIcon('boughtBill')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('createdAt')}>
+                    Added Date {getSortIcon('createdAt')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('basePrice')}>
+                    Base Price {currencyDisplay === 'USD' ? '(USD)' : '(IQD)'} {getSortIcon('basePrice')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('netPrice')}>
+                    Net Price {currencyDisplay === 'USD' ? '(USD)' : '(IQD)'} {getSortIcon('netPrice')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('outPrice')}>
+                    Out Price {currencyDisplay === 'USD' ? '(USD)' : '(IQD)'} {getSortIcon('outPrice')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('quantity')}>
+                    Quantity {getSortIcon('quantity')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer' }} onClick={() => handleSort('expireDate')}>
+                    Expiry Date {getSortIcon('expireDate')}
+                  </th>
+                  <th style={{ padding: '12px', textAlign: 'left' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item, index) => {
+                  const expiryStyle = getExpiryStyle(item.expireDate);
+                  return (
+                    <tr key={index} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '12px', fontFamily: 'monospace' }}>{item.barcode}</td>
+                      <td style={{ padding: '12px', fontWeight: '500' }}>{item.name}</td>
                       {user?.role === "superAdmin" && (
-                        <td style={{ padding: '12px', fontSize: '13px', color: '#4b5563' }}>
-                          {item.branches.length > 1 ? (
-                            <span style={getBranchStyle('Multiple')}>Multiple</span>
-                          ) : (
-                            <span style={getBranchStyle(item.branches[0])}>
-                              {item.branches[0]}
-                            </span>
-                          )}
+                        <td style={{ padding: '12px' }}>
+                          <span style={getBranchStyle(item.branch)}>{item.branch}</span>
                         </td>
                       )}
-                     
-<td style={{ padding: '12px', fontSize: '13px', color: '#4b5563' }}>
-  {item.boughtBillNumbers.length > 1 ? (
-    <span style={{
-      backgroundColor: '#f3f4f6',
-      color: '#4b5563',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontFamily: 'monospace'
-    }}>
-      Multiple
-    </span>
-  ) : (
-    <span style={{
-      backgroundColor: item.boughtBillNumbers[0] === 'N/A' ? '#fee2e2' : '#dbeafe',
-      color: item.boughtBillNumbers[0] === 'N/A' ? '#991b1b' : '#1e40af',
-      padding: '4px 8px',
-      borderRadius: '4px',
-      fontSize: '12px',
-      fontFamily: 'monospace'
-    }}>
-      {item.boughtBillNumbers[0] || 'N/A'}
-    </span>
-  )}
-</td>
-
-
-                       <td style={{ padding: '12px', fontSize: '13px', color: '#4b5563' }}>
-                        {formatDateTime(item.earliestCreatedAt)}
-                       </td>
-                       <td style={{ padding: '12px', fontSize: '13px', color: '#1f2937' }}>
+                      <td style={{ padding: '12px' }}>
+                        <span style={{
+                          backgroundColor: '#dbeafe',
+                          color: '#1e40af',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px'
+                        }}>
+                          {item.boughtBillNumber || 'N/A'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px' }}>{formatDateTime(item.createdAt)}</td>
+                      <td style={{ padding: '12px' }}>
+                        {currencyDisplay === 'USD' ? formatUSD(item.basePriceUSD) : formatIQD(item.basePriceIQD)}
+                      </td>
+                      <td style={{ padding: '12px' }}>
                         {currencyDisplay === 'USD' ? formatUSD(item.netPriceUSD) : formatIQD(item.netPriceIQD)}
-                       </td>
-                       <td style={{ padding: '12px', fontSize: '13px', color: '#1f2937' }}>
+                      </td>
+                      <td style={{ padding: '12px' }}>
                         {currencyDisplay === 'USD' ? formatUSD(item.outPriceUSD) : formatIQD(item.outPriceIQD)}
-                       </td>
-                       <td style={{ padding: '12px', fontSize: '13px', color: '#1f2937', fontWeight: '600' }}>
+                      </td>
+                      <td style={{ padding: '12px' }}>
                         <span style={{
                           backgroundColor: item.totalQuantity > 10 ? '#d1fae5' : '#fee2e2',
                           color: item.totalQuantity > 10 ? '#065f46' : '#991b1b',
                           padding: '4px 8px',
                           borderRadius: '4px',
-                          fontSize: '12px'
+                          fontSize: '12px',
+                          fontWeight: '600'
                         }}>
                           {item.totalQuantity}
                         </span>
-                       </td>
-                       <td style={{ padding: '12px', fontSize: '13px' }}>
-                        <details>
-                          <summary style={{ cursor: 'pointer', color: '#3b82f6', fontSize: '12px', fontWeight: '500' }}>
-                            {item.batches.length} batch{item.batches.length !== 1 ? 'es' : ''}
-                          </summary>
-                          <div style={{ marginTop: '8px', backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px' }}>
-                            {item.batches.map((batch, i) => (
-                              <div key={i} style={{
-                                padding: '6px',
-                                borderBottom: i < item.batches.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                fontSize: '12px'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <div>
-                                    <span style={{ fontWeight: '500' }}>Qty: {batch.quantity}</span>
-                                    <span style={{ color: '#6b7280', marginLeft: '8px' }}> Exp: {formatDate(batch.expireDate)}</span>
-                                  </div>
-                                  {attachments[batch.id] && attachments[batch.id].length > 0 && (
-                                    <button
-                                      onClick={() => setSelectedBatchForAttachments(batch)}
-                                      style={{
-                                        padding: '2px 6px',
-                                        fontSize: '10px',
-                                        backgroundColor: '#3b82f6',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
-                                      }}
-                                    >
-                                      📎 {attachments[batch.id].length}
-                                    </button>
-                                  )}
-                                </div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                                  <span style={{
-                                    backgroundColor: batch.boughtBillNumber === 'N/A' ? '#fee2e2' : '#dbeafe',
-                                    color: batch.boughtBillNumber === 'N/A' ? '#991b1b' : '#1e40af',
-                                    padding: '2px 4px',
-                                    borderRadius: '4px'
-                                  }}>
-                                    Bill: {batch.boughtBillNumber || 'N/A'}
-                                  </span>
-                                  <span>Added: {formatDateTime(batch.createdAt)}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                       </td>
-                       <td style={{ padding: '12px', fontSize: '13px' }}>
-                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                          <button
-                            onClick={() => setEditingItem(item)}
-                            style={{
-                              padding: '6px 12px',
-                              fontSize: '12px',
-                              backgroundColor: '#10b981',
-                              color: 'white',
-                              border: 'none',
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        {item.expireDate ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{
+                              backgroundColor: expiryStyle.backgroundColor,
+                              color: expiryStyle.color,
+                              padding: '4px 8px',
                               borderRadius: '4px',
-                              cursor: 'pointer',
+                              fontSize: '12px',
                               fontWeight: '500'
-                            }}
-                            disabled={isLoading}
-                          >
-                            ✏️ Edit
-                          </button>
-                        </div>
-                       </td>
-                      </tr>
-                  ))}
-
-                  {/* Total Row */}
-                  <tr style={{ backgroundColor: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                    <td colSpan={user.role === "superAdmin" ? 7 : 6} style={{ padding: '12px', fontSize: '13px', fontWeight: 'bold', color: '#1f2937', textAlign: 'right' }}>
-                      Totals:
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: 'bold', color: '#3b82f6' }}>
-                      {totalQuantity}
-                    </td>
-                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: 'bold', color: '#3b82f6' }} colSpan="2">
-                      Value: {currencyDisplay === 'USD' ? formatUSD(totalValueUSD) : formatIQD(totalValueIQD)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                            }}>
+                              {formatDate(item.expireDate)}
+                            </span>
+                            {expiryStyle.status !== 'Safe' && (
+                              <span style={{
+                                backgroundColor: expiryStyle.backgroundColor,
+                                color: expiryStyle.color,
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '10px',
+                                fontWeight: '600'
+                              }}>
+                                {expiryStyle.status}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{
+                            backgroundColor: '#f3f4f6',
+                            color: '#6b7280',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            fontSize: '12px'
+                          }}>
+                            N/A
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '12px' }}>
+                        <button
+                          onClick={() => {
+                            setEditingItem(item);
+                            setEditForm({
+                              quantity: item.totalQuantity,
+                              basePriceUSD: item.basePriceUSD,
+                              netPriceUSD: item.netPriceUSD,
+                              outPriceUSD: item.outPriceUSD,
+                              exchangeRate: item.exchangeRate.toString()
+                            });
+                          }}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                <tr style={{ backgroundColor: '#f9fafb' }}>
+                  <td colSpan={user.role === "superAdmin" ? 9 : 8} style={{ padding: '12px', textAlign: 'right', fontWeight: '600' }}>
+                    Totals:
+                  </td>
+                  <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937' }}>
+                    {totalQuantity}
+                  </td>
+                  <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937' }} colSpan="2">
+                    Base: {currencyDisplay === 'USD' ? formatUSD(totalBaseValueUSD) : formatIQD(totalBaseValueIQD)} | Net: {currencyDisplay === 'USD' ? formatUSD(totalNetValueUSD) : formatIQD(totalNetValueIQD)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -1050,200 +935,137 @@ export default function StorePage() {
               Edit {editingItem.name}
             </h3>
 
-            {editingItem.batches.length > 1 && (
-              <div style={{
-                marginBottom: '1rem',
-                padding: '0.75rem',
-                backgroundColor: '#f0f9ff',
-                border: '1px solid #bae6fd',
-                borderRadius: '8px',
-                fontSize: '14px'
-              }}>
-                <p style={{ margin: '0 0 0.5rem 0', fontWeight: '500', color: '#0369a1' }}>
-                  Quantity Distribution
-                </p>
-                <div style={{ fontSize: '12px', color: '#0c4a6e' }}>
-                  {editingItem.batches.map((batch, index) => {
-                    const distributedQty = Math.floor(parseInt(editForm.quantity) / editingItem.batches.length);
-                    return (
-                      <div key={index}>
-                        Batch {index + 1}: {distributedQty} units
-                        {batch.expireDate && ` (expires: ${formatDate(batch.expireDate)})`}
-                        {batch.boughtBillNumber !== 'N/A' && ` - Bill: ${batch.boughtBillNumber}`}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             <form onSubmit={async (e) => {
               e.preventDefault();
               try {
                 setIsSubmitting(true);
-                setError(null);
 
                 const newQuantity = parseInt(editForm.quantity);
+                const newBasePriceUSD = parseFloat(editForm.basePriceUSD);
                 const newNetPriceUSD = parseFloat(editForm.netPriceUSD);
                 const newOutPriceUSD = parseFloat(editForm.outPriceUSD);
                 const exchangeRate = parseFloat(editForm.exchangeRate) || 1500;
 
                 if (isNaN(newQuantity) || newQuantity < 0) {
-                  setError("Please enter a valid quantity (0 or greater)");
+                  setError("Please enter a valid quantity");
                   return;
                 }
 
-                if (isNaN(newNetPriceUSD) || newNetPriceUSD < 0 || isNaN(newOutPriceUSD) || newOutPriceUSD < 0) {
-                  setError("Please enter valid prices (0 or greater)");
+                if (isNaN(newBasePriceUSD) || newBasePriceUSD < 0 || 
+                    isNaN(newNetPriceUSD) || newNetPriceUSD < 0 || 
+                    isNaN(newOutPriceUSD) || newOutPriceUSD < 0) {
+                  setError("Please enter valid prices");
                   return;
                 }
 
+                // Validate price logic
+                if (newNetPriceUSD < newBasePriceUSD) {
+                  setError("Net price cannot be less than base price");
+                  return;
+                }
+
+                if (newOutPriceUSD < newNetPriceUSD) {
+                  setError("Out price cannot be less than net price");
+                  return;
+                }
+
+                const newBasePriceIQD = Math.round(newBasePriceUSD * exchangeRate);
                 const newNetPriceIQD = Math.round(newNetPriceUSD * exchangeRate);
                 const newOutPriceIQD = Math.round(newOutPriceUSD * exchangeRate);
 
-                const distributedQuantities = distributeQuantityAcrossBatches(newQuantity, editingItem.batches);
-
-                const updatePromises = editingItem.batches.map(async (batch, index) => {
-                  try {
-                    const updateData = {
-                      netPriceUSD: newNetPriceUSD,
-                      outPriceUSD: newOutPriceUSD,
-                      netPrice: newNetPriceIQD,
-                      outPrice: newOutPriceIQD,
-                      exchangeRate: exchangeRate,
-                      quantity: distributedQuantities[index]
-                    };
-
-                    await updateStoreItem(batch.id, updateData);
-                    return { success: true, batchId: batch.id };
-                  } catch (batchError) {
-                    console.error(`Error updating batch ${batch.id}:`, batchError);
-                    return { success: false, batchId: batch.id, error: batchError.message };
-                  }
+                await updateStoreItem(editingItem.id, {
+                  quantity: newQuantity,
+                  basePriceUSD: newBasePriceUSD,
+                  netPriceUSD: newNetPriceUSD,
+                  outPriceUSD: newOutPriceUSD,
+                  basePrice: newBasePriceIQD,
+                  netPrice: newNetPriceIQD,
+                  outPrice: newOutPriceIQD,
+                  exchangeRate: exchangeRate
                 });
 
-                const results = await Promise.all(updatePromises);
-                const failedUpdates = results.filter(result => !result.success);
-
-                if (failedUpdates.length > 0) {
-                  const errorMessage = `Failed to update ${failedUpdates.length} batch(es). Please try again.`;
-                  setError(errorMessage);
-                  return;
-                }
-
                 setEditingItem(null);
-                setEditForm({ quantity: '', netPriceUSD: '', outPriceUSD: '', exchangeRate: '1500' });
-                await fetchStoreItems();
-
+                setError(null);
               } catch (err) {
                 console.error("Error updating item:", err);
-                setError(err.message || "Failed to update item. Please try again.");
+                setError(err.message || "Failed to update item");
               } finally {
                 setIsSubmitting(false);
               }
             }}>
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Total Quantity:
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Quantity</label>
                 <input
                   type="number"
                   value={editForm.quantity}
                   onChange={(e) => setEditForm({...editForm, quantity: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                   required
                   min="0"
-                  disabled={isSubmitting}
                 />
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Exchange Rate (USD to IQD):
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Exchange Rate</label>
                 <input
                   type="number"
-                  step="1"
                   value={editForm.exchangeRate}
                   onChange={(e) => setEditForm({...editForm, exchangeRate: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                   required
                   min="1"
-                  disabled={isSubmitting}
                 />
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Net Price (USD):
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Base Price (USD) - Purchase Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={editForm.basePriceUSD}
+                  onChange={(e) => setEditForm({...editForm, basePriceUSD: e.target.value})}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+                  required
+                  min="0"
+                />
+              </div>
+
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Net Price (USD) - Including Expenses</label>
                 <input
                   type="number"
                   step="0.01"
                   value={editForm.netPriceUSD}
                   onChange={(e) => setEditForm({...editForm, netPriceUSD: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                   required
                   min="0"
-                  disabled={isSubmitting}
                 />
-                <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                  IQD: {formatIQD(parseFloat(editForm.netPriceUSD || 0) * parseFloat(editForm.exchangeRate || 1500))}
-                </span>
+                <small style={{ color: '#6b7280' }}>Must be greater than or equal to base price</small>
               </div>
 
               <div style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                  Out Price (USD):
-                </label>
+                <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500' }}>Out Price (USD) - Selling Price</label>
                 <input
                   type="number"
                   step="0.01"
                   value={editForm.outPriceUSD}
                   onChange={(e) => setEditForm({...editForm, outPriceUSD: e.target.value})}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '8px',
-                    fontSize: '14px'
-                  }}
+                  style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '6px' }}
                   required
                   min="0"
-                  disabled={isSubmitting}
                 />
-                <span style={{ fontSize: '12px', color: '#6b7280' }}>
-                  IQD: {formatIQD(parseFloat(editForm.outPriceUSD || 0) * parseFloat(editForm.exchangeRate || 1500))}
-                </span>
+                <small style={{ color: '#6b7280' }}>Must be greater than or equal to net price</small>
               </div>
 
               {error && (
                 <div style={{
                   padding: '0.75rem',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
-                  borderRadius: '8px',
-                  color: '#dc2626',
-                  marginBottom: '1rem',
-                  fontSize: '14px'
+                  backgroundColor: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '6px',
+                  color: '#991b1b',
+                  marginBottom: '1rem'
                 }}>
                   {error}
                 </div>
@@ -1254,7 +1076,6 @@ export default function StorePage() {
                   type="button"
                   onClick={() => {
                     setEditingItem(null);
-                    setEditForm({ quantity: '', netPriceUSD: '', outPriceUSD: '', exchangeRate: '1500' });
                     setError(null);
                   }}
                   style={{
@@ -1265,7 +1086,6 @@ export default function StorePage() {
                     borderRadius: '6px',
                     cursor: 'pointer'
                   }}
-                  disabled={isSubmitting}
                 >
                   Cancel
                 </button>
@@ -1281,156 +1101,13 @@ export default function StorePage() {
                   }}
                   disabled={isSubmitting}
                 >
-                  {isSubmitting ? 'Updating...' : 'Update'}
+                  {isSubmitting ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-
-      {/* Attachments Modal */}
-      {selectedBatchForAttachments && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div style={{
-            backgroundColor: 'white',
-            padding: '2rem',
-            borderRadius: '12px',
-            width: '90%',
-            maxWidth: '600px',
-            maxHeight: '80vh',
-            overflow: 'auto'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600' }}>
-                Attachments for Bill #{selectedBatchForAttachments.boughtBillNumber}
-              </h3>
-              <button
-                onClick={() => setSelectedBatchForAttachments(null)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontSize: '20px',
-                  cursor: 'pointer',
-                  color: '#6b7280'
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
-              <p style={{ fontSize: '13px', margin: '2px 0' }}><strong>Batch Details:</strong></p>
-              <p style={{ fontSize: '12px', margin: '2px 0' }}>Quantity: {selectedBatchForAttachments.quantity}</p>
-              <p style={{ fontSize: '12px', margin: '2px 0' }}>Expiry: {formatDate(selectedBatchForAttachments.expireDate)}</p>
-              <p style={{ fontSize: '12px', margin: '2px 0' }}>Added: {formatDateTime(selectedBatchForAttachments.createdAt)}</p>
-            </div>
-
-            {attachments[selectedBatchForAttachments.id] && attachments[selectedBatchForAttachments.id].length > 0 ? (
-              <div style={{ display: 'grid', gap: '0.75rem' }}>
-                {attachments[selectedBatchForAttachments.id].map((attachment, i) => (
-                  <div key={i} style={{
-                    padding: '1rem',
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <div style={{ fontSize: '14px', fontWeight: '500', color: '#1f2937' }}>
-                        {attachment.fileName}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                        Uploaded: {formatDateTime(attachment.uploadedAt)}
-                      </div>
-                    </div>
-                    {attachment.base64Data ? (
-                      <img
-                        src={attachment.base64Data}
-                        alt={attachment.fileName}
-                        style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }}
-                      />
-                    ) : attachment.fileUrl ? (
-                      <a
-                        href={attachment.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-block',
-                          padding: '6px 12px',
-                          backgroundColor: '#3b82f6',
-                          color: 'white',
-                          textDecoration: 'none',
-                          borderRadius: '6px',
-                          fontSize: '13px'
-                        }}
-                      >
-                        View File
-                      </a>
-                    ) : (
-                      <p style={{ color: '#6b7280', fontSize: '12px' }}>No preview available</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                No attachments found for this bill
-              </p>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-              <button
-                onClick={() => setSelectedBatchForAttachments(null)}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: '#6b7280',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer'
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <style jsx>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
-
-// Helper function to distribute quantity across batches
-const distributeQuantityAcrossBatches = (totalQuantity, batches) => {
-  const distributed = [];
-  let remaining = totalQuantity;
-
-  for (let i = 0; i < batches.length; i++) {
-    if (i === batches.length - 1) {
-      distributed.push(remaining);
-    } else {
-      const average = Math.floor(remaining / (batches.length - i));
-      distributed.push(average);
-      remaining -= average;
-    }
-  }
-
-  return distributed;
-};
