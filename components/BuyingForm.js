@@ -492,38 +492,38 @@ export default function BuyingForm({ onBillCreated }) {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
-
+  
     try {
       if (!companyId) {
         setError("Please select a company.");
         return;
       }
-
+  
       // Filter out empty items before submission
-      const validItems = billItems.filter(item => 
-        item.barcode && 
-        item.name && 
-        item.quantity > 0 && 
+      const validItems = billItems.filter(item =>
+        item.barcode &&
+        item.name &&
+        item.quantity > 0 &&
         item.basePriceUSD > 0
       );
-      
+  
       if (validItems.length === 0) {
         setError("Please add at least one valid item.");
         return;
       }
-
+  
       // Check if ratios cover costs
       const totalRatios = validItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
       if (Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0) {
         setError(`Cost ratios must add up to 100% to cover all transport and expense costs. Current total: ${(totalRatios * 100).toFixed(1)}%`);
         return;
       }
-
+  
       // Prepare items for submission (all prices in USD)
       const itemsWithCosts = validItems.map(item => {
         // Handle expire date
         let expireDateValue = null;
-        
+  
         if (item.expireDate) {
           try {
             if (typeof item.expireDate === 'string' && item.expireDate.includes('-')) {
@@ -549,68 +549,48 @@ export default function BuyingForm({ onBillCreated }) {
             console.error("Error parsing expire date:", dateError);
           }
         }
-        
+  
         // Calculate transport and expense allocations (in USD)
         const itemTransportFeeUSD = (totalTransportFeeUSD * (item.costRatio || 0)) / (item.quantity || 1);
         const itemExternalExpenseUSD = (totalExternalExpenseUSD * (item.costRatio || 0)) / (item.quantity || 1);
-        
+  
         return {
           // Basic info
           barcode: item.barcode,
           name: item.name,
           quantity: parseInt(item.quantity) || 1,
-          
+  
           // ALL PRICES IN USD - source of truth
           basePriceUSD: parseFloat(item.basePriceUSD) || 0,
           netPriceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
           outPriceUSD: parseFloat(item.outPriceUSD) || 0,
-          
+  
           // IQD prices (calculated for display only)
           basePrice: Math.round((parseFloat(item.basePriceUSD) || 0) * exchangeRate),
           netPrice: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
           outPrice: Math.round((parseFloat(item.outPriceUSD) || 0) * exchangeRate),
-          
+  
           // Final costs in USD
           finalCostUSD: parseFloat(item.finalCostUSD) || 0,
           finalCostPerPieceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
           finalCostIQD: Math.round((parseFloat(item.finalCostUSD) || 0) * exchangeRate),
           finalCostPerPieceIQD: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
-          
+  
           // Expire date
           expireDate: expireDateValue,
-          
+  
           // Branch and consignment
           branch: branch,
           isConsignment: isConsignment,
           consignmentOwnerId: isConsignment ? companyId : null,
-          
+  
           // Additional costs allocation (USD)
           transportFeeUSD: parseFloat(itemTransportFeeUSD) || 0,
           externalExpenseUSD: parseFloat(itemExternalExpenseUSD) || 0,
           costRatio: parseFloat(item.costRatio) || 0
         };
       });
-
-      console.log("Submitting items:", itemsWithCosts.map(i => ({ 
-        barcode: i.barcode, 
-        basePriceUSD: i.basePriceUSD,
-        outPriceUSD: i.outPriceUSD
-      })));
-
-      // Validate required fields
-      const missingFields = itemsWithCosts.some(item => {
-        if (!item.barcode) return true;
-        if (!item.name) return true;
-        if (item.quantity <= 0) return true;
-        if (item.basePriceUSD <= 0) return true;
-        return false;
-      });
-      
-      if (missingFields) {
-        setError("All items must have barcode, name, quantity, and base price.");
-        return;
-      }
-      
+  
       // Prepare additional bill data
       const additionalData = {
         exchangeRate: parseFloat(exchangeRate) || 1500,
@@ -623,7 +603,7 @@ export default function BuyingForm({ onBillCreated }) {
         billDate: billDate,
         currency: "USD"
       };
-      
+  
       if (isEditing) {
         // Update existing bill
         await updateBoughtBill(editingBill.billNumber, {
@@ -640,15 +620,16 @@ export default function BuyingForm({ onBillCreated }) {
           totalExternalExpenseUSD,
           branch
         });
-        
+  
         alert(`Bill #${editingBill.billNumber} updated successfully!`);
-        
+  
         // Clear editing state
         localStorage.removeItem('editingBill');
-        
-        // Navigate back
+  
+        // Reset form and navigate back
+        resetForm();
         router.push('/buying');
-        
+  
       } else {
         // Create new bill
         const bill = await createBoughtBill(
@@ -660,14 +641,14 @@ export default function BuyingForm({ onBillCreated }) {
           isConsignment,
           additionalData
         );
-        
+  
         if (onBillCreated) onBillCreated(bill);
         alert(`Bill #${bill.billNumber} created successfully!`);
-        
+  
         // Reset form
         resetForm();
       }
-      
+  
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       setError(error.message || `Failed to ${isEditing ? 'update' : 'create'} bill. Please try again.`);
@@ -675,6 +656,7 @@ export default function BuyingForm({ onBillCreated }) {
       setIsLoading(false);
     }
   };
+  
 
   const resetForm = useCallback(() => {
     setCompanyId("");
@@ -696,6 +678,7 @@ export default function BuyingForm({ onBillCreated }) {
     setIsEditing(false);
     setEditingBill(null);
   }, []);
+  
 
   const addItem = useCallback(() => {
     setBillItems(prev => {

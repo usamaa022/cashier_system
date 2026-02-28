@@ -5,8 +5,9 @@ import { getBoughtBills, getCompanies, deleteBoughtBill, updateBoughtBill } from
 import Card from "./Card";
 import { useRouter } from "next/navigation";
 import Select from "react-select";
+import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
-// Helper function to format numbers with decimals
+// Helper functions remain the same
 const formatNumber = (number) => {
   if (!number && number !== 0) return '0';
   if (Number.isInteger(number)) {
@@ -19,13 +20,12 @@ const formatNumber = (number) => {
   }
 };
 
-// Helper function to format date to DD/MM/YYYY
-const formatDateToDDMMYYYY = (date) => {
+const formatDateToDDMMYYYYHHMM = (date) => {
   if (!date) return 'N/A';
-  
+
   try {
     let dateObj = null;
-    
+
     if (date?.toDate && typeof date.toDate === 'function') {
       dateObj = date.toDate();
     } else if (date?.seconds) {
@@ -41,27 +41,28 @@ const formatDateToDDMMYYYY = (date) => {
         dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
       }
     }
-    
+
     if (dateObj && !isNaN(dateObj.getTime())) {
       const day = String(dateObj.getDate()).padStart(2, '0');
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const year = dateObj.getFullYear();
-      return `${day}/${month}/${year}`;
+      const hours = String(dateObj.getHours()).padStart(2, '0');
+      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} ${hours}:${minutes}`;
     }
   } catch (e) {
     console.error("Error formatting date:", e);
   }
-  
+
   return 'N/A';
 };
 
-// Helper function to format date for display in table cells
 const formatExpireDate = (expireDate) => {
   if (!expireDate) return 'N/A';
-  
+
   try {
     let dateObj = null;
-    
+
     if (expireDate?.toDate && typeof expireDate.toDate === 'function') {
       dateObj = expireDate.toDate();
     } else if (expireDate?.seconds) {
@@ -77,7 +78,7 @@ const formatExpireDate = (expireDate) => {
         dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
       }
     }
-    
+
     if (dateObj && !isNaN(dateObj.getTime())) {
       const day = String(dateObj.getDate()).padStart(2, '0');
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -87,11 +88,10 @@ const formatExpireDate = (expireDate) => {
   } catch (e) {
     console.error("Error formatting expire date:", e);
   }
-  
+
   return 'N/A';
 };
 
-// Helper function to parse any date format
 const parseDate = (dateValue) => {
   if (!dateValue) return null;
   if (dateValue.toDate) return dateValue.toDate();
@@ -107,7 +107,6 @@ const parseDate = (dateValue) => {
   return null;
 };
 
-// Helper function to convert date to YYYY-MM-DD format for input fields
 const formatDateForInput = (date) => {
   if (!date) return '';
   let dateObj;
@@ -149,6 +148,7 @@ export default function BuyingList({ refreshTrigger }) {
   const [attachmentModal, setAttachmentModal] = useState(null);
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [displayCurrency, setDisplayCurrency] = useState("USD");
+  const [sortConfig, setSortConfig] = useState({ key: 'billNumber', direction: 'desc' });
   const fileInputRef = useRef(null);
   const router = useRouter();
 
@@ -190,11 +190,11 @@ export default function BuyingList({ refreshTrigger }) {
   }, [filters.companySearch, companies]);
 
   const handleFilterChange = (field, value) => {
-    setFilters({...filters, [field]: value});
+    setFilters({ ...filters, [field]: value });
   };
 
   const handleCompanySelect = (company) => {
-    setFilters({...filters, companySearch: company.name, companyId: company.id});
+    setFilters({ ...filters, companySearch: company.name, companyId: company.id });
     setShowCompanySuggestions(false);
   };
 
@@ -203,36 +203,81 @@ export default function BuyingList({ refreshTrigger }) {
     label: item
   }));
 
-  const filteredBills = bills.filter(bill => {
-    const matchesBillNumber = !filters.billNumber ||
-                          bill.billNumber.toString().includes(filters.billNumber);
-    const matchesCompanyBillNumber = !filters.companyBillNumber ||
-                          bill.companyBillNumber?.toString().includes(filters.companyBillNumber);
-    const matchesCompany = !filters.companySearch ||
-                          companies.find(c => c.id === bill.companyId)?.name.toLowerCase().includes(filters.companySearch.toLowerCase());
-    const billDate = parseDate(bill.date);
-    const startDate = filters.startDate ? new Date(filters.startDate) : null;
-    const endDate = filters.endDate ? new Date(filters.endDate) : null;
-    const matchesStartDate = !startDate || (billDate && billDate >= startDate);
-    const matchesEndDate = !endDate || (billDate && billDate <= endDate);
-    const matchesPaymentStatus = filters.paymentStatus === "all" ||
-                          bill.paymentStatus === filters.paymentStatus;
-    const matchesConsignmentStatus = filters.consignmentStatus === "all" ||
-                          (filters.consignmentStatus === "consignment" && bill.isConsignment) ||
-                          (filters.consignmentStatus === "owned" && !bill.isConsignment);
-    const matchesSearch = !searchQuery ||
-                          bill.items.some(item =>
-                            item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            item.barcode.includes(searchQuery)
-                          ) ||
-                          bill.billNumber.toString().includes(searchQuery);
-    const matchesItemFilters = itemFilters.length === 0 ||
-                            bill.items.some(item => itemFilters.includes(item.name));
-    return matchesBillNumber && matchesCompanyBillNumber && matchesCompany &&
-           matchesStartDate && matchesEndDate &&
-           matchesPaymentStatus && matchesSearch && matchesItemFilters &&
-           matchesConsignmentStatus;
-  });
+  const requestSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedAndFilteredBills = () => {
+    const filtered = bills.filter(bill => {
+      const matchesBillNumber = !filters.billNumber ||
+        bill.billNumber.toString().includes(filters.billNumber);
+      const matchesCompanyBillNumber = !filters.companyBillNumber ||
+        bill.companyBillNumber?.toString().includes(filters.companyBillNumber);
+      const matchesCompany = !filters.companySearch ||
+        companies.find(c => c.id === bill.companyId)?.name.toLowerCase().includes(filters.companySearch.toLowerCase());
+      const billDate = parseDate(bill.date);
+      const startDate = filters.startDate ? new Date(filters.startDate) : null;
+      const endDate = filters.endDate ? new Date(filters.endDate) : null;
+      const matchesStartDate = !startDate || (billDate && billDate >= startDate);
+      const matchesEndDate = !endDate || (billDate && billDate <= endDate);
+      const matchesPaymentStatus = filters.paymentStatus === "all" ||
+        bill.paymentStatus === filters.paymentStatus;
+      const matchesConsignmentStatus = filters.consignmentStatus === "all" ||
+        (filters.consignmentStatus === "consignment" && bill.isConsignment) ||
+        (filters.consignmentStatus === "owned" && !bill.isConsignment);
+      const matchesSearch = !searchQuery ||
+        bill.items.some(item =>
+          item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.barcode.includes(searchQuery)
+        ) ||
+        bill.billNumber.toString().includes(searchQuery);
+      const matchesItemFilters = itemFilters.length === 0 ||
+        bill.items.some(item => itemFilters.includes(item.name));
+      return matchesBillNumber && matchesCompanyBillNumber && matchesCompany &&
+        matchesStartDate && matchesEndDate &&
+        matchesPaymentStatus && matchesSearch && matchesItemFilters &&
+        matchesConsignmentStatus;
+    });
+
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aValue, bValue;
+
+        if (sortConfig.key === 'billNumber') {
+          aValue = a.billNumber;
+          bValue = b.billNumber;
+        } else if (sortConfig.key === 'company') {
+          aValue = companies.find(c => c.id === a.companyId)?.name || '';
+          bValue = companies.find(c => c.id === b.companyId)?.name || '';
+        } else if (sortConfig.key === 'date') {
+          aValue = parseDate(a.date)?.getTime() || 0;
+          bValue = parseDate(b.date)?.getTime() || 0;
+        } else if (sortConfig.key === 'paymentStatus') {
+          aValue = a.paymentStatus || '';
+          bValue = b.paymentStatus || '';
+        } else if (sortConfig.key === 'consignment') {
+          aValue = a.isConsignment ? 'Consignment' : 'Owned';
+          bValue = b.isConsignment ? 'Consignment' : 'Owned';
+        }
+
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+
+    return filtered;
+  };
+
+  const sortedAndFilteredBills = getSortedAndFilteredBills();
 
   const formatPrice = (item, priceField = 'outPrice') => {
     if (!item) return '0';
@@ -360,17 +405,17 @@ export default function BuyingList({ refreshTrigger }) {
         attachment: attachmentPreview,
         attachmentDate: new Date().toISOString()
       });
-      
+
       setBills(bills.map(bill =>
         bill.billNumber === attachmentModal.billNumber ?
-        {...bill, attachment: attachmentPreview} : bill
+          { ...bill, attachment: attachmentPreview } : bill
       ));
-      
+
       setAttachmentModal(prev => ({
         ...prev,
         attachment: attachmentPreview
       }));
-      
+
       alert('Attachment saved successfully!');
     } catch (error) {
       console.error('Error saving attachment:', error);
@@ -380,25 +425,25 @@ export default function BuyingList({ refreshTrigger }) {
 
   const removeAttachment = async () => {
     if (!attachmentModal) return;
-    
+
     if (confirm("Are you sure you want to remove this attachment?")) {
       try {
         await updateBoughtBill(attachmentModal.billNumber, {
           attachment: null,
           attachmentDate: null
         });
-        
+
         setBills(bills.map(bill =>
           bill.billNumber === attachmentModal.billNumber ?
-          {...bill, attachment: null} : bill
+            { ...bill, attachment: null } : bill
         ));
-        
+
         setAttachmentModal(prev => ({
           ...prev,
           attachment: null
         }));
         setAttachmentPreview(null);
-        
+
         alert('Attachment removed successfully!');
       } catch (error) {
         console.error('Error removing attachment:', error);
@@ -442,27 +487,23 @@ export default function BuyingList({ refreshTrigger }) {
     setDisplayCurrency(prev => prev === "USD" ? "IQD" : "USD");
   };
 
-  // Function to calculate cost price (base price + expenses)
   const calculateCostPrice = (item, bill) => {
     const basePrice = item.basePriceUSD || (item.basePrice ? item.basePrice / (bill.exchangeRate || 1500) : 0);
-    
-    // If it's consignment, cost is 0 (we don't own it yet)
+
     if (bill.isConsignment) {
       return 0;
     }
-    
-    // Calculate expenses per item based on cost ratio
+
     const totalBaseCost = bill.items.reduce((sum, i) => sum + ((i.basePriceUSD || 0) * (i.quantity || 0)), 0);
     const itemBaseCost = (item.basePriceUSD || 0) * (item.quantity || 0);
     const itemRatio = totalBaseCost > 0 ? itemBaseCost / totalBaseCost : 0;
-    
+
     const transportPerItem = ((bill.totalTransportFeeUSD || 0) * itemRatio) / (item.quantity || 1);
     const externalExpensePerItem = ((bill.totalExternalExpenseUSD || 0) * itemRatio) / (item.quantity || 1);
-    
-    // Cost price = base price + (expense% of base price) + transport + external expenses
+
     const expenseAmount = basePrice * ((bill.expensePercentage || 7) / 100);
     const costPrice = basePrice + expenseAmount + transportPerItem + externalExpensePerItem;
-    
+
     return costPrice;
   };
 
@@ -483,7 +524,7 @@ export default function BuyingList({ refreshTrigger }) {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0;
-          font-size: 0.9rem;
+          font-size: 16px;
         }
 
         .purchase-table thead tr {
@@ -496,11 +537,22 @@ export default function BuyingList({ refreshTrigger }) {
           font-weight: 600;
           color: #1e293b;
           text-transform: uppercase;
-          font-size: 0.75rem;
+          font-size: 0.85rem;
           letter-spacing: 0.05em;
           white-space: nowrap;
           border-bottom: 2px solid #e2e8f0;
           position: relative;
+          cursor: pointer;
+        }
+
+        .purchase-table th.sortable {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+        }
+
+        .purchase-table th.sortable:hover {
+          background-color: #f1f5f9;
         }
 
         .purchase-table th:after {
@@ -1114,20 +1166,20 @@ export default function BuyingList({ refreshTrigger }) {
           .purchase-table {
             font-size: 0.8rem;
           }
-          
+
           .purchase-table th,
           .purchase-table td {
             padding: 0.75rem 0.5rem;
           }
-          
+
           .info-grid {
             grid-template-columns: 1fr;
           }
-          
+
           .action-buttons {
             flex-direction: column;
           }
-          
+
           .modal-actions {
             grid-template-columns: 1fr;
           }
@@ -1290,17 +1342,42 @@ export default function BuyingList({ refreshTrigger }) {
           <table className="purchase-table">
             <thead>
               <tr>
-                <th>Bill #</th>
-                <th>Company</th>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Consignment</th>
+                <th className="sortable" onClick={() => requestSort('billNumber')}>
+                  Bill #
+                  {sortConfig.key === 'billNumber' && (
+                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
+                  )}
+                </th>
+                <th className="sortable" onClick={() => requestSort('company')}>
+                  Company
+                  {sortConfig.key === 'company' && (
+                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
+                  )}
+                </th>
+                <th className="sortable" onClick={() => requestSort('date')}>
+                  Date
+                  {sortConfig.key === 'date' && (
+                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
+                  )}
+                </th>
+                <th className="sortable" onClick={() => requestSort('paymentStatus')}>
+                  Status
+                  {sortConfig.key === 'paymentStatus' && (
+                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
+                  )}
+                </th>
+                <th className="sortable" onClick={() => requestSort('consignment')}>
+                  Consignment
+                  {sortConfig.key === 'consignment' && (
+                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
+                  )}
+                </th>
                 <th>Attachment</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredBills.map(bill => (
+              {sortedAndFilteredBills.map(bill => (
                 <React.Fragment key={bill.billNumber}>
                   <tr
                     onClick={() => toggleBillDetails(bill)}
@@ -1317,7 +1394,7 @@ export default function BuyingList({ refreshTrigger }) {
                         </span>
                       </div>
                     </td>
-                    <td className="date-cell">{formatDateToDDMMYYYY(bill.date)}</td>
+                    <td className="date-cell">{formatDateToDDMMYYYYHHMM(bill.date)}</td>
                     <td><PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} /></td>
                     <td><ConsignmentBadge isConsignment={bill.isConsignment} /></td>
                     <td>
@@ -1392,7 +1469,7 @@ export default function BuyingList({ refreshTrigger }) {
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Bill Date</span>
-                                <span className="info-value">{formatDateToDDMMYYYY(bill.date)}</span>
+                                <span className="info-value">{formatDateToDDMMYYYYHHMM(bill.date)}</span>
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Company Bill #</span>
@@ -1456,11 +1533,11 @@ export default function BuyingList({ refreshTrigger }) {
                                     const outPriceUSD = item.outPriceUSD || (item.outPrice ? item.outPrice / (bill.exchangeRate || 1500) : 0);
                                     const outPriceIQD = item.outPrice || outPriceUSD * (bill.exchangeRate || 1500);
                                     const quantity = item.quantity || 0;
-                                    
+
                                     // Calculate cost price
                                     const costPriceUSD = calculateCostPrice(item, bill);
                                     const costPriceIQD = costPriceUSD * (bill.exchangeRate || 1500);
-                                    
+
                                     const subtotalUSD = basePriceUSD * quantity;
                                     const subtotalIQD = basePriceIQD * quantity;
 
@@ -1539,45 +1616,6 @@ export default function BuyingList({ refreshTrigger }) {
                                 </tfoot>
                               </table>
                             </div>
-
-                            {/* Action Buttons */}
-                            {/* <div className="flex flex-col sm:flex-row justify-end gap-2 mt-4 pt-4 border-t border-gray-200">
-                              <button
-                                className="btn-icon btn-edit"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleUpdateBill(bill);
-                                }}
-                              >
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit Bill
-                              </button>
-                              <button
-                                className="btn-icon btn-attach"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  openAttachmentModal(bill);
-                                }}
-                              >
-                                {bill.attachment ? (
-                                  <>
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                    </svg>
-                                    Manage Attachment
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                    </svg>
-                                    Add Attachment
-                                  </>
-                                )}
-                              </button>
-                            </div> */}
                           </div>
                         </div>
                       </td>
@@ -1590,7 +1628,7 @@ export default function BuyingList({ refreshTrigger }) {
         </div>
 
         {/* Empty State */}
-        {filteredBills.length === 0 && (
+        {sortedAndFilteredBills.length === 0 && (
           <div className="empty-state">
             <div className="empty-state-icon">📦</div>
             <h3 className="empty-state-title">No bills found</h3>
@@ -1624,7 +1662,7 @@ export default function BuyingList({ refreshTrigger }) {
                     <div>No attachment yet</div>
                   </div>
                 )}
-                
+
                 <input
                   type="file"
                   ref={fileInputRef}
