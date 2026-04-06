@@ -1,25 +1,42 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCompanies, searchInitializedItems, createBoughtBill, updateBoughtBill } from "@/lib/data";
-import Card from "./Card";
 import { useSearchParams, useRouter } from "next/navigation";
-import { FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, FiShoppingBag, FiPackage, FiUser, FiCalendar, FiHome, FiCreditCard, FiTruck, FiAlertTriangle, FiX, FiRefreshCw } from "react-icons/fi";
-import { Timestamp } from "firebase/firestore";
+import { 
+  FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, 
+  FiPackage, FiUser, FiCalendar, FiCreditCard, FiTruck, 
+  FiAlertTriangle, FiX, FiRefreshCw, FiShoppingCart, FiCheckCircle,
+  FiArrowRight
+} from "react-icons/fi";
 
-// Utility functions
+// Format number with commas (e.g., 3,000 or 3,000.50)
 const formatNumber = (number) => {
   if (!number && number !== 0) return '0';
-  if (Number.isInteger(number)) {
-    return new Intl.NumberFormat('en-US').format(number);
+  const num = typeof number === 'string' ? parseFloat(number.replace(/,/g, '')) : number;
+  if (isNaN(num)) return '0';
+  
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: num % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(num);
+};
+
+// Parse formatted number back to number
+const parseFormattedNumber = (formattedValue) => {
+  if (!formattedValue) return '';
+  return formattedValue.toString().replace(/,/g, '');
+};
+
+// Handle input with comma formatting
+const handleNumberInput = (value, setter) => {
+  const rawValue = value.replace(/,/g, '');
+  if (rawValue === '' || isNaN(parseFloat(rawValue))) {
+    setter('');
   } else {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(number);
+    setter(formatNumber(rawValue));
   }
 };
 
-// Format date to DD/MM/YYYY for display
 const formatDateToDDMMYYYY = (date) => {
   if (!date) return '';
   const d = new Date(date);
@@ -30,36 +47,18 @@ const formatDateToDDMMYYYY = (date) => {
   return `${day}/${month}/${year}`;
 };
 
-// Parse DD/MM/YYYY to YYYY-MM-DD for input
 const parseDDMMYYYYToInput = (dateString) => {
   if (!dateString) return '';
   if (dateString.includes('/')) {
     const [day, month, year] = dateString.split('/');
-    if (day && month && year) {
-      return `${year}-${month}-${day}`;
-    }
+    return `${year}-${month}-${day}`;
   }
   return dateString;
 };
 
-// Format YYYY-MM-DD to DD/MM/YYYY for display
-const formatInputToDDMMYYYY = (dateString) => {
-  if (!dateString) return '';
-  if (dateString.includes('-')) {
-    const [year, month, day] = dateString.split('-');
-    if (year && month && day) {
-      return `${day}/${month}/${year}`;
-    }
-  }
-  return dateString;
-};
-
-// Helper function to convert date to YYYY-MM-DD format for input fields
 const formatDateForInput = (date) => {
   if (!date) return '';
-  
   let dateObj;
-  
   if (date?.toDate) {
     dateObj = date.toDate();
   } else if (date?.seconds) {
@@ -76,53 +75,328 @@ const formatDateForInput = (date) => {
   } else {
     return '';
   }
-  
   if (isNaN(dateObj.getTime())) return '';
-  
   const year = dateObj.getFullYear();
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
 
-// Helper to format date for display
-const formatDateForDisplay = (date) => {
-  if (!date) return 'N/A';
-  
-  try {
-    let dateObj = null;
-    
-    if (date?.toDate && typeof date.toDate === 'function') {
-      dateObj = date.toDate();
-    } else if (date?.seconds) {
-      dateObj = new Date(date.seconds * 1000);
-    } else if (date instanceof Date) {
-      dateObj = date;
-    } else if (typeof date === 'string') {
-      if (date.includes('-')) {
-        const [year, month, day] = date.split('-');
-        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-      } else if (date.includes('/')) {
-        const [day, month, year] = date.split('/');
-        dateObj = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-      }
-    }
-    
-    if (dateObj && !isNaN(dateObj.getTime())) {
-      const day = String(dateObj.getDate()).padStart(2, '0');
-      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-      const year = dateObj.getFullYear();
-      return `${day}/${month}/${year}`;
-    }
-  } catch (e) {
-    console.error("Error formatting date:", e);
-  }
-  
-  return 'N/A';
+// Inline styles
+const styles = {
+  container: {
+    minHeight: '100vh',
+    // background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    padding: '20px',
+  },
+  mainCard: {
+    maxWidth: '95%',
+    margin: '0 auto',
+    backgroundColor: 'white',
+    borderRadius: '16px',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    overflow: 'hidden',
+  },
+  header: {
+    background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+    padding: '24px 32px',
+    color: 'white',
+  },
+  headerTitle: {
+    fontSize: '28px',
+    fontWeight: 'bold',
+    margin: 0,
+  },
+  headerSubtitle: {
+    fontSize: '14px',
+    opacity: 0.8,
+    marginTop: '8px',
+    marginBottom: 0,
+  },
+  content: {
+    padding: '32px',
+  },
+  section: {
+    backgroundColor: '#f8fafc',
+    borderRadius: '12px',
+    padding: '20px',
+    marginBottom: '24px',
+    border: '1px solid #e2e8f0',
+  },
+  sectionTitle: {
+    fontSize: '18px',
+    fontWeight: '600',
+    marginBottom: '16px',
+    color: '#1e293b',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    paddingBottom: '12px',
+    borderBottom: '2px solid #e2e8f0',
+  },
+  formRow: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+    gap: '16px',
+    marginBottom: '16px',
+  },
+  formGroup: {
+    display: 'flex',
+    flexDirection: 'column',
+  },
+  label: {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#475569',
+    marginBottom: '6px',
+  },
+  input: {
+    padding: '10px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
+    transition: 'all 0.2s',
+    outline: 'none',
+    backgroundColor: 'white',
+  },
+  select: {
+    padding: '10px 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+  },
+  currencyButtons: {
+    display: 'flex',
+    gap: '12px',
+    marginBottom: '16px',
+  },
+  currencyBtn: {
+    padding: '10px 24px',
+    borderRadius: '8px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    border: 'none',
+    fontSize: '14px',
+  },
+  currencyBtnActiveUSD: {
+    background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+    color: 'white',
+    boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+  },
+  currencyBtnActiveIQD: {
+    background: 'linear-gradient(135deg, #10b981, #059669)',
+    color: 'white',
+    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+  },
+  currencyBtnInactive: {
+    backgroundColor: '#e2e8f0',
+    color: '#475569',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    marginTop: '16px',
+  },
+  th: {
+    padding: '12px',
+    textAlign: 'left',
+    backgroundColor: '#f1f5f9',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#475569',
+    borderBottom: '2px solid #e2e8f0',
+  },
+  td: {
+    padding: '10px',
+    borderBottom: '1px solid #e2e8f0',
+    fontSize: '13px',
+  },
+  addButton: {
+    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+    color: 'white',
+    border: 'none',
+    padding: '10px 20px',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    fontWeight: '500',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '16px',
+  },
+  deleteButton: {
+    background: 'none',
+    border: 'none',
+    color: '#ef4444',
+    cursor: 'pointer',
+    padding: '4px 8px',
+    borderRadius: '6px',
+  },
+  submitButton: {
+    background: 'linear-gradient(135deg, #10b981, #059669)',
+    color: 'white',
+    border: 'none',
+    padding: '14px 32px',
+    borderRadius: '10px',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  resetButton: {
+    background: 'white',
+    color: '#64748b',
+    border: '1px solid #cbd5e1',
+    padding: '12px 24px',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  cancelButton: {
+    background: '#ef4444',
+    color: 'white',
+    border: 'none',
+    padding: '12px 24px',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  errorBox: {
+    backgroundColor: '#fef2f2',
+    border: '1px solid #fecaca',
+    borderRadius: '10px',
+    padding: '12px 16px',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    color: '#dc2626',
+  },
+  successBox: {
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #bbf7d0',
+    borderRadius: '10px',
+    padding: '12px 16px',
+    marginBottom: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    color: '#16a34a',
+  },
+  totalBox: {
+    backgroundColor: '#eef2ff',
+    borderRadius: '10px',
+    padding: '16px 20px',
+    marginTop: '16px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#4338ca',
+  },
+  totalValue: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    color: '#4338ca',
+  },
+  suggestionBox: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    backgroundColor: 'white',
+    border: '1px solid #e2e8f0',
+    borderRadius: '8px',
+    maxHeight: '200px',
+    overflowY: 'auto',
+    zIndex: 10,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+  },
+  suggestionItem: {
+    padding: '10px 12px',
+    cursor: 'pointer',
+    borderBottom: '1px solid #f1f5f9',
+  },
+  relative: {
+    position: 'relative',
+  },
+  buttonGroup: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: '24px',
+    paddingTop: '24px',
+    borderTop: '1px solid #e2e8f0',
+  },
+  rightGroup: {
+    display: 'flex',
+    gap: '12px',
+  },
+  searchWrapper: {
+    position: 'relative',
+    marginBottom: '20px',
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: '12px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    color: '#94a3b8',
+  },
+  searchInput: {
+    width: '100%',
+    padding: '10px 12px 10px 36px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
+    backgroundColor: 'white',
+  },
+  tableWrapper: {
+    overflowX: 'auto',
+  },
+  smallInput: {
+    width: '80px',
+    padding: '8px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontSize: '13px',
+    textAlign: 'center',
+  },
+  priceInput: {
+    width: '120px',
+    padding: '8px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontSize: '13px',
+    textAlign: 'right',
+  },
+  textInput: {
+    width: '100%',
+    padding: '8px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontSize: '13px',
+  },
 };
 
 export default function BuyingForm({ onBillCreated }) {
-  // State definitions
   const [companyId, setCompanyId] = useState("");
   const [companySearch, setCompanySearch] = useState("");
   const [companyCode, setCompanyCode] = useState("");
@@ -131,19 +405,12 @@ export default function BuyingForm({ onBillCreated }) {
   const [branch, setBranch] = useState("Slemany");
   const [paymentStatus, setPaymentStatus] = useState("Unpaid");
   const [isConsignment, setIsConsignment] = useState(false);
-  const [expensePercentage, setExpensePercentage] = useState(7);
+  const [expensePercentage, setExpensePercentage] = useState("7");
   const [billNote, setBillNote] = useState("");
   const [billItems, setBillItems] = useState([]);
-  
-  // Currency states - USD is base, IQD only for display
-  const [exchangeRate, setExchangeRate] = useState(1500);
-  const [displayCurrency, setDisplayCurrency] = useState("USD");
-  
-  // Bill-level costs (always in USD)
-  const [totalTransportFeeUSD, setTotalTransportFeeUSD] = useState(0);
-  const [totalExternalExpenseUSD, setTotalExternalExpenseUSD] = useState(0);
-
-  // Other states
+  const [transportFee, setTransportFee] = useState("0");
+  const [externalExpense, setExternalExpense] = useState("0");
+  const [currency, setCurrency] = useState("USD");
   const [suggestions, setSuggestions] = useState([]);
   const [companySuggestions, setCompanySuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -153,79 +420,59 @@ export default function BuyingForm({ onBillCreated }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [editingBill, setEditingBill] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
-  // Refs
   const searchInputRef = useRef(null);
   const companySearchRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  // Refs for keyboard navigation
+  const itemInputRefs = useRef({});
+  const transportFeeRef = useRef(null);
+  const externalExpenseRef = useRef(null);
+  const expensePercentageRef = useRef(null);
+  const billNoteRef = useRef(null);
+  const submitButtonRef = useRef(null);
 
-  // Create empty item with USD only
   const createEmptyItem = () => ({
     barcode: "",
     name: "",
-    quantity: 1,
-    basePriceUSD: 0,  // Only USD
-    costRatio: 0,
-    finalCostPerPieceUSD: 0,
-    outPriceUSD: 0,   // Only USD
+    quantity: "1",
+    price: "",
     expireDate: ""
   });
 
-  // Check if we're in edit mode
-  useEffect(() => {
-    const editParam = searchParams.get('edit');
-    if (editParam === 'true') {
-      const storedBill = localStorage.getItem('editingBill');
-      if (storedBill) {
-        try {
-          const billData = JSON.parse(storedBill);
-          console.log("Loading editing bill:", billData);
-          setIsEditing(true);
-          setEditingBill(billData);
-          initializeFormWithBillData(billData);
-        } catch (error) {
-          console.error("Error parsing editing bill:", error);
-          setError("Failed to load bill for editing. Please try again.");
-        }
-      }
-    } else {
-      // Initialize with empty item for new bill
-      if (billItems.length === 0) {
-        setBillItems([createEmptyItem()]);
-      }
-    }
-  }, [searchParams]);
+  const calculateNetPrice = (item, totalQuantity, transportFeeVal, externalExpenseVal, expensePercentageVal) => {
+    const basePrice = parseFloat(parseFormattedNumber(item.price)) || 0;
+    const quantity = parseFloat(item.quantity) || 1;
+    if (totalQuantity === 0) return basePrice;
+    
+    const itemShare = quantity / totalQuantity;
+    const transportPerItem = (transportFeeVal * itemShare) / quantity;
+    const expensePerItem = (externalExpenseVal * itemShare) / quantity;
+    const expenseAmount = basePrice * (expensePercentageVal / 100);
+    const netPrice = basePrice + transportPerItem + expensePerItem + expenseAmount;
+    return parseFloat(netPrice.toFixed(2));
+  };
 
-  // Initialize form with bill data
   const initializeFormWithBillData = (billData) => {
-    // Set company information
     setCompanyId(billData.companyId);
     setCompanySearch(billData.companyName || billData.companySearch || "");
     setCompanyCode(billData.companyCode || "");
     setCompanyBillNumber(billData.companyBillNumber || "");
-    
-    // Set bill dates and basic info
     setBillDate(billData.billDate || formatDateForInput(new Date(billData.date)));
     setBranch(billData.branch || "Slemany");
     setPaymentStatus(billData.paymentStatus || "Unpaid");
     setIsConsignment(billData.isConsignment || false);
-    setExpensePercentage(billData.expensePercentage || 7);
+    setExpensePercentage(String(billData.expensePercentage || 7));
     setBillNote(billData.billNote || "");
-    
-    // Set exchange rate if available
-    if (billData.exchangeRate) {
-      setExchangeRate(billData.exchangeRate);
-    }
-    
-    // Set bill-level costs (all in USD)
-    setTotalTransportFeeUSD(billData.totalTransportFeeUSD || 0);
-    setTotalExternalExpenseUSD(billData.totalExternalExpenseUSD || 0);
-    
-    // Initialize items with USD prices only
+    setCurrency(billData.currency || "USD");
+    setTransportFee(formatNumber(billData.totalTransportFeeUSD || 0));
+    setExternalExpense(formatNumber(billData.totalExternalExpenseUSD || 0));
+
     if (billData.items && billData.items.length > 0) {
       const initializedItems = billData.items.map(item => {
-        // Handle expireDate
         let expireDate = "";
         if (item.expireDate && item.expireDate !== 'N/A') {
           if (typeof item.expireDate === 'string') {
@@ -242,117 +489,51 @@ export default function BuyingForm({ onBillCreated }) {
             expireDate = formatDateForInput(d);
           }
         }
-        
+
+        let price = 0;
+        if (billData.currency === "USD") {
+          price = item.basePriceUSD || item.basePrice || 0;
+        } else {
+          price = item.basePriceIQD || item.basePrice || 0;
+        }
+
         return {
           barcode: item.barcode || "",
           name: item.name || "",
-          quantity: item.quantity || 1,
-          basePriceUSD: item.basePriceUSD || 0,  // Use USD
-          costRatio: item.costRatio || 0,
-          finalCostPerPieceUSD: item.finalCostPerPieceUSD || item.netPriceUSD || 0,
-          outPriceUSD: item.outPriceUSD || 0,    // Use USD
-          expireDate: expireDate
+          quantity: String(item.quantity || 1),
+          price: formatNumber(price),
+          expireDate: expireDate,
+          netPrice: item.netPrice || 0
         };
       });
-      
-      console.log("Initialized items:", initializedItems);
       setBillItems(initializedItems);
     }
   };
 
-  // USD to IQD conversion (for display only)
-  const usdToIQD = useCallback((usdAmount) => {
-    return usdAmount * exchangeRate;
-  }, [exchangeRate]);
-
-  // Calculate final costs for all items (in USD)
-  const calculateFinalCosts = useCallback((items, transportFeeUSD, externalExpenseUSD, expensePercent) => {
-    const totalAdditionalCostsUSD = transportFeeUSD + externalExpenseUSD;
-    const totalRatios = items.reduce((sum, item) => sum + (item.costRatio || 0), 0);
-    
-    const calculatedItems = items.map(item => {
-      const itemBaseCostUSD = (item.basePriceUSD || 0) * item.quantity;
-      const allocatedCostUSD = totalAdditionalCostsUSD * (item.costRatio || 0);
-      
-      // Apply expense percentage to the base cost + allocated costs
-      const expenseMultiplier = 1 + (expensePercent / 100);
-      const finalCostUSD = (itemBaseCostUSD + allocatedCostUSD) * expenseMultiplier;
-      const finalCostPerPieceUSD = item.quantity > 0 ? finalCostUSD / item.quantity : 0;
-
-      return {
-        ...item,
-        finalCostUSD: parseFloat(finalCostUSD.toFixed(2)),
-        finalCostPerPieceUSD: parseFloat(finalCostPerPieceUSD.toFixed(2))
-      };
-    });
-
-    return {
-      items: calculatedItems,
-      hasRatioError: Math.abs(totalRatios - 1) > 0.01 && totalAdditionalCostsUSD > 0,
-      totalRatios
-    };
-  }, []);
-
-  // Calculate base ratios when items change
-  const calculateBaseRatios = useCallback((items) => {
-    const totalBaseCostUSD = items.reduce((sum, item) => sum + ((item.basePriceUSD || 0) * item.quantity), 0);
-    
-    if (totalBaseCostUSD > 0) {
-      return items.map(item => {
-        const baseRatio = ((item.basePriceUSD || 0) * item.quantity) / totalBaseCostUSD;
-        return {
-          ...item,
-          costRatio: parseFloat(baseRatio.toFixed(3))
-        };
-      });
-    }
-    return items;
-  }, []);
-
-  // Update costs when bill-level costs or expense percentage changes
+  // Check if we're in edit mode
   useEffect(() => {
-    if (billItems.length > 0) {
-      const { items } = calculateFinalCosts(
-        billItems, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      setBillItems(items);
+    const editParam = searchParams.get('edit');
+    if (editParam === 'true') {
+      const storedBill = localStorage.getItem('editingBill');
+      if (storedBill) {
+        try {
+          const billData = JSON.parse(storedBill);
+          setIsEditing(true);
+          setEditingBill(billData);
+          initializeFormWithBillData(billData);
+        } catch (error) {
+          console.error("Error parsing editing bill:", error);
+          setError("Failed to load bill for editing. Please try again.");
+        }
+      }
+    } else {
+      if (billItems.length === 0) {
+        setBillItems([createEmptyItem()]);
+      }
     }
-  }, [totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage, calculateFinalCosts]);
+  }, [searchParams]);
 
-  // Auto-calculate base ratios when base prices or quantities change
-  useEffect(() => {
-    if (billItems.length > 0) {
-      const itemsWithBaseRatios = calculateBaseRatios(billItems);
-      const { items: calculatedItems } = calculateFinalCosts(
-        itemsWithBaseRatios, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      setBillItems(calculatedItems);
-    }
-  }, [
-    JSON.stringify(billItems.map(item => `${item.basePriceUSD}-${item.quantity}`)),
-    calculateBaseRatios,
-    calculateFinalCosts,
-    totalTransportFeeUSD,
-    totalExternalExpenseUSD,
-    expensePercentage
-  ]);
-
-  // Cancel editing and go back
-  const handleCancel = () => {
-    resetForm();
-    localStorage.removeItem('editingBill');
-    setIsEditing(false);
-    setEditingBill(null);
-    router.push('/buying');
-  };
-
-  // Company search with debounce
+  // Company search
   useEffect(() => {
     const fetchCompanies = async () => {
       if (companySearch.length > 0) {
@@ -372,377 +553,11 @@ export default function BuyingForm({ onBillCreated }) {
         setShowCompanySuggestions(false);
       }
     };
-    
     const timer = setTimeout(fetchCompanies, 300);
     return () => clearTimeout(timer);
   }, [companySearch]);
 
-  // Company selection handler
-  const handleCompanySelect = useCallback((company) => {
-    setCompanyId(company.id);
-    setCompanySearch(company.name);
-    setCompanyCode(company.code);
-    setShowCompanySuggestions(false);
-    setError(null);
-  }, []);
-
-  // Item selection from search
-  const handleItemSelect = useCallback((item) => {
-    // Get USD price from the item
-    const basePriceUSD = item.outPriceUSD || 0;
-    
-    // Handle expire date
-    let expireDate = "";
-    if (item.expireDate && item.expireDate !== 'N/A') {
-      if (typeof item.expireDate === 'string') {
-        if (item.expireDate.includes('/')) {
-          expireDate = parseDDMMYYYYToInput(item.expireDate);
-        } else if (item.expireDate.includes('-')) {
-          expireDate = item.expireDate;
-        }
-      }
-    }
-    
-    const newItem = {
-      ...createEmptyItem(),
-      barcode: item.barcode,
-      name: item.name,
-      basePriceUSD: basePriceUSD,
-      outPriceUSD: basePriceUSD * 1.2, // Default 20% markup
-      expireDate: expireDate
-    };
-
-    setBillItems(prev => {
-      const newItems = [...prev.filter(item => item.barcode || item.name), newItem];
-      const itemsWithBaseRatios = calculateBaseRatios(newItems);
-      const { items: calculatedItems } = calculateFinalCosts(
-        itemsWithBaseRatios, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      return calculatedItems;
-    });
-    
-    setShowSuggestions(false);
-    setSearchQuery("");
-    
-    setTimeout(() => {
-      if (searchInputRef.current) {
-        searchInputRef.current.focus();
-      }
-    }, 100);
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
-
-  const handleItemChange = useCallback((index, field, value) => {
-    setBillItems(prev => {
-      const updatedItems = [...prev];
-      
-      if (field === 'basePriceUSD' || field === 'outPriceUSD') {
-        // Parse number value for price fields
-        const numValue = value === '' ? 0 : parseFloat(value);
-        const usdValue = isNaN(numValue) ? 0 : numValue;
-        
-        updatedItems[index] = {
-          ...updatedItems[index],
-          [field]: usdValue
-        };
-      } else if (field === 'expireDate') {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          [field]: value
-        };
-      } else if (field === 'quantity' || field === 'costRatio') {
-        const numValue = value === '' ? 0 : parseFloat(value);
-        updatedItems[index] = {
-          ...updatedItems[index],
-          [field]: isNaN(numValue) ? 0 : numValue
-        };
-      } else {
-        updatedItems[index] = {
-          ...updatedItems[index],
-          [field]: value
-        };
-      }
-      
-      // Recalculate if base price or quantity changed
-      if (field === 'basePriceUSD' || field === 'quantity') {
-        const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
-        const { items: calculatedItems } = calculateFinalCosts(
-          itemsWithBaseRatios, 
-          totalTransportFeeUSD, 
-          totalExternalExpenseUSD, 
-          expensePercentage
-        );
-        return calculatedItems;
-      }
-      
-      // Recalculate costs
-      const { items: calculatedItems } = calculateFinalCosts(
-        updatedItems, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      return calculatedItems;
-    });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-  
-    try {
-      if (!companyId) {
-        setError("Please select a company.");
-        return;
-      }
-  
-      // Filter out empty items before submission
-      const validItems = billItems.filter(item =>
-        item.barcode &&
-        item.name &&
-        item.quantity > 0 &&
-        item.basePriceUSD > 0
-      );
-  
-      if (validItems.length === 0) {
-        setError("Please add at least one valid item.");
-        return;
-      }
-  
-      // Check if ratios cover costs
-      const totalRatios = validItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
-      if (Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0) {
-        setError(`Cost ratios must add up to 100% to cover all transport and expense costs. Current total: ${(totalRatios * 100).toFixed(1)}%`);
-        return;
-      }
-  
-      // Prepare items for submission (all prices in USD)
-      const itemsWithCosts = validItems.map(item => {
-        // Handle expire date
-        let expireDateValue = null;
-  
-        if (item.expireDate) {
-          try {
-            if (typeof item.expireDate === 'string' && item.expireDate.includes('-')) {
-              const [year, month, day] = item.expireDate.split('-');
-              if (year && month && day) {
-                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-                if (!isNaN(date.getTime())) {
-                  expireDateValue = date;
-                }
-              }
-            } else if (typeof item.expireDate === 'string' && item.expireDate.includes('/')) {
-              const [day, month, year] = item.expireDate.split('/');
-              if (day && month && year) {
-                const date = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
-                if (!isNaN(date.getTime())) {
-                  expireDateValue = date;
-                }
-              }
-            } else if (item.expireDate instanceof Date && !isNaN(item.expireDate.getTime())) {
-              expireDateValue = item.expireDate;
-            }
-          } catch (dateError) {
-            console.error("Error parsing expire date:", dateError);
-          }
-        }
-  
-        // Calculate transport and expense allocations (in USD)
-        const itemTransportFeeUSD = (totalTransportFeeUSD * (item.costRatio || 0)) / (item.quantity || 1);
-        const itemExternalExpenseUSD = (totalExternalExpenseUSD * (item.costRatio || 0)) / (item.quantity || 1);
-  
-        return {
-          // Basic info
-          barcode: item.barcode,
-          name: item.name,
-          quantity: parseInt(item.quantity) || 1,
-  
-          // ALL PRICES IN USD - source of truth
-          basePriceUSD: parseFloat(item.basePriceUSD) || 0,
-          netPriceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
-          outPriceUSD: parseFloat(item.outPriceUSD) || 0,
-  
-          // IQD prices (calculated for display only)
-          basePrice: Math.round((parseFloat(item.basePriceUSD) || 0) * exchangeRate),
-          netPrice: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
-          outPrice: Math.round((parseFloat(item.outPriceUSD) || 0) * exchangeRate),
-  
-          // Final costs in USD
-          finalCostUSD: parseFloat(item.finalCostUSD) || 0,
-          finalCostPerPieceUSD: parseFloat(item.finalCostPerPieceUSD) || 0,
-          finalCostIQD: Math.round((parseFloat(item.finalCostUSD) || 0) * exchangeRate),
-          finalCostPerPieceIQD: Math.round((parseFloat(item.finalCostPerPieceUSD) || 0) * exchangeRate),
-  
-          // Expire date
-          expireDate: expireDateValue,
-  
-          // Branch and consignment
-          branch: branch,
-          isConsignment: isConsignment,
-          consignmentOwnerId: isConsignment ? companyId : null,
-  
-          // Additional costs allocation (USD)
-          transportFeeUSD: parseFloat(itemTransportFeeUSD) || 0,
-          externalExpenseUSD: parseFloat(itemExternalExpenseUSD) || 0,
-          costRatio: parseFloat(item.costRatio) || 0
-        };
-      });
-  
-      // Prepare additional bill data
-      const additionalData = {
-        exchangeRate: parseFloat(exchangeRate) || 1500,
-        expensePercentage: parseFloat(expensePercentage) || 7,
-        billNote: billNote || "",
-        totalTransportFeeUSD: parseFloat(totalTransportFeeUSD) || 0,
-        totalTransportFee: Math.round(usdToIQD(totalTransportFeeUSD)) || 0,
-        totalExternalExpenseUSD: parseFloat(totalExternalExpenseUSD) || 0,
-        totalExternalExpense: Math.round(usdToIQD(totalExternalExpenseUSD)) || 0,
-        billDate: billDate,
-        currency: "USD"
-      };
-  
-      if (isEditing) {
-        // Update existing bill
-        await updateBoughtBill(editingBill.billNumber, {
-          companyId,
-          companyBillNumber,
-          date: billDate,
-          paymentStatus,
-          isConsignment,
-          items: itemsWithCosts,
-          exchangeRate,
-          expensePercentage,
-          billNote,
-          totalTransportFeeUSD,
-          totalExternalExpenseUSD,
-          branch
-        });
-  
-        alert(`Bill #${editingBill.billNumber} updated successfully!`);
-  
-        // Clear editing state
-        localStorage.removeItem('editingBill');
-  
-        // Reset form and navigate back
-        resetForm();
-        router.push('/buying');
-  
-      } else {
-        // Create new bill
-        const bill = await createBoughtBill(
-          companyId,
-          itemsWithCosts,
-          null, // null for new bill
-          paymentStatus,
-          companyBillNumber,
-          isConsignment,
-          additionalData
-        );
-  
-        if (onBillCreated) onBillCreated(bill);
-        alert(`Bill #${bill.billNumber} created successfully!`);
-  
-        // Reset form
-        resetForm();
-      }
-  
-    } catch (error) {
-      console.error("Error in handleSubmit:", error);
-      setError(error.message || `Failed to ${isEditing ? 'update' : 'create'} bill. Please try again.`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-
-  const resetForm = useCallback(() => {
-    setCompanyId("");
-    setCompanySearch("");
-    setCompanyCode("");
-    setCompanyBillNumber("");
-    setBillDate(formatDateForInput(new Date()));
-    setBranch("Slemany");
-    setPaymentStatus("Unpaid");
-    setIsConsignment(false);
-    setExpensePercentage(7);
-    setBillNote("");
-    setExchangeRate(1500);
-    setTotalTransportFeeUSD(0);
-    setTotalExternalExpenseUSD(0);
-    setBillItems([createEmptyItem()]);
-    setError(null);
-    setSearchQuery("");
-    setIsEditing(false);
-    setEditingBill(null);
-  }, []);
-  
-
-  const addItem = useCallback(() => {
-    setBillItems(prev => {
-      const newItems = [...prev.filter(item => item.barcode || item.name), createEmptyItem()];
-      const itemsWithBaseRatios = calculateBaseRatios(newItems);
-      const { items: calculatedItems } = calculateFinalCosts(
-        itemsWithBaseRatios, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      return calculatedItems;
-    });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
-
-  const removeItem = useCallback((index) => {
-    setBillItems(prev => {
-      const updatedItems = [...prev];
-      updatedItems.splice(index, 1);
-      
-      if (updatedItems.length === 0) {
-        return [createEmptyItem()];
-      }
-      
-      const itemsWithBaseRatios = calculateBaseRatios(updatedItems);
-      const { items: calculatedItems } = calculateFinalCosts(
-        itemsWithBaseRatios, 
-        totalTransportFeeUSD, 
-        totalExternalExpenseUSD, 
-        expensePercentage
-      );
-      return calculatedItems;
-    });
-  }, [calculateBaseRatios, calculateFinalCosts, totalTransportFeeUSD, totalExternalExpenseUSD, expensePercentage]);
-
-  // Handle bill-level cost changes
-  const handleTransportFeeChange = (value) => {
-    const numericValue = value === '' ? 0 : parseFloat(value);
-    setTotalTransportFeeUSD(isNaN(numericValue) ? 0 : numericValue);
-  };
-
-  const handleExternalExpenseChange = (value) => {
-    const numericValue = value === '' ? 0 : parseFloat(value);
-    setTotalExternalExpenseUSD(isNaN(numericValue) ? 0 : numericValue);
-  };
-
-  const handleExpensePercentageChange = (value) => {
-    const numericValue = parseFloat(value) || 0;
-    setExpensePercentage(numericValue);
-  };
-
-  const handleExchangeRateChange = (value) => {
-    const numericValue = parseFloat(value) || 0;
-    if (numericValue > 0) {
-      setExchangeRate(numericValue);
-    }
-  };
-
-  // Toggle display currency
-  const toggleDisplayCurrency = () => {
-    setDisplayCurrency(prev => prev === "USD" ? "IQD" : "USD");
-  };
-
-  // Fetch items for suggestions
+  // Item search
   useEffect(() => {
     const fetchItems = async () => {
       if (searchQuery.length > 0) {
@@ -758,278 +573,425 @@ export default function BuyingForm({ onBillCreated }) {
         setShowSuggestions(false);
       }
     };
-    
     const timer = setTimeout(fetchItems, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Calculate totals in USD
-  const totalBaseCostUSD = billItems.reduce((sum, item) => sum + ((item.basePriceUSD || 0) * item.quantity), 0);
-  const totalOutPriceUSD = billItems.reduce((sum, item) => sum + ((item.outPriceUSD || 0) * item.quantity), 0);
-  const totalFinalCostUSD = billItems.reduce((sum, item) => sum + (item.finalCostUSD || 0), 0);
-  const totalRatios = billItems.reduce((sum, item) => sum + (item.costRatio || 0), 0);
+  const handleCompanySelect = useCallback((company) => {
+    setCompanyId(company.id);
+    setCompanySearch(company.name);
+    setCompanyCode(company.code);
+    setShowCompanySuggestions(false);
+    setError(null);
+  }, []);
 
-  // Count valid items
+  const handleItemSelect = useCallback((item) => {
+    const newItem = {
+      ...createEmptyItem(),
+      barcode: item.barcode,
+      name: item.name,
+      expireDate: item.expireDate && item.expireDate !== 'N/A' ?
+        (typeof item.expireDate === 'string' ?
+          (item.expireDate.includes('/') ?
+            parseDDMMYYYYToInput(item.expireDate) :
+            item.expireDate) :
+          formatDateForInput(item.expireDate.toDate())) : ""
+    };
+    setBillItems(prev => [...prev.filter(item => item.barcode || item.name), newItem]);
+    setShowSuggestions(false);
+    setSearchQuery("");
+    setTimeout(() => {
+      if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, 100);
+  }, []);
+
+  const handleItemChange = useCallback((index, field, value) => {
+    setBillItems(prev => {
+      const updatedItems = [...prev];
+      if (field === 'price') {
+        updatedItems[index] = { ...updatedItems[index], [field]: value };
+      } else if (field === 'quantity') {
+        updatedItems[index] = { ...updatedItems[index], [field]: value };
+      } else {
+        updatedItems[index] = { ...updatedItems[index], [field]: value };
+      }
+      return updatedItems;
+    });
+  }, []);
+
+  const resetForm = useCallback(() => {
+    setCompanyId("");
+    setCompanySearch("");
+    setCompanyCode("");
+    setCompanyBillNumber("");
+    setBillDate(formatDateForInput(new Date()));
+    setBranch("Slemany");
+    setPaymentStatus("Unpaid");
+    setIsConsignment(false);
+    setExpensePercentage("7");
+    setBillNote("");
+    setCurrency("USD");
+    setTransportFee("0");
+    setExternalExpense("0");
+    setBillItems([createEmptyItem()]);
+    setError(null);
+    setSuccessMessage(null);
+    setIsEditing(false);
+    setEditingBill(null);
+    localStorage.removeItem('editingBill');
+  }, []);
+
+  const handleCancel = () => {
+    resetForm();
+    router.push('/buying');
+  };
+
+  // Keyboard navigation handler
+  const handleKeyDown = (e, index, field) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      // Define navigation order
+      const navigationOrder = [
+        { type: 'item', field: 'barcode', index: index },
+        { type: 'item', field: 'name', index: index },
+        { type: 'item', field: 'quantity', index: index },
+        { type: 'item', field: 'price', index: index },
+        { type: 'item', field: 'expireDate', index: index },
+        { type: 'global', field: 'transportFee' },
+        { type: 'global', field: 'externalExpense' },
+        { type: 'global', field: 'expensePercentage' },
+        { type: 'global', field: 'billNote' },
+        { type: 'global', field: 'submit' },
+      ];
+      
+      // Find current position
+      let currentPos = -1;
+      for (let i = 0; i < navigationOrder.length; i++) {
+        const item = navigationOrder[i];
+        if (item.type === 'item' && item.index === index && item.field === field) {
+          currentPos = i;
+          break;
+        } else if (item.type === 'global' && item.field === field) {
+          currentPos = i;
+          break;
+        }
+      }
+      
+      // Move to next field
+      if (currentPos !== -1 && currentPos + 1 < navigationOrder.length) {
+        const next = navigationOrder[currentPos + 1];
+        
+        if (next.type === 'item') {
+          // Focus next item field
+          const nextInput = itemInputRefs.current[`${next.index}-${next.field}`];
+          if (nextInput) {
+            nextInput.focus();
+            nextInput.select();
+          }
+        } else if (next.type === 'global') {
+          // Focus global field
+          if (next.field === 'transportFee' && transportFeeRef.current) {
+            transportFeeRef.current.focus();
+            transportFeeRef.current.select();
+          } else if (next.field === 'externalExpense' && externalExpenseRef.current) {
+            externalExpenseRef.current.focus();
+            externalExpenseRef.current.select();
+          } else if (next.field === 'expensePercentage' && expensePercentageRef.current) {
+            expensePercentageRef.current.focus();
+            expensePercentageRef.current.select();
+          } else if (next.field === 'billNote' && billNoteRef.current) {
+            billNoteRef.current.focus();
+          } else if (next.field === 'submit' && submitButtonRef.current) {
+            submitButtonRef.current.focus();
+            submitButtonRef.current.click();
+          }
+        }
+      }
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      if (!companyId) {
+        setError("Please select a company.");
+        setIsLoading(false);
+        return;
+      }
+
+      const validItems = billItems.filter(item =>
+        item.barcode && item.name && parseFloat(item.quantity) > 0 && item.price
+      );
+
+      if (validItems.length === 0) {
+        setError("Please add at least one valid item with a price.");
+        setIsLoading(false);
+        return;
+      }
+
+      const totalQuantity = validItems.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
+      const transportFeeValue = parseFloat(parseFormattedNumber(transportFee)) || 0;
+      const externalExpenseValue = parseFloat(parseFormattedNumber(externalExpense)) || 0;
+      const expensePercentageValue = parseFloat(parseFormattedNumber(expensePercentage)) || 0;
+
+      const itemsWithNetPrices = validItems.map(item => {
+        let expireDateValue = null;
+        if (item.expireDate) {
+          try {
+            if (typeof item.expireDate === 'string' && item.expireDate.includes('-')) {
+              const [year, month, day] = item.expireDate.split('-');
+              if (year && month && day) {
+                expireDateValue = new Date(Date.UTC(parseInt(year), parseInt(month) - 1, parseInt(day), 12, 0, 0));
+              }
+            }
+          } catch (dateError) {
+            console.error("Error parsing expire date:", dateError);
+          }
+        }
+
+        const netPrice = calculateNetPrice(
+          item, totalQuantity, transportFeeValue, externalExpenseValue, expensePercentageValue
+        );
+        
+        const priceValue = parseFloat(parseFormattedNumber(item.price)) || 0;
+
+        const itemData = {
+          barcode: item.barcode,
+          name: item.name,
+          quantity: parseInt(item.quantity) || 1,
+          expireDate: expireDateValue,
+          branch: branch,
+          isConsignment: isConsignment,
+          consignmentOwnerId: isConsignment ? companyId : null,
+          netPrice: netPrice,
+          price: priceValue,
+          currency: currency,
+        };
+
+        if (currency === "USD") {
+          itemData.basePriceUSD = priceValue;
+          itemData.basePriceIQD = priceValue;
+          itemData.netPriceUSD = netPrice;
+          itemData.netPriceIQD = netPrice;
+        } else {
+          itemData.basePriceIQD = priceValue;
+          itemData.basePriceUSD = priceValue;
+          itemData.netPriceIQD = netPrice;
+          itemData.netPriceUSD = netPrice;
+        }
+
+        return itemData;
+      });
+
+      const additionalData = {
+        expensePercentage: expensePercentageValue,
+        billNote: billNote || "",
+        currency: currency,
+        transportFee: transportFeeValue,
+        externalExpense: externalExpenseValue,
+        totalTransportFeeUSD: transportFeeValue,
+        totalTransportFeeIQD: transportFeeValue,
+        totalExternalExpenseUSD: externalExpenseValue,
+        totalExternalExpenseIQD: externalExpenseValue,
+        billDate: billDate,
+        exchangeRate: 1,
+      };
+
+      if (isEditing) {
+        await updateBoughtBill(editingBill.billNumber, {
+          companyId,
+          companyBillNumber,
+          date: billDate,
+          paymentStatus,
+          isConsignment,
+          items: itemsWithNetPrices,
+          ...additionalData,
+          branch
+        });
+        setSuccessMessage(`Bill #${editingBill.billNumber} updated successfully!`);
+        setTimeout(() => {
+          resetForm();
+          router.push('/buying');
+        }, 1500);
+      } else {
+        const bill = await createBoughtBill(
+          companyId, itemsWithNetPrices, null, paymentStatus, companyBillNumber, isConsignment, additionalData
+        );
+        if (onBillCreated) onBillCreated(bill);
+        setSuccessMessage(`Bill #${bill.billNumber} created successfully!`);
+        setTimeout(() => {
+          resetForm();
+        }, 1500);
+      }
+    } catch (error) {
+      console.error("Error in handleSubmit:", error);
+      setError(error.message || `Failed to ${isEditing ? 'update' : 'create'} bill. Please try again.`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const addItem = useCallback(() => {
+    setBillItems(prev => [...prev.filter(item => item.barcode || item.name), createEmptyItem()]);
+    // Focus on the new item's barcode field after render
+    setTimeout(() => {
+      const newIndex = billItems.filter(item => item.barcode || item.name).length;
+      const barcodeInput = itemInputRefs.current[`${newIndex}-barcode`];
+      if (barcodeInput) {
+        barcodeInput.focus();
+      }
+    }, 100);
+  }, [billItems]);
+
+  const removeItem = useCallback((index) => {
+    setBillItems(prev => {
+      const updatedItems = [...prev];
+      updatedItems.splice(index, 1);
+      if (updatedItems.length === 0) {
+        return [createEmptyItem()];
+      }
+      return updatedItems;
+    });
+  }, []);
+
+  const totalBasePrice = billItems.reduce((sum, item) =>
+    sum + ((parseFloat(parseFormattedNumber(item.price)) || 0) * (parseFloat(item.quantity) || 0)), 0);
+
+  const totalQuantity = billItems.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
   const validItemsCount = billItems.filter(item => item.barcode || item.name).length;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6">
-      <style jsx>{`
-        .form-row {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 16px;
-          margin-bottom: 16px;
-        }
-        .form-group {
-          flex: 1;
-          min-width: 180px;
-        }
-        .form-group label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          color: #4a5568;
-          margin-bottom: 4px;
-        }
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-          width: 91%;
-          padding: 8px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 14px;
-          transition: border-color 0.2s;
-        }
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-          outline: none;
-          border-color: #4299e1;
-          box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
-        }
-        .section-title {
-          font-size: 16px;
-          font-weight: 600;
-          color: #2d3748;
-          margin-bottom: 16px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .company-section {
-          background-color: #f8fafc;
-          padding: 16px;
-          border-radius: 8px;
-          margin-bottom: 24px;
-        }
-        .expenses-section {
-          background-color: #ebf8ff;
-          padding: 16px;
-          border-radius: 8px;
-          margin-bottom: 24px;
-        }
-        .currency-section {
-          background-color: #f0fff4;
-          padding: 16px;
-          border-radius: 8px;
-          margin-bottom: 24px;
-          border: 1px solid #c6f6d5;
-        }
-        .total-base {
-          background-color: #f3e8ff;
-          padding: 12px 16px;
-          border-radius: 6px;
-          color: #6b46c1;
-          font-weight: 600;
-          display: inline-block;
-          margin-bottom: 24px;
-        }
-        .checkbox-group {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        .checkbox-group input[type="checkbox"] {
-          width: auto;
-          margin-right: 4px;
-        }
-        .checkbox-group label {
-          margin-bottom: 0;
-          font-weight: normal;
-        }
-        .input-with-suffix {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-        }
-        .input-with-suffix input {
-          flex: 1;
-        }
-        .input-with-suffix span {
-          color: #718096;
-          font-size: 14px;
-        }
-        .suggestions-dropdown {
-          position: absolute;
-          z-index: 10;
-          margin-top: 4px;
-          width: 100%;
-          background-color: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-          max-height: 240px;
-          overflow-y: auto;
-        }
-        .suggestion-item {
-          padding: 8px 12px;
-          cursor: pointer;
-          border-bottom: 1px solid #edf2f7;
-        }
-        .suggestion-item:last-child {
-          border-bottom: none;
-        }
-        .suggestion-item:hover {
-          background-color: #f7fafc;
-        }
-        .suggestion-name {
-          font-weight: 500;
-          color: #2d3748;
-        }
-        .suggestion-details {
-          font-size: 12px;
-          color: #718096;
-          margin-top: 2px;
-        }
-        .delete-btn {
-          color: #e53e3e;
-          padding: 4px;
-          border-radius: 4px;
-          transition: all 0.2s;
-        }
-        .delete-btn:hover {
-          background-color: #fff5f5;
-          color: #c53030;
-        }
-        .currency-toggle {
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 8px;
-          background-color: white;
-          border: 1px solid #e2e8f0;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 12px;
-        }
-        .currency-toggle:hover {
-          background-color: #f7fafc;
-        }
-        .highlight-match {
-          background-color: #fef3c7;
-          font-weight: 500;
-        }
-        .iqd-hint {
-          font-size: 11px;
-          color: #718096;
-          margin-top: 2px;
-          text-align: right;
-        }
-      `}</style>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div style={styles.container}>
+      <div style={styles.mainCard}>
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-900">
-                {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill (USD Base)"}
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">All prices are in USD - IQD shown for reference only</p>
-            </div>
-            {isEditing && (
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="clean-btn clean-btn-secondary flex items-center"
-              >
-                <FiX className="mr-2 h-4 w-4" />
-                Cancel
-              </button>
-            )}
-          </div>
+        <div style={styles.header}>
+          <h1 style={styles.headerTitle}>
+            {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
+          </h1>
+          <p style={styles.headerSubtitle}>
+            Enter purchase details in your preferred currency (USD or IQD) - Press Enter to navigate between fields
+          </p>
         </div>
 
-        <div className="clean-card p-6">
+        {/* Content */}
+        <div style={styles.content}>
+          {/* Success Message */}
+          {successMessage && (
+            <div style={styles.successBox}>
+              <FiCheckCircle size={18} />
+              <span>{successMessage}</span>
+            </div>
+          )}
+
+          {/* Error Message */}
           {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-md flex items-start">
-              <FiAlertTriangle className="text-red-500 mt-0.5 mr-2 flex-shrink-0" />
-              <p className="text-sm text-red-700">{error}</p>
+            <div style={styles.errorBox}>
+              <FiAlertTriangle size={18} />
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit}>
+            {/* Currency Selection */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <FiDollarSign size={18} />
+                Currency Selection
+              </h2>
+              <div style={styles.currencyButtons}>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("USD")}
+                  style={{
+                    ...styles.currencyBtn,
+                    ...(currency === "USD" ? styles.currencyBtnActiveUSD : styles.currencyBtnInactive)
+                  }}
+                >
+                  🇺🇸 USD - US Dollar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("IQD")}
+                  style={{
+                    ...styles.currencyBtn,
+                    ...(currency === "IQD" ? styles.currencyBtnActiveIQD : styles.currencyBtnInactive)
+                  }}
+                >
+                  🇮🇶 IQD - Iraqi Dinar
+                </button>
+              </div>
+            </div>
+
             {/* Company Information */}
-            <div className="company-section">
-              <h2 className="section-title">Company Information</h2>
-              
-              <div className="form-row">
-                <div className="form-group" style={{ flex: 2, position: 'relative' }}>
-                  <label>Company Search (Code or Name)</label>
-                  <div style={{ position: 'relative' }}>
-                    <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a0aec0' }} />
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <FiUser size={18} />
+                Company Information
+              </h2>
+              <div style={styles.formRow}>
+                <div style={{ ...styles.formGroup, ...styles.relative }}>
+                  <label style={styles.label}>Company Search</label>
+                  <div style={styles.relative}>
                     <input
                       ref={companySearchRef}
                       type="text"
-                      style={{ paddingLeft: '36px'}}
+                      style={styles.input}
                       value={companySearch}
                       onChange={(e) => setCompanySearch(e.target.value)}
-                      placeholder="Search company by code or name..."
+                      placeholder="Search by code or name..."
                       required
                     />
-                  </div>
-                  {showCompanySuggestions && companySuggestions.length > 0 && (
-                    <div className="suggestions-dropdown">
-                      {companySuggestions.map((company) => (
-                        <div
-                          key={company.id}
-                          className="suggestion-item"
-                          onClick={() => handleCompanySelect(company)}
-                        >
-                          <div className="suggestion-name">{company.name}</div>
-                          <div className="suggestion-details">
-                            Code: {company.code}
+                    {showCompanySuggestions && companySuggestions.length > 0 && (
+                      <div style={styles.suggestionBox}>
+                        {companySuggestions.map((company) => (
+                          <div
+                            key={company.id}
+                            style={styles.suggestionItem}
+                            onClick={() => handleCompanySelect(company)}
+                            onMouseDown={(e) => e.preventDefault()}
+                          >
+                            <div style={{ fontWeight: 500 }}>{company.name}</div>
+                            <div style={{ fontSize: 12, color: '#64748b' }}>Code: {company.code}</div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="form-group">
-                  <label>Bill Date</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Bill Date</label>
                   <input
                     type="date"
+                    style={styles.input}
                     value={billDate}
                     onChange={(e) => setBillDate(e.target.value)}
                     required
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Company Bill Number</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Company Bill Number</label>
                   <input
                     type="text"
+                    style={styles.input}
                     value={companyBillNumber}
                     onChange={(e) => setCompanyBillNumber(e.target.value)}
                     placeholder="Enter company bill #"
                   />
                 </div>
 
-                <div className="form-group">
-                  <label>Payment Method</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Payment Method</label>
                   <select
+                    style={styles.select}
                     value={paymentStatus}
                     onChange={(e) => setPaymentStatus(e.target.value)}
                     required
@@ -1039,12 +1001,11 @@ export default function BuyingForm({ onBillCreated }) {
                     <option value="Paid">Paid</option>
                   </select>
                 </div>
-              </div>
 
-              <div className="form-row" style={{ marginTop: '8px' }}>
-                <div className="form-group">
-                  <label>Branch</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Branch</label>
                   <select
+                    style={styles.select}
                     value={branch}
                     onChange={(e) => setBranch(e.target.value)}
                     required
@@ -1056,372 +1017,272 @@ export default function BuyingForm({ onBillCreated }) {
               </div>
             </div>
 
-            {/* Currency Section */}
-            <div className="currency-section">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="section-title" style={{ borderBottomColor: '#9ae6b4', marginBottom: 0 }}>Currency Settings</h2>
-                <button
-                  type="button"
-                  onClick={toggleDisplayCurrency}
-                  className="currency-toggle"
-                >
-                  <FiRefreshCw className="h-3 w-3" />
-                  Show in {displayCurrency === "USD" ? "IQD" : "USD"}
-                </button>
-              </div>
+            {/* Items Section */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <FiPackage size={18} />
+                Bill Items ({validItemsCount})
+              </h2>
               
-              <div className="form-row">
-                <div className="form-group" style={{ maxWidth: '300px' }}>
-                  <label>Exchange Rate (1 USD = ? IQD)</label>
-                  <div className="input-with-suffix">
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={exchangeRate}
-                      onChange={(e) => handleExchangeRateChange(e.target.value)}
-                      placeholder="1500"
-                      required
-                    />
-                    <span>IQD</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">Used only for IQD display</p>
-                </div>
-                
-                <div className="form-group" style={{ maxWidth: '200px' }}>
-                  <label>Base Currency</label>
-                  <div className="flex items-center h-10 px-3 bg-gray-100 rounded-md text-sm">
-                    <FiDollarSign className="mr-1 text-green-600" />
-                    <span className="font-medium">USD (All calculations)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+              <button type="button" onClick={addItem} style={styles.addButton}>
+                <FiPlus size={16} /> Add Item
+              </button>
 
-            {/* Items Search */}
-            <div style={{ marginBottom: '24px' }}>
-              <h2 className="section-title">Add Items</h2>
-              <div className="form-group" style={{ maxWidth: '500px', position: 'relative' }}>
-                <label>Search Items</label>
-                <div style={{ position: 'relative' }}>
-                  <FiSearch style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a0aec0' }} />
-                  <input
-                    ref={searchInputRef}
-                    type="text"
-                    style={{ paddingLeft: '36px' }}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by barcode or name..."
-                  />
-                </div>
-                
+              {/* Search Items */}
+              <div style={styles.searchWrapper}>
+                <FiSearch style={styles.searchIcon} size={16} />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search items by barcode or name..."
+                />
                 {showSuggestions && suggestions.length > 0 && (
-                  <div className="suggestions-dropdown">
+                  <div style={styles.suggestionBox}>
                     {suggestions.map((item) => (
                       <div
                         key={item.id}
-                        className="suggestion-item"
+                        style={styles.suggestionItem}
                         onClick={() => handleItemSelect(item)}
+                        onMouseDown={(e) => e.preventDefault()}
                       >
-                        <div className="suggestion-name">{item.name}</div>
-                        <div className="suggestion-details">
-                          Barcode: {item.barcode} | 
-                          Price: ${formatNumber(item.outPriceUSD || 0)}
-                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${formatDateForDisplay(item.expireDate)}`}
+                        <div style={{ fontWeight: 500 }}>{item.name}</div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                          Barcode: {item.barcode}
+                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${item.expireDate}`}
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            </div>
 
-            {/* Items Table */}
-            <div style={{ marginBottom: '24px' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="section-title" style={{ marginBottom: 0 }}>Bill Items ({validItemsCount})</h2>
-                <button
-                  type="button"
-                  onClick={addItem}
-                  className="clean-btn clean-btn-secondary flex items-center text-sm"
-                >
-                  <FiPlus className="mr-1 h-3 w-3" />
-                  Add Empty Row
-                </button>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="clean-table">
+              {/* Items Table */}
+              <div style={styles.tableWrapper}>
+                <table style={styles.table}>
                   <thead>
                     <tr>
-                      <th className="w-32">Barcode</th>
-                      <th className="w-48">Item Name</th>
-                      <th className="w-16 text-center">Qty</th>
-                      <th className="w-24 text-right">Base Price ($)</th>
-                      <th className="w-24 text-right">Sub Total</th>
-                      <th className="w-20 text-center">Cost Ratio %</th>
-                      <th className="w-24 text-right">Cost/Piece</th>
-                      <th className="w-24 text-right">Out Price ($)</th>
-                      <th className="w-28 text-center">Expire Date</th>
-                      <th className="w-16 text-center">Actions</th>
+                      <th style={styles.th}>Barcode</th>
+                      <th style={styles.th}>Item Name</th>
+                      <th style={{ ...styles.th, textAlign: 'center' }}>Qty</th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}>Price ({currency})</th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}>Net Price ({currency})</th>
+                      <th style={styles.th}>Expire Date</th>
+                      <th style={{ ...styles.th, textAlign: 'center' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {billItems.map((item, index) => (
-                      <tr key={index}>
-                        <td>
-                          <input
-                            className="clean-input text-sm"
-                            value={item.barcode || ''}
-                            onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
-                            required={item.name ? true : false}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            className="clean-input text-sm"
-                            value={item.name || ''}
-                            onChange={(e) => handleItemChange(index, "name", e.target.value)}
-                            required={item.barcode ? true : false}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min="1"
-                            step="1"
-                            className="clean-input text-sm text-center"
-                            value={item.quantity || 1}
-                            onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
-                            required={item.barcode ? true : false}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="clean-input text-sm text-right"
-                            value={item.basePriceUSD || ''}
-                            onChange={(e) => handleItemChange(index, "basePriceUSD", e.target.value)}
-                            required={item.barcode ? true : false}
-                            placeholder="0.00"
-                          />
-                          {displayCurrency === "IQD" && (
-                            <div className="iqd-hint">
-                              ≈ {formatNumber(usdToIQD(item.basePriceUSD || 0))} IQD
-                            </div>
-                          )}
-                        </td>
-                        <td className="text-right text-sm font-medium">
-                          {displayCurrency === "USD" 
-                            ? `$${formatNumber((item.basePriceUSD || 0) * (item.quantity || 1))}`
-                            : `${formatNumber(usdToIQD((item.basePriceUSD || 0) * (item.quantity || 1)))} IQD`}
-                        </td>
-                        <td>
-                          <div className="input-with-suffix">
+                    {billItems.map((item, index) => {
+                      const netPrice = calculateNetPrice(
+                        item,
+                        totalQuantity || 1,
+                        parseFloat(parseFormattedNumber(transportFee)) || 0,
+                        parseFloat(parseFormattedNumber(externalExpense)) || 0,
+                        parseFloat(parseFormattedNumber(expensePercentage)) || 0
+                      );
+                      return (
+                        <tr key={index}>
+                          <td style={styles.td}>
                             <input
-                              type="number"
-                              min="0"
-                              max="1"
-                              step="0.001"
-                              className={`clean-input text-sm text-center ${Math.abs(totalRatios - 1) > 0.01 ? 'border-red-300' : ''}`}
-                              value={item.costRatio || 0}
-                              onChange={(e) => handleItemChange(index, "costRatio", e.target.value)}
+                              ref={(el) => itemInputRefs.current[`${index}-barcode`] = el}
+                              style={styles.textInput}
+                              value={item.barcode || ''}
+                              onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'barcode')}
+                              placeholder="Barcode"
                             />
-                            <span>%</span>
-                          </div>
-                        </td>
-                        <td className="text-right text-sm font-medium text-green-600">
-                          {displayCurrency === "USD" 
-                            ? `$${formatNumber(item.finalCostPerPieceUSD || 0)}`
-                            : `${formatNumber(usdToIQD(item.finalCostPerPieceUSD || 0))} IQD`}
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="clean-input text-sm text-right"
-                            value={item.outPriceUSD || ''}
-                            onChange={(e) => handleItemChange(index, "outPriceUSD", e.target.value)}
-                            required={item.barcode ? true : false}
-                            placeholder="0.00"
-                          />
-                          {displayCurrency === "IQD" && (
-                            <div className="iqd-hint">
-                              ≈ {formatNumber(usdToIQD(item.outPriceUSD || 0))} IQD
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <input
-                            type="date"
-                            className="clean-input text-sm"
-                            value={item.expireDate || ''}
-                            onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
-                          />
-                          <div className="text-xs text-gray-500 mt-1">
-                            {item.expireDate && formatInputToDDMMYYYY(item.expireDate)}
-                          </div>
-                        </td>
-                        <td className="text-center">
-                          <button
-                            type="button"
-                            onClick={() => removeItem(index)}
-                            className="delete-btn"
-                            title="Delete item"
-                          >
-                            <FiTrash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td style={styles.td}>
+                            <input
+                              ref={(el) => itemInputRefs.current[`${index}-name`] = el}
+                              style={styles.textInput}
+                              value={item.name || ''}
+                              onChange={(e) => handleItemChange(index, "name", e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'name')}
+                              placeholder="Item name"
+                            />
+                          </td>
+                          <td style={{ ...styles.td, textAlign: 'center' }}>
+                            <input
+                              ref={(el) => itemInputRefs.current[`${index}-quantity`] = el}
+                              type="number"
+                              min="1"
+                              step="1"
+                              style={styles.smallInput}
+                              value={item.quantity || 1}
+                              onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
+                            />
+                          </td>
+                          <td style={{ ...styles.td, textAlign: 'right' }}>
+                            <input
+                              ref={(el) => itemInputRefs.current[`${index}-price`] = el}
+                              type="text"
+                              style={styles.priceInput}
+                              value={item.price}
+                              onChange={(e) => {
+                                const formatted = formatNumber(e.target.value);
+                                handleItemChange(index, "price", formatted);
+                              }}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'price')}
+                              placeholder="0.00"
+                            />
+                          </td>
+                          <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#4f46e5' }}>
+                            {formatNumber(netPrice)}
+                           </td>
+                          <td style={styles.td}>
+                            <input
+                              ref={(el) => itemInputRefs.current[`${index}-expireDate`] = el}
+                              type="date"
+                              style={styles.textInput}
+                              value={item.expireDate || ''}
+                              onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'expireDate')}
+                            />
+                           </td>
+                          <td style={{ ...styles.td, textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => removeItem(index)}
+                              style={styles.deleteButton}
+                            >
+                              <FiTrash2 size={16} />
+                            </button>
+                           </td>
+                         </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-            </div>
 
-            {/* Total Base Price */}
-            <div className="total-base">
-              Total Base: {displayCurrency === "USD" 
-                ? `$${formatNumber(totalBaseCostUSD)}`
-                : `${formatNumber(usdToIQD(totalBaseCostUSD))} IQD ($${formatNumber(totalBaseCostUSD)})`}
+              {/* Total Base Price */}
+              <div style={styles.totalBox}>
+                <span style={styles.totalLabel}>Total Base Price:</span>
+                <span style={styles.totalValue}>{formatNumber(totalBasePrice)} {currency}</span>
+              </div>
             </div>
 
             {/* Expenses Section */}
-            <div className="expenses-section">
-              <h2 className="section-title" style={{ borderBottomColor: '#90cdf4' }}>Additional Costs (USD)</h2>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Transport Fee ($)</label>
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <FiTruck size={18} />
+                Additional Costs
+              </h2>
+              <div style={styles.formRow}>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Transport Fee ({currency})</label>
                   <input
-                    type="number"
+                    ref={transportFeeRef}
+                    type="text"
                     step="0.01"
                     min="0"
-                    value={totalTransportFeeUSD}
-                    onChange={(e) => handleTransportFeeChange(e.target.value)}
+                    value={transportFee}
+                    onChange={(e) => handleNumberInput(e.target.value, setTransportFee)}
+                    onKeyDown={(e) => handleKeyDown(e, null, 'transportFee')}
+                    style={styles.input}
                     placeholder="0.00"
                   />
-                  {displayCurrency === "IQD" && (
-                    <span className="text-xs text-gray-500">
-                      IQD: {formatNumber(usdToIQD(totalTransportFeeUSD))}
-                    </span>
-                  )}
                 </div>
-
-                <div className="form-group">
-                  <label>Other Expense ($)</label>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Other Expenses ({currency})</label>
                   <input
-                    type="number"
+                    ref={externalExpenseRef}
+                    type="text"
                     step="0.01"
                     min="0"
-                    value={totalExternalExpenseUSD}
-                    onChange={(e) => handleExternalExpenseChange(e.target.value)}
+                    value={externalExpense}
+                    onChange={(e) => handleNumberInput(e.target.value, setExternalExpense)}
+                    onKeyDown={(e) => handleKeyDown(e, null, 'externalExpense')}
+                    style={styles.input}
                     placeholder="0.00"
                   />
-                  {displayCurrency === "IQD" && (
-                    <span className="text-xs text-gray-500">
-                      IQD: {formatNumber(usdToIQD(totalExternalExpenseUSD))}
-                    </span>
-                  )}
                 </div>
-
-                <div className="form-group">
-                  <label>Monthly Expense %</label>
-                  <div className="input-with-suffix">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={expensePercentage}
-                      onChange={(e) => handleExpensePercentageChange(e.target.value)}
-                    />
-                    <span>%</span>
-                  </div>
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Expense Percentage (%)</label>
+                  <input
+                    ref={expensePercentageRef}
+                    type="text"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={expensePercentage}
+                    onChange={(e) => handleNumberInput(e.target.value, setExpensePercentage)}
+                    onKeyDown={(e) => handleKeyDown(e, null, 'expensePercentage')}
+                    style={styles.input}
+                    placeholder="7"
+                  />
                 </div>
-              </div>
-
-              <div style={{ marginTop: '8px', marginBottom: '12px', fontSize: '13px', color: '#4a5568' }}>
-                <p>Additional costs are distributed based on item value ratios</p>
-                <p className="flex items-center mt-1">
-                  <FiAlertTriangle className="text-yellow-500 mr-1 h-4 w-4" />
-                  <span className={Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0 ? 'text-red-600 font-medium' : 'text-green-600'}>
-                    Current ratio total: {(totalRatios * 100).toFixed(1)}% 
-                    {Math.abs(totalRatios - 1) > 0.01 && (totalTransportFeeUSD + totalExternalExpenseUSD) > 0 ? ' (Must be 100%)' : ' (Good)'}
-                  </span>
-                </p>
-              </div>
-
-              <div className="form-group" style={{ maxWidth: '100%' }}>
-                <label>Bill Notes</label>
-                <textarea
-                  className="clean-input"
-                  rows={2}
-                  value={billNote}
-                  onChange={(e) => setBillNote(e.target.value)}
-                  placeholder="Add any notes for this bill..."
-                  style={{ resize: 'vertical' }}
-                />
-              </div>
-
-              <div className="checkbox-group" style={{ marginTop: '12px' }}>
-                <input
-                  id="consignment"
-                  type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  checked={isConsignment}
-                  onChange={(e) => setIsConsignment(e.target.checked)}
-                />
-                <label htmlFor="consignment" className="text-sm text-gray-700">
-                  Consignment (تحت صرف)
-                </label>
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-between items-center pt-4 border-t">
-              <button
-                type="button"
-                onClick={resetForm}
-                className="clean-btn clean-btn-secondary"
-              >
-                Reset Form
-              </button>
+            {/* Bill Notes */}
+            <div style={styles.section}>
+              <h2 style={styles.sectionTitle}>
+                <FiFileText size={18} />
+                Bill Notes
+              </h2>
+              <textarea
+                ref={billNoteRef}
+                style={{ ...styles.input, width: '100%', minHeight: '80px' }}
+                value={billNote}
+                onChange={(e) => setBillNote(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (submitButtonRef.current) {
+                      submitButtonRef.current.focus();
+                      submitButtonRef.current.click();
+                    }
+                  }
+                }}
+                placeholder="Add any notes for this bill... (Press Enter to submit)"
+              />
+            </div>
 
-              <div className="flex gap-3">
+            {/* Consignment Option */}
+            <div style={styles.section}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={isConsignment}
+                  onChange={(e) => setIsConsignment(e.target.checked)}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: 500 }}>Consignment (تحت صرف)</span>
+              </label>
+            </div>
+
+            {/* Actions */}
+            <div style={styles.buttonGroup}>
+              <button type="button" onClick={resetForm} style={styles.resetButton}>
+                <FiRefreshCw size={16} /> Reset Form
+              </button>
+              <div style={styles.rightGroup}>
                 {isEditing && (
-                  <button
-                    type="button"
-                    onClick={handleCancel}
-                    className="clean-btn clean-btn-secondary flex items-center"
-                  >
-                    <FiX className="mr-2 h-4 w-4" />
-                    Cancel
+                  <button type="button" onClick={handleCancel} style={styles.cancelButton}>
+                    <FiX size={16} /> Cancel
                   </button>
                 )}
-                <button
-                  type="submit"
-                  className="clean-btn clean-btn-primary flex items-center"
-                  disabled={isLoading}
+                <button 
+                  ref={submitButtonRef}
+                  type="submit" 
+                  disabled={isLoading} 
+                  style={{
+                    ...styles.submitButton,
+                    opacity: isLoading ? 0.6 : 1,
+                    cursor: isLoading ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   {isLoading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </>
+                    <>Processing...</>
                   ) : isEditing ? (
-                    <>
-                      <FiFileText className="mr-2 h-4 w-4" />
-                      Update Bill
-                    </>
+                    <>Update Bill</>
                   ) : (
-                    <>
-                      <FiFileText className="mr-2 h-4 w-4" />
-                      Create Bill
-                    </>
+                    <>Create Bill</>
                   )}
                 </button>
               </div>

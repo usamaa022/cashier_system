@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import Select from "react-select";
 import { FiChevronUp, FiChevronDown } from "react-icons/fi";
 
-// Helper functions remain the same
+// Helper functions
 const formatNumber = (number) => {
   if (!number && number !== 0) return '0';
   if (Number.isInteger(number)) {
@@ -20,7 +20,7 @@ const formatNumber = (number) => {
   }
 };
 
-const formatDateToDDMMYYYYHHMM = (date) => {
+const formatDateToDDMMYYYY = (date) => {
   if (!date) return 'N/A';
 
   try {
@@ -46,9 +46,7 @@ const formatDateToDDMMYYYYHHMM = (date) => {
       const day = String(dateObj.getDate()).padStart(2, '0');
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
       const year = dateObj.getFullYear();
-      const hours = String(dateObj.getHours()).padStart(2, '0');
-      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
-      return `${day}/${month}/${year} ${hours}:${minutes}`;
+      return `${day}/${month}/${year}`;
     }
   } catch (e) {
     console.error("Error formatting date:", e);
@@ -124,6 +122,50 @@ const formatDateForInput = (date) => {
   const month = String(dateObj.getMonth() + 1).padStart(2, '0');
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+// FIXED: Get purchase price based on bill's currency
+const getPurchasePrice = (item, billCurrency) => {
+  if (billCurrency === "USD") {
+    return item.basePriceUSD !== undefined && item.basePriceUSD !== null ? item.basePriceUSD : 0;
+  } else {
+    return item.basePriceIQD !== undefined && item.basePriceIQD !== null ? item.basePriceIQD : 0;
+  }
+};
+
+// FIXED: Get net price based on bill's currency - uses the stored netPriceUSD/IQD
+const getNetPrice = (item, billCurrency) => {
+  if (billCurrency === "USD") {
+    // Use netPriceUSD if available, otherwise fallback to basePriceUSD + expenses
+    if (item.netPriceUSD !== undefined && item.netPriceUSD !== null) {
+      return item.netPriceUSD;
+    }
+    return item.netPrice !== undefined ? item.netPrice : item.basePriceUSD || 0;
+  } else {
+    // Use netPriceIQD if available, otherwise fallback to basePriceIQD + expenses
+    if (item.netPriceIQD !== undefined && item.netPriceIQD !== null) {
+      return item.netPriceIQD;
+    }
+    return item.netPrice !== undefined ? item.netPrice : item.basePriceIQD || 0;
+  }
+};
+
+// FIXED: Get transport fee based on bill's currency
+const getTransportFee = (bill, currency) => {
+  if (currency === "USD") {
+    return bill.totalTransportFeeUSD || 0;
+  } else {
+    return bill.totalTransportFeeIQD || 0;
+  }
+};
+
+// FIXED: Get external expense based on bill's currency
+const getExternalExpense = (bill, currency) => {
+  if (currency === "USD") {
+    return bill.totalExternalExpenseUSD || 0;
+  } else {
+    return bill.totalExternalExpenseIQD || 0;
+  }
 };
 
 export default function BuyingList({ refreshTrigger }) {
@@ -279,24 +321,12 @@ export default function BuyingList({ refreshTrigger }) {
 
   const sortedAndFilteredBills = getSortedAndFilteredBills();
 
-  const formatPrice = (item, priceField = 'outPrice') => {
-    if (!item) return '0';
-    const exchangeRate = item.exchangeRate || 1500;
-    const priceUSD = item[`${priceField}USD`] || item[priceField] / exchangeRate || 0;
-    const priceIQD = item[priceField] || priceUSD * exchangeRate || 0;
-    if (displayCurrency === "USD") return `$${formatNumber(priceUSD)}`;
-    else return `${formatNumber(priceIQD)} IQD`;
-  };
-
-  const formatTotalPrice = (priceUSD, exchangeRate = 1500) => {
-    if (displayCurrency === "USD") return `$${formatNumber(priceUSD)}`;
-    else return `${formatNumber(priceUSD * exchangeRate)} IQD`;
-  };
-
   const handleUpdateBill = async (bill) => {
     try {
       const company = companies.find(c => c.id === bill.companyId);
       const exchangeRate = bill.exchangeRate || 1500;
+      const currency = bill.currency || "USD";
+
       const billWithCompanyData = {
         ...bill,
         companyId: bill.companyId,
@@ -309,19 +339,23 @@ export default function BuyingList({ refreshTrigger }) {
         isConsignment: bill.isConsignment || false,
         expensePercentage: bill.expensePercentage || 7,
         exchangeRate: exchangeRate,
+        currency: currency,
         billNote: bill.billNote || "",
-        totalTransportFeeUSD: bill.totalTransportFeeUSD || (bill.totalTransportFee ? bill.totalTransportFee / exchangeRate : 0),
-        totalExternalExpenseUSD: bill.totalExternalExpenseUSD || (bill.totalExternalExpense ? bill.totalExternalExpense / exchangeRate : 0),
-        items: bill.items.map(item => ({
-          ...item,
-          basePriceUSD: item.basePriceUSD || (item.basePrice ? item.basePrice / exchangeRate : 0),
-          basePrice: item.basePrice || item.basePriceUSD * exchangeRate || 0,
-          outPriceUSD: item.outPriceUSD || (item.outPrice ? item.outPrice / exchangeRate : 0),
-          outPrice: item.outPrice || item.outPriceUSD * exchangeRate || 0,
-          expireDate: item.expireDate ? formatDateForInput(item.expireDate) : "",
-          costRatio: item.costRatio || 0,
-        }))
+        totalTransportFee: getTransportFee(bill, currency),
+        totalExternalExpense: getExternalExpense(bill, currency),
+        items: bill.items.map(item => {
+          const price = currency === "USD" ? item.basePriceUSD : item.basePriceIQD;
+          return {
+            ...item,
+            basePriceUSD: item.basePriceUSD,
+            basePriceIQD: item.basePriceIQD,
+            netPriceUSD: item.netPriceUSD,
+            netPriceIQD: item.netPriceIQD,
+            expireDate: item.expireDate ? formatDateForInput(item.expireDate) : "",
+          };
+        })
       };
+
       localStorage.setItem('editingBill', JSON.stringify(billWithCompanyData));
       router.push('/buying?edit=true');
     } catch (error) {
@@ -461,15 +495,15 @@ export default function BuyingList({ refreshTrigger }) {
       switch (status) {
         case "Paid":
         case "Cash":
-          return "badge badge-success";
+          return "bg-yellow-100 text-yellow-800 border border-yellow-300";
         case "Unpaid":
-          return "badge badge-warning";
+          return "bg-orange-100 text-orange-800 border border-orange-300";
         default:
-          return "badge badge-warning";
+          return "bg-orange-100 text-orange-800 border border-orange-300";
       }
     };
     return (
-      <span className={getStatusStyles()}>
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusStyles()}`}>
         {status}
       </span>
     );
@@ -477,34 +511,16 @@ export default function BuyingList({ refreshTrigger }) {
 
   const ConsignmentBadge = ({ isConsignment }) => {
     return (
-      <span className={`badge ${isConsignment ? "badge-consignment" : "badge-owned"}`}>
-        {isConsignment ? "تحت صرف" : "Owned"}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${
+        isConsignment ? "bg-purple-100 text-purple-800 border-purple-300" : "bg-green-100 text-green-800 border-green-300"
+      }`}>
+        {isConsignment ? "تحت صرف" : "OWNED"}
       </span>
     );
   };
 
   const toggleCurrency = () => {
     setDisplayCurrency(prev => prev === "USD" ? "IQD" : "USD");
-  };
-
-  const calculateCostPrice = (item, bill) => {
-    const basePrice = item.basePriceUSD || (item.basePrice ? item.basePrice / (bill.exchangeRate || 1500) : 0);
-
-    if (bill.isConsignment) {
-      return 0;
-    }
-
-    const totalBaseCost = bill.items.reduce((sum, i) => sum + ((i.basePriceUSD || 0) * (i.quantity || 0)), 0);
-    const itemBaseCost = (item.basePriceUSD || 0) * (item.quantity || 0);
-    const itemRatio = totalBaseCost > 0 ? itemBaseCost / totalBaseCost : 0;
-
-    const transportPerItem = ((bill.totalTransportFeeUSD || 0) * itemRatio) / (item.quantity || 1);
-    const externalExpensePerItem = ((bill.totalExternalExpenseUSD || 0) * itemRatio) / (item.quantity || 1);
-
-    const expenseAmount = basePrice * ((bill.expensePercentage || 7) / 100);
-    const costPrice = basePrice + expenseAmount + transportPerItem + externalExpensePerItem;
-
-    return costPrice;
   };
 
   return (
@@ -524,56 +540,44 @@ export default function BuyingList({ refreshTrigger }) {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0;
-          font-size: 16px;
+          font-size: 17px;
         }
 
         .purchase-table thead tr {
-          background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
-          border-bottom: 2px solid #e2e8f0;
+          background: #f8fafc;
         }
 
         .purchase-table th {
-          padding: 1rem 1rem;
+          padding: 1rem;
           font-weight: 600;
-          color: #1e293b;
-          text-transform: uppercase;
-          font-size: 0.85rem;
-          letter-spacing: 0.05em;
-          white-space: nowrap;
-          border-bottom: 2px solid #e2e8f0;
+          color: #4b5563;
+          text-align: left;
+          border-bottom: 1px solid #e5e7eb;
           position: relative;
-          cursor: pointer;
+        }
+
+        .purchase-table th:not(:last-child) {
+          border-right: 1px solid #e5e7eb;
         }
 
         .purchase-table th.sortable {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
+          cursor: pointer;
+          user-select: none;
         }
 
         .purchase-table th.sortable:hover {
           background-color: #f1f5f9;
         }
 
-        .purchase-table th:after {
-          content: '';
-          position: absolute;
-          right: 0;
-          top: 25%;
-          height: 50%;
-          width: 1px;
-          background: linear-gradient(to bottom, transparent, #cbd5e1, transparent);
-        }
-
-        .purchase-table th:last-child:after {
-          display: none;
-        }
-
         .purchase-table td {
-          padding: 1rem 1rem;
-          color: #334155;
-          border-bottom: 1px solid #e2e8f0;
+          padding: 1rem;
+          color: #374151;
+          border-bottom: 1px solid #e5e7eb;
           transition: all 0.2s ease;
+        }
+
+        .purchase-table td:not(:last-child) {
+          border-right: 1px solid #e5e7eb;
         }
 
         .purchase-table tbody tr {
@@ -582,48 +586,11 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .purchase-table tbody tr:hover {
-          background-color: #f8fafc;
-          transform: translateY(-1px);
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          background-color: #f9fafb;
         }
 
         .purchase-table tbody tr.selected-row {
-          background: linear-gradient(to right, #eff6ff, #ffffff);
-          border-left: 4px solid #3b82f6;
-        }
-
-        /* Bill Number Styles */
-        .bill-number {
-          font-weight: 700;
-          color: #2563eb;
-          background: #eff6ff;
-          padding: 0.25rem 0.75rem;
-          border-radius: 20px;
-          font-size: 0.85rem;
-          display: inline-block;
-          border: 1px solid #bfdbfe;
-        }
-
-        /* Company Name Styles */
-        .company-name {
-          font-weight: 600;
-          color: #0f172a;
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-        }
-
-        .company-code {
-          font-size: 0.7rem;
-          color: #64748b;
-          font-weight: normal;
-        }
-
-        /* Date Styles */
-        .date-cell {
-          font-family: 'Courier New', monospace;
-          font-weight: 500;
-          color: #475569;
+          background: #f0f9ff;
         }
 
         /* Badge Styles */
@@ -631,48 +598,23 @@ export default function BuyingList({ refreshTrigger }) {
           display: inline-block;
           padding: 0.25rem 0.75rem;
           border-radius: 20px;
-          font-size: 0.7rem;
+          font-size: 0.9rem;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.03em;
-          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        .badge-success {
-          background: linear-gradient(to bottom, #dcfce7, #bbf7d0);
-          color: #166534;
-          border: 1px solid #86efac;
-        }
-
-        .badge-warning {
-          background: linear-gradient(to bottom, #fef9c3, #fef08a);
-          color: #854d0e;
-          border: 1px solid #facc15;
-        }
-
-        .badge-consignment {
-          background: linear-gradient(to bottom, #f3e8ff, #e9d5ff);
-          color: #6b21a8;
-          border: 1px solid #c084fc;
-        }
-
-        .badge-owned {
-          background: linear-gradient(to bottom, #dcfce7, #bbf7d0);
-          color: #166534;
-          border: 1px solid #4ade80;
         }
 
         /* Action Button Styles */
         .action-buttons {
           display: flex;
-          gap: 0.375rem;
+          gap: 0.5rem;
           flex-wrap: wrap;
         }
 
         .btn-icon {
           padding: 0.375rem 0.75rem;
           border-radius: 6px;
-          font-size: 0.7rem;
+          font-size: 0.9rem;
           font-weight: 600;
           transition: all 0.2s ease;
           border: 1px solid transparent;
@@ -684,66 +626,53 @@ export default function BuyingList({ refreshTrigger }) {
 
         .btn-icon:hover {
           transform: translateY(-1px);
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .btn-edit {
-          background: #eff6ff;
+          background: #dbeafe;
           color: #1e40af;
-          border-color: #bfdbfe;
+          border-color: #93c5fd;
         }
 
         .btn-edit:hover {
-          background: #dbeafe;
+          background: #bfdbfe;
         }
 
         .btn-delete {
-          background: #fef2f2;
+          background: #fee2e2;
           color: #991b1b;
-          border-color: #fecaca;
+          border-color: #fca5a5;
         }
 
         .btn-delete:hover {
-          background: #fee2e2;
+          background: #fecaca;
         }
 
         .btn-attach {
-          background: #f1f5f9;
-          color: #334155;
-          border-color: #cbd5e1;
+          background: #f3f4f6;
+          color: #374151;
+          border-color: #d1d5db;
         }
 
         .btn-attach:hover {
-          background: #e2e8f0;
+          background: #e5e7eb;
         }
 
         .btn-view {
-          background: #f0fdf4;
+          background: #dcfce7;
           color: #166534;
-          border-color: #86efac;
+          border-color: #bbf7d0;
         }
 
         .btn-view:hover {
-          background: #dcfce7;
+          background: #bbf7d0;
         }
 
         /* Expanded Details Panel */
         .details-panel {
-          background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+          background: #f9fafb;
           border-top: 2px solid #3b82f6;
-          border-bottom: 1px solid #e2e8f0;
-          animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          border-bottom: 1px solid #e5e7eb;
         }
 
         .details-content {
@@ -756,10 +685,9 @@ export default function BuyingList({ refreshTrigger }) {
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
           gap: 1rem;
           background: white;
-          border-radius: 12px;
+          border-radius: 8px;
           padding: 1.5rem;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+          border: 1px solid #e5e7eb;
           margin-bottom: 1.5rem;
         }
 
@@ -770,36 +698,24 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .info-label {
-          font-size: 0.7rem;
+          font-size: 0.9rem;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.03em;
-          color: #64748b;
+          color: #6b7280;
         }
 
         .info-value {
-          font-size: 1rem;
+          font-size: 1.1rem;
           font-weight: 600;
-          color: #0f172a;
-        }
-
-        .info-value.company {
-          color: #2563eb;
-        }
-
-        .info-value.expense {
-          color: #16a34a;
-        }
-
-        .info-value.transport {
-          color: #dc2626;
+          color: #111827;
         }
 
         /* Items Table inside Details */
         .items-table-container {
           background: white;
-          border-radius: 12px;
-          border: 1px solid #e2e8f0;
+          border-radius: 8px;
+          border: 1px solid #e5e7eb;
           overflow: hidden;
           margin: 1rem 0;
         }
@@ -807,41 +723,45 @@ export default function BuyingList({ refreshTrigger }) {
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 0.85rem;
+          font-size: 1rem;
         }
 
         .items-table th {
-          background: #f8fafc;
+          background: #f9fafb;
           padding: 0.75rem 1rem;
           font-weight: 600;
-          color: #334155;
+          color: #374151;
           text-transform: uppercase;
-          font-size: 0.7rem;
+          font-size: 1rem;
           letter-spacing: 0.03em;
-          border-bottom: 2px solid #e2e8f0;
+          border-bottom: 1px solid #e5e7eb;
+          text-align: left;
+        }
+
+        .items-table th:not(:last-child) {
+          border-right: 1px solid #e5e7eb;
         }
 
         .items-table td {
           padding: 0.75rem 1rem;
-          border-bottom: 1px solid #e2e8f0;
-          color: #1e293b;
+          border-bottom: 1px solid #e5e7eb;
+          color: #111827;
+        }
+
+        .items-table td:not(:last-child) {
+          border-right: 1px solid #e5e7eb;
         }
 
         .items-table tbody tr:hover {
-          background: #f8fafc;
-        }
-
-        .items-table tfoot {
-          background: #f8fafc;
-          font-weight: 600;
+          background: #f9fafb;
         }
 
         .barcode-cell {
           font-family: 'Courier New', monospace;
-          background: #f1f5f9;
+          background: #f3f4f6;
           padding: 0.25rem 0.5rem;
           border-radius: 4px;
-          font-size: 0.75rem;
+          font-size: 1rem;
           color: #2563eb;
         }
 
@@ -851,11 +771,11 @@ export default function BuyingList({ refreshTrigger }) {
           justify-content: center;
           width: 2rem;
           height: 2rem;
-          background: #f1f5f9;
-          color: #0f172a;
+          background: #f3f4f6;
+          color: #111827;
           border-radius: 9999px;
           font-weight: 700;
-          font-size: 0.85rem;
+          font-size: 1rem;
         }
 
         .price-usd {
@@ -873,11 +793,15 @@ export default function BuyingList({ refreshTrigger }) {
           font-weight: 600;
         }
 
+        .purchase-price {
+          font-weight: 600;
+        }
+
         .expire-badge {
           display: inline-block;
           padding: 0.25rem 0.75rem;
           border-radius: 20px;
-          font-size: 0.7rem;
+          font-size: 1rem;
           font-weight: 600;
         }
 
@@ -894,11 +818,10 @@ export default function BuyingList({ refreshTrigger }) {
         /* Filter Section Styles */
         .filter-section {
           background: white;
-          border: 1px solid #e2e8f0;
+          border: 1px solid #e5e7eb;
           border-radius: 12px;
           padding: 1.5rem;
           margin-bottom: 1.5rem;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
         }
 
         .filter-header {
@@ -911,7 +834,7 @@ export default function BuyingList({ refreshTrigger }) {
         .filter-header h3 {
           font-size: 1.1rem;
           font-weight: 600;
-          color: #0f172a;
+          color: #111827;
           margin: 0;
         }
 
@@ -924,9 +847,9 @@ export default function BuyingList({ refreshTrigger }) {
         .filter-input {
           width: 100%;
           padding: 0.625rem;
-          border: 1px solid #e2e8f0;
+          border: 1px solid #e5e7eb;
           border-radius: 8px;
-          font-size: 0.9rem;
+          font-size: 1rem;
           transition: all 0.2s ease;
         }
 
@@ -938,9 +861,9 @@ export default function BuyingList({ refreshTrigger }) {
 
         .filter-label {
           display: block;
-          font-size: 0.8rem;
+          font-size: 1rem;
           font-weight: 500;
-          color: #475569;
+          color: #4b5563;
           margin-bottom: 0.25rem;
         }
 
@@ -960,7 +883,7 @@ export default function BuyingList({ refreshTrigger }) {
           color: #2563eb;
           border: 1px solid #bfdbfe;
           border-radius: 8px;
-          font-size: 0.9rem;
+          font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -968,12 +891,6 @@ export default function BuyingList({ refreshTrigger }) {
 
         .currency-button:hover {
           background: #dbeafe;
-          transform: translateY(-1px);
-        }
-
-        .currency-button svg {
-          width: 1rem;
-          height: 1rem;
         }
 
         /* Attachment Modal */
@@ -1006,7 +923,7 @@ export default function BuyingList({ refreshTrigger }) {
           position: sticky;
           top: 0;
           background: white;
-          border-bottom: 1px solid #e2e8f0;
+          border-bottom: 1px solid #e5e7eb;
           padding: 1rem 1.5rem;
           display: flex;
           justify-content: space-between;
@@ -1017,23 +934,18 @@ export default function BuyingList({ refreshTrigger }) {
         .modal-header h3 {
           font-size: 1.1rem;
           font-weight: 600;
-          color: #0f172a;
+          color: #111827;
           margin: 0;
         }
 
         .modal-close {
-          color: #94a3b8;
+          color: #9ca3af;
           cursor: pointer;
           transition: color 0.2s ease;
         }
 
-        .modal-close svg {
-          width: 1.25rem;
-          height: 1.25rem;
-        }
-
         .modal-close:hover {
-          color: #475569;
+          color: #6b7280;
         }
 
         .modal-body {
@@ -1044,24 +956,19 @@ export default function BuyingList({ refreshTrigger }) {
           width: 100%;
           height: 200px;
           object-fit: contain;
-          border: 2px solid #e2e8f0;
+          border: 2px solid #e5e7eb;
           border-radius: 8px;
           margin-bottom: 1rem;
-          background: #f8fafc;
+          background: #f9fafb;
         }
 
         .attachment-placeholder {
           text-align: center;
           padding: 2rem;
-          border: 2px dashed #e2e8f0;
+          border: 2px dashed #e5e7eb;
           border-radius: 8px;
-          color: #94a3b8;
+          color: #9ca3af;
           margin-bottom: 1rem;
-        }
-
-        .attachment-placeholder .icon {
-          font-size: 2rem;
-          margin-bottom: 0.5rem;
         }
 
         .modal-actions {
@@ -1075,7 +982,7 @@ export default function BuyingList({ refreshTrigger }) {
           padding: 0.625rem;
           border-radius: 8px;
           font-weight: 500;
-          font-size: 0.9rem;
+          font-size: 1rem;
           border: none;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -1096,12 +1003,12 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .modal-btn-cancel {
-          background: #64748b;
+          background: #6b7280;
           color: white;
         }
 
         .modal-btn-cancel:hover {
-          background: #475569;
+          background: #4b5563;
         }
 
         .modal-btn-save {
@@ -1120,11 +1027,11 @@ export default function BuyingList({ refreshTrigger }) {
         .file-upload-btn {
           width: 100%;
           padding: 0.625rem;
-          background: #f1f5f9;
-          color: #334155;
-          border: 1px solid #cbd5e1;
+          background: #f3f4f6;
+          color: #374151;
+          border: 1px solid #d1d5db;
           border-radius: 8px;
-          font-size: 0.9rem;
+          font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -1132,7 +1039,7 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .file-upload-btn:hover {
-          background: #e2e8f0;
+          background: #e5e7eb;
         }
 
         /* Empty State */
@@ -1141,24 +1048,24 @@ export default function BuyingList({ refreshTrigger }) {
           padding: 3rem;
           background: white;
           border-radius: 12px;
-          border: 1px solid #e2e8f0;
+          border: 1px solid #e5e7eb;
         }
 
         .empty-state-icon {
           font-size: 3rem;
-          color: #cbd5e1;
+          color: #d1d5db;
           margin-bottom: 1rem;
         }
 
         .empty-state-title {
           font-size: 1.1rem;
           font-weight: 600;
-          color: #475569;
+          color: #6b7280;
           margin-bottom: 0.5rem;
         }
 
         .empty-state-text {
-          color: #64748b;
+          color: #9ca3af;
         }
 
         /* Responsive */
@@ -1184,6 +1091,47 @@ export default function BuyingList({ refreshTrigger }) {
             grid-template-columns: 1fr;
           }
         }
+
+        /* Price display styles */
+        .price-display {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          text-align: right;
+        }
+
+        .price-usd-display {
+          color: #2563eb;
+          font-weight: 600;
+        }
+
+        .price-iqd-display {
+          color: #854d0e;
+          font-weight: 600;
+        }
+
+        .purchase-price {
+          font-weight: 600;
+        }
+
+        .currency-badge {
+          display: inline-block;
+          padding: 2px 6px;
+          border-radius: 12px;
+          font-size: 10px;
+          font-weight: 600;
+          margin-left: 4px;
+        }
+
+        .currency-usd {
+          background: #dbeafe;
+          color: #1e40af;
+        }
+
+        .currency-iqd {
+          background: #fef3c7;
+          color: #92400e;
+        }
       `}</style>
 
       <Card title="Purchase History">
@@ -1191,7 +1139,7 @@ export default function BuyingList({ refreshTrigger }) {
         <div className="currency-toggle">
           <button onClick={toggleCurrency} className="currency-button">
             <span>Show in {displayCurrency === "USD" ? "IQD" : "USD"}</span>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
           </button>
@@ -1248,7 +1196,7 @@ export default function BuyingList({ refreshTrigger }) {
                     ...base,
                     minHeight: '42px',
                     fontSize: '14px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid #e5e7eb',
                     '&:hover': {
                       borderColor: '#3b82f6'
                     }
@@ -1343,37 +1291,22 @@ export default function BuyingList({ refreshTrigger }) {
             <thead>
               <tr>
                 <th className="sortable" onClick={() => requestSort('billNumber')}>
-                  Bill #
-                  {sortConfig.key === 'billNumber' && (
-                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
-                  )}
+                  BILL #
                 </th>
                 <th className="sortable" onClick={() => requestSort('company')}>
-                  Company
-                  {sortConfig.key === 'company' && (
-                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
-                  )}
+                  COMPANY
                 </th>
                 <th className="sortable" onClick={() => requestSort('date')}>
-                  Date
-                  {sortConfig.key === 'date' && (
-                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
-                  )}
+                  DATE
                 </th>
                 <th className="sortable" onClick={() => requestSort('paymentStatus')}>
-                  Status
-                  {sortConfig.key === 'paymentStatus' && (
-                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
-                  )}
+                  STATUS
                 </th>
                 <th className="sortable" onClick={() => requestSort('consignment')}>
-                  Consignment
-                  {sortConfig.key === 'consignment' && (
-                    sortConfig.direction === 'asc' ? <FiChevronUp /> : <FiChevronDown />
-                  )}
+                  CONSIGNMENT
                 </th>
-                <th>Attachment</th>
-                <th>Actions</th>
+                <th>ATTACHMENT</th>
+                <th>ACTIONS</th>
               </tr>
             </thead>
             <tbody>
@@ -1384,19 +1317,27 @@ export default function BuyingList({ refreshTrigger }) {
                     className={selectedBill?.billNumber === bill.billNumber ? 'selected-row' : ''}
                   >
                     <td>
-                      <span className="bill-number">#{bill.billNumber}</span>
+                      <span className="font-medium text-blue-600">#{bill.billNumber}</span>
                     </td>
                     <td>
-                      <div className="company-name">
+                      <div className="font-medium">
                         {companies.find(c => c.id === bill.companyId)?.name || 'Unknown Company'}
-                        <span className="company-code">
-                          Code: {companies.find(c => c.id === bill.companyId)?.code || 'N/A'}
-                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Code: {companies.find(c => c.id === bill.companyId)?.code || 'N/A'}
                       </div>
                     </td>
-                    <td className="date-cell">{formatDateToDDMMYYYYHHMM(bill.date)}</td>
-                    <td><PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} /></td>
-                    <td><ConsignmentBadge isConsignment={bill.isConsignment} /></td>
+                    <td>
+                      <div className="text-sm text-gray-700">
+                        {formatDateToDDMMYYYY(bill.date)}
+                      </div>
+                    </td>
+                    <td>
+                      <PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} />
+                    </td>
+                    <td>
+                      <ConsignmentBadge isConsignment={bill.isConsignment} />
+                    </td>
                     <td>
                       {bill.attachment ? (
                         <button
@@ -1454,7 +1395,7 @@ export default function BuyingList({ refreshTrigger }) {
                                 📋 Bill #{bill.billNumber} - Complete Details
                               </h4>
                               <div className="text-sm text-gray-600">
-                                Total Items: {bill.items.length} | Exchange Rate: {bill.exchangeRate || 1500} IQD/USD
+                                Total Items: {bill.items.length} | Currency: {bill.currency || "USD"}
                               </div>
                             </div>
 
@@ -1469,7 +1410,7 @@ export default function BuyingList({ refreshTrigger }) {
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Bill Date</span>
-                                <span className="info-value">{formatDateToDDMMYYYYHHMM(bill.date)}</span>
+                                <span className="info-value">{formatDateToDDMMYYYY(bill.date)}</span>
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Company Bill #</span>
@@ -1493,15 +1434,31 @@ export default function BuyingList({ refreshTrigger }) {
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Transport Fee</span>
-                                <span className="info-value transport">
-                                  {formatTotalPrice(bill.totalTransportFeeUSD || (bill.totalTransportFee ? bill.totalTransportFee / (bill.exchangeRate || 1500) : 0), bill.exchangeRate)}
-                                </span>
+                                <div className="price-display">
+                                  {bill.currency === "USD" ? (
+                                    <div className="price-usd-display">
+                                      ${formatNumber(bill.totalTransportFeeUSD || 0)}
+                                    </div>
+                                  ) : (
+                                    <div className="price-iqd-display">
+                                      {formatNumber(bill.totalTransportFeeIQD || 0)} IQD
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="info-item">
                                 <span className="info-label">Other Expenses</span>
-                                <span className="info-value transport">
-                                  {formatTotalPrice(bill.totalExternalExpenseUSD || (bill.totalExternalExpense ? bill.totalExternalExpense / (bill.exchangeRate || 1500) : 0), bill.exchangeRate)}
-                                </span>
+                                <div className="price-display">
+                                  {bill.currency === "USD" ? (
+                                    <div className="price-usd-display">
+                                      ${formatNumber(bill.totalExternalExpenseUSD || 0)}
+                                    </div>
+                                  ) : (
+                                    <div className="price-iqd-display">
+                                      {formatNumber(bill.totalExternalExpenseIQD || 0)} IQD
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                               <div className="info-item" style={{ gridColumn: '1/-1' }}>
                                 <span className="info-label">Bill Notes</span>
@@ -1509,7 +1466,7 @@ export default function BuyingList({ refreshTrigger }) {
                               </div>
                             </div>
 
-                            {/* Items Table - Simplified with only Out Price */}
+                            {/* Items Table */}
                             <div className="items-table-container">
                               <h5 className="font-semibold text-gray-700 mb-3 text-sm px-4 pt-4">Items List</h5>
                               <table className="items-table">
@@ -1519,27 +1476,20 @@ export default function BuyingList({ refreshTrigger }) {
                                     <th>Item Name</th>
                                     <th className="text-center">Qty</th>
                                     <th className="text-right">Base Price</th>
-                                    <th className="text-right">Cost Price</th>
-                                    <th className="text-right">Subtotal</th>
-                                    <th className="text-right">Out Price</th>
+                                    <th className="text-right">Net Price</th>
                                     <th className="text-center">Expire Date</th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {bill.items.map((item, index) => {
                                     const expireDate = formatExpireDate(item.expireDate);
-                                    const basePriceUSD = item.basePriceUSD || (item.basePrice ? item.basePrice / (bill.exchangeRate || 1500) : 0);
-                                    const basePriceIQD = item.basePrice || basePriceUSD * (bill.exchangeRate || 1500);
-                                    const outPriceUSD = item.outPriceUSD || (item.outPrice ? item.outPrice / (bill.exchangeRate || 1500) : 0);
-                                    const outPriceIQD = item.outPrice || outPriceUSD * (bill.exchangeRate || 1500);
                                     const quantity = item.quantity || 0;
+                                    const billCurrency = bill.currency || "USD";
 
-                                    // Calculate cost price
-                                    const costPriceUSD = calculateCostPrice(item, bill);
-                                    const costPriceIQD = costPriceUSD * (bill.exchangeRate || 1500);
-
-                                    const subtotalUSD = basePriceUSD * quantity;
-                                    const subtotalIQD = basePriceIQD * quantity;
+                                    // FIXED: Get the correct base price based on bill currency
+                                    const basePrice = getPurchasePrice(item, billCurrency);
+                                    // FIXED: Get the correct net price based on bill currency
+                                    const netPrice = getNetPrice(item, billCurrency);
 
                                     return (
                                       <tr key={index}>
@@ -1551,36 +1501,28 @@ export default function BuyingList({ refreshTrigger }) {
                                           <span className="quantity-badge">{quantity}</span>
                                         </td>
                                         <td className="text-right">
-                                          {displayCurrency === "USD" ? (
-                                            <span className="price-usd">${formatNumber(basePriceUSD)}</span>
-                                          ) : (
-                                            <span className="price-iqd">{formatNumber(basePriceIQD)} IQD</span>
-                                          )}
+                                          <div className="price-display">
+                                            <div className="purchase-price">
+                                              {billCurrency === "USD" 
+                                                ? `$${formatNumber(basePrice)}` 
+                                                : `${formatNumber(basePrice)} IQD`}
+                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                {billCurrency}
+                                              </span>
+                                            </div>
+                                          </div>
                                         </td>
                                         <td className="text-right">
-                                          {bill.isConsignment ? (
-                                            <span className="cost-price">-</span>
-                                          ) : (
-                                            displayCurrency === "USD" ? (
-                                              <span className="cost-price">${formatNumber(costPriceUSD)}</span>
-                                            ) : (
-                                              <span className="cost-price">{formatNumber(costPriceIQD)} IQD</span>
-                                            )
-                                          )}
-                                        </td>
-                                        <td className="text-right">
-                                          {displayCurrency === "USD" ? (
-                                            <span className="price-usd">${formatNumber(subtotalUSD)}</span>
-                                          ) : (
-                                            <span className="price-iqd">{formatNumber(subtotalIQD)} IQD</span>
-                                          )}
-                                        </td>
-                                        <td className="text-right">
-                                          {displayCurrency === "USD" ? (
-                                            <span className="price-usd">${formatNumber(outPriceUSD)}</span>
-                                          ) : (
-                                            <span className="price-iqd">{formatNumber(outPriceIQD)} IQD</span>
-                                          )}
+                                          <div className="price-display">
+                                            <div className="purchase-price" style={{ color: '#4f46e5', fontWeight: 'bold' }}>
+                                              {billCurrency === "USD" 
+                                                ? `$${formatNumber(netPrice)}` 
+                                                : `${formatNumber(netPrice)} IQD`}
+                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                {billCurrency}
+                                              </span>
+                                            </div>
+                                          </div>
                                         </td>
                                         <td className="text-center">
                                           <span className={`expire-badge ${expireDate === 'N/A' ? 'expire-na' : 'expire-ok'}`}>
@@ -1593,25 +1535,22 @@ export default function BuyingList({ refreshTrigger }) {
                                 </tbody>
                                 <tfoot>
                                   <tr>
-                                    <td colSpan="5" className="text-right font-bold">Total:</td>
+                                    <td colSpan="3" className="text-right font-bold">Total:</td>
                                     <td className="text-right font-bold">
-                                      {displayCurrency === "USD" ? (
-                                        <span className="price-usd">
-                                          ${formatNumber(bill.items.reduce((total, item) => {
-                                            const basePriceUSD = item.basePriceUSD || (item.basePrice ? item.basePrice / (bill.exchangeRate || 1500) : 0);
-                                            return total + (basePriceUSD * (item.quantity || 0));
-                                          }, 0))}
-                                        </span>
-                                      ) : (
-                                        <span className="price-iqd">
-                                          {formatNumber(bill.items.reduce((total, item) => {
-                                            const basePriceIQD = item.basePrice || (item.basePriceUSD ? item.basePriceUSD * (bill.exchangeRate || 1500) : 0);
-                                            return total + (basePriceIQD * (item.quantity || 0));
-                                          }, 0))} IQD
-                                        </span>
-                                      )}
+                                      <div className="price-display">
+                                        {bill.currency === "USD" 
+                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))}`
+                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                      </div>
                                     </td>
-                                    <td colSpan="2"></td>
+                                    <td className="text-right font-bold">
+                                      <div className="price-display" style={{ color: '#4f46e5' }}>
+                                        {bill.currency === "USD" 
+                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))}`
+                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                      </div>
+                                    </td>
+                                    <td></td>
                                   </tr>
                                 </tfoot>
                               </table>
@@ -1643,7 +1582,7 @@ export default function BuyingList({ refreshTrigger }) {
               <div className="modal-header">
                 <h3>Bill #{attachmentModal.billNumber} - Attachment</h3>
                 <button onClick={closeAttachmentModal} className="modal-close">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
