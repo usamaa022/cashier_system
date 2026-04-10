@@ -13,6 +13,7 @@ import {
 } from "@/lib/data";
 import { useRouter } from "next/navigation";
 import Select from "react-select";
+import * as XLSX from 'xlsx';
 
 export default function BoughtReturnHistory() {
   const [returns, setReturns] = useState([]);
@@ -30,7 +31,10 @@ export default function BoughtReturnHistory() {
     billNumber: "",
     itemName: "",
     barcode: "",
-    paymentStatus: "all"
+    paymentStatus: "all",
+    returnBillNumber: "",
+    startDate: "",
+    endDate: ""
   });
   const [returnItems, setReturnItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,14 +43,39 @@ export default function BoughtReturnHistory() {
   const [itemFilters, setItemFilters] = useState([]);
   const [companySelectValue, setCompanySelectValue] = useState(null);
   const [returnNote, setReturnNote] = useState("");
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const router = useRouter();
 
-  // Styling constants
+  // Currency formatting function
+  const formatCurrency = (amount, currency = "USD") => {
+    if (currency === "IQD") {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(amount || 0);
+    }
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount || 0);
+  };
+
+  const getCurrencySymbol = (currency) => {
+    return currency === "IQD" ? "IQD" : "$";
+  };
+
+  const getCurrencyColor = (currency) => {
+    return currency === "IQD" ? "#f59e0b" : "#3b82f6";
+  };
+
   const styles = {
     container: {
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
       padding: "2rem 1rem"
+    },
+    wrapper: {
+      maxWidth: "100%",
+      margin: "0 auto"
     },
     header: {
       textAlign: "center",
@@ -64,7 +93,7 @@ export default function BoughtReturnHistory() {
       fontSize: "1.1rem"
     },
     mainCard: {
-      width:"100%",
+      width: "100%",
       background: "white",
       borderRadius: "24px",
       boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -78,7 +107,10 @@ export default function BoughtReturnHistory() {
     cardHeaderTitle: {
       fontSize: "1.5rem",
       fontWeight: "600",
-      margin: 0
+      margin: 0,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center"
     },
     cardBody: {
       padding: "2rem"
@@ -137,7 +169,9 @@ export default function BoughtReturnHistory() {
       color: "#4a5568",
       background: "linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%)",
       borderBottom: "2px solid #e2e8f0",
-      whiteSpace: "nowrap"
+      whiteSpace: "nowrap",
+      cursor: "pointer",
+      userSelect: "none"
     },
     td: {
       padding: "1rem",
@@ -196,6 +230,18 @@ export default function BoughtReturnHistory() {
       transition: "all 0.3s ease",
       boxShadow: "0 4px 6px rgba(16, 185, 129, 0.3)"
     },
+    buttonExport: {
+      background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+      color: "white",
+      border: "none",
+      padding: "0.5rem 1rem",
+      borderRadius: "10px",
+      fontSize: "0.875rem",
+      fontWeight: "500",
+      cursor: "pointer",
+      transition: "all 0.3s ease",
+      boxShadow: "0 4px 6px rgba(139, 92, 246, 0.3)"
+    },
     modal: {
       position: "fixed",
       top: 0,
@@ -249,14 +295,6 @@ export default function BoughtReturnHistory() {
       fontSize: "0.875rem",
       fontWeight: "600"
     },
-    priceBlue: {
-      color: "#3b82f6",
-      fontWeight: "600"
-    },
-    priceGreen: {
-      color: "#10b981",
-      fontWeight: "600"
-    },
     companyCode: {
       fontSize: "0.75rem",
       color: "#6b7280"
@@ -264,18 +302,13 @@ export default function BoughtReturnHistory() {
     returnNumber: {
       color: "#3b82f6",
       fontWeight: "600"
+    },
+    sortIcon: {
+      marginLeft: "0.25rem",
+      fontSize: "0.75rem"
     }
   };
 
-  // Currency formatting function for USD
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount || 0);
-  };
-
-  // Format date function
   const formatDate = (date) => {
     if (!date) return "N/A";
     try {
@@ -311,67 +344,29 @@ export default function BoughtReturnHistory() {
     }
   };
 
-  // Helper function to calculate available quantity for an item
-  const calculateAvailableQuantity = (billNumber, barcode, excludeReturnId = null) => {
-    // Find the original bill
-    const originalBill = boughtBills.find(bill => String(bill.billNumber) === String(billNumber));
-    if (!originalBill) {
-      console.log("Original bill not found for bill number:", billNumber);
-      return 0;
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
     }
-    
-    // Find the original item
-    const originalItem = originalBill.items?.find(item => String(item.barcode) === String(barcode));
-    if (!originalItem) {
-      console.log("Original item not found for barcode:", barcode);
-      return 0;
-    }
-    
-    const originalPurchasedQuantity = originalItem.quantity || 0;
-    
-    // Calculate total returned quantity for this item (excluding current return if specified)
-    const allReturnsForItem = allReturns.filter(r => 
-      r && 
-      String(r.billNumber) === String(billNumber) && 
-      String(r.barcode) === String(barcode) &&
-      (excludeReturnId ? String(r.id) !== String(excludeReturnId) : true)
-    );
-    
-    const totalReturned = allReturnsForItem.reduce((sum, r) => sum + (r.returnQuantity || 0), 0);
-    
-    // Available quantity = original purchased - total returned
-    const available = originalPurchasedQuantity - totalReturned;
-    console.log(`Bill: ${billNumber}, Barcode: ${barcode}, Original: ${originalPurchasedQuantity}, Returned: ${totalReturned}, Available: ${available}`);
-    
-    return available;
+    setSortConfig({ key, direction });
   };
 
-  // Fetch all returns
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return '↕️';
+    return sortConfig.direction === 'asc' ? '↑' : '↓';
+  };
+
   const fetchAllReturns = async () => {
     try {
       const allCompanies = await getCompanies();
-      const companyMap = {};
-      allCompanies.forEach(company => {
-        if (company && company.id) {
-          companyMap[company.id] = {
-            name: company.name,
-            code: company.code
-          };
-        }
-      });
-      
       const allPayments = await getPayments();
       
       const paidReturnIds = new Set();
-      const paymentMap = {};
       allPayments.forEach(payment => {
         if (payment.selectedBoughtReturns && Array.isArray(payment.selectedBoughtReturns)) {
           payment.selectedBoughtReturns.forEach(returnId => {
             paidReturnIds.add(returnId);
-            paymentMap[returnId] = {
-              paymentNumber: payment.paymentNumber,
-              paymentDate: payment.paymentDate
-            };
           });
         }
       });
@@ -382,7 +377,11 @@ export default function BoughtReturnHistory() {
           const returnsData = await getReturnsForCompany(company.id);
           
           const processedReturns = returnsData.map(returnItem => {
-            const returnTotal = (returnItem.returnPriceUSD || returnItem.returnPrice || 0) * (returnItem.returnQuantity || 0);
+            const itemCurrency = returnItem.currency || "USD";
+            const returnPrice = itemCurrency === "IQD" 
+              ? (returnItem.returnPriceIQD || returnItem.returnPrice || 0) 
+              : (returnItem.returnPriceUSD || returnItem.returnPrice || 0);
+            const returnTotal = returnPrice * (returnItem.returnQuantity || 0);
             
             return {
               ...returnItem,
@@ -394,9 +393,10 @@ export default function BoughtReturnHistory() {
               returnNote: returnItem.returnNote || "",
               isPaid: paidReturnIds.has(returnItem.id),
               paymentStatus: paidReturnIds.has(returnItem.id) ? "Paid" : "Unpaid",
-              paymentNumber: paymentMap[returnItem.id]?.paymentNumber || null,
-              paymentDate: paymentMap[returnItem.id]?.paymentDate || null,
-              expireDate: returnItem.expireDate ? formatDate(returnItem.expireDate) : 'N/A'
+              expireDate: returnItem.expireDate ? formatDate(returnItem.expireDate) : 'N/A',
+              currency: itemCurrency,
+              returnPriceUSD: returnItem.returnPriceUSD || 0,
+              returnPriceIQD: returnItem.returnPriceIQD || 0
             };
           });
           
@@ -461,21 +461,20 @@ export default function BoughtReturnHistory() {
           const allPayments = await getPayments();
           
           const paidReturnIds = new Set();
-          const paymentMap = {};
           allPayments.forEach(payment => {
             if (payment.selectedBoughtReturns && Array.isArray(payment.selectedBoughtReturns)) {
               payment.selectedBoughtReturns.forEach(returnId => {
                 paidReturnIds.add(returnId);
-                paymentMap[returnId] = {
-                  paymentNumber: payment.paymentNumber,
-                  paymentDate: payment.paymentDate
-                };
               });
             }
           });
           
           const processedReturns = returnsData.map(returnItem => {
-            const returnTotal = (returnItem.returnPriceUSD || returnItem.returnPrice || 0) * (returnItem.returnQuantity || 0);
+            const itemCurrency = returnItem.currency || "USD";
+            const returnPrice = itemCurrency === "IQD" 
+              ? (returnItem.returnPriceIQD || returnItem.returnPrice || 0) 
+              : (returnItem.returnPriceUSD || returnItem.returnPrice || 0);
+            const returnTotal = returnPrice * (returnItem.returnQuantity || 0);
             
             return {
               ...returnItem,
@@ -487,9 +486,10 @@ export default function BoughtReturnHistory() {
               returnNote: returnItem.returnNote || "",
               isPaid: paidReturnIds.has(returnItem.id),
               paymentStatus: paidReturnIds.has(returnItem.id) ? "Paid" : "Unpaid",
-              paymentNumber: paymentMap[returnItem.id]?.paymentNumber || null,
-              paymentDate: paymentMap[returnItem.id]?.paymentDate || null,
-              expireDate: returnItem.expireDate ? formatDate(returnItem.expireDate) : 'N/A'
+              expireDate: returnItem.expireDate ? formatDate(returnItem.expireDate) : 'N/A',
+              currency: itemCurrency,
+              returnPriceUSD: returnItem.returnPriceUSD || 0,
+              returnPriceIQD: returnItem.returnPriceIQD || 0
             };
           });
           
@@ -530,59 +530,62 @@ export default function BoughtReturnHistory() {
     setFilters({ ...filters, [field]: value });
   };
 
-  const handleBillSelect = async (bill) => {
-    if (!bill || !bill.items || !Array.isArray(bill.items)) {
-      setError("Invalid bill selected");
-      return;
-    }
-    
-    setSelectedBill(bill);
-    setReturnNote("");
-    
-    try {
-      const existingReturns = await getReturnsForCompany(selectedCompany.id);
-      const existingReturnItems = existingReturns.filter(item => 
+  const handleBillSelect = (bill) => {
+    if (selectedBill?.id === bill.id) {
+      setSelectedBill(null);
+      setReturnItems([]);
+      setReturnNote("");
+    } else {
+      if (!bill || !bill.items || !Array.isArray(bill.items)) {
+        setError("Invalid bill selected");
+        return;
+      }
+      
+      setSelectedBill(bill);
+      setReturnNote("");
+      
+      const existingReturns = allReturns.filter(item => 
         item && String(item.billNumber) === String(bill.billNumber)
       );
       
       const validReturnItems = bill.items
         .filter(item => item && item.barcode)
         .map((item) => {
-          // Calculate already returned quantity for this item
-          const previouslyReturned = existingReturnItems
+          const previouslyReturned = existingReturns
             .filter(returnItem => returnItem && String(returnItem.barcode) === String(item.barcode))
             .reduce((sum, returnItem) => sum + (returnItem.returnQuantity || 0), 0);
           
-          // Calculate available quantity
           const availableQuantity = (item.quantity || 0) - previouslyReturned;
           
+          let returnPrice = 0;
+          if (bill.currency === "IQD") {
+            returnPrice = item.outPriceIQD || (item.outPrice ? item.outPrice : 0);
+          } else {
+            returnPrice = item.outPriceUSD || item.outPrice || 0;
+          }
+          
           return {
-            ...item,
+            id: item.barcode,
+            barcode: item.barcode,
+            name: item.name,
             returnQuantity: 0,
-            returnPriceUSD: item.outPriceUSD || (item.outPrice ? item.outPrice / (bill.exchangeRate || 1500) : 0),
-            availableQuantity: availableQuantity, // This is the actual available quantity
+            returnPrice: returnPrice,
+            returnPriceUSD: item.outPriceUSD || 0,
+            returnPriceIQD: item.outPriceIQD || 0,
+            availableQuantity: availableQuantity,
             originalQuantity: item.quantity || 0,
             previouslyReturned: previouslyReturned,
             netPrice: item.netPrice || 0,
             outPrice: item.outPrice || 0,
             isConsignment: item.isConsignment || false,
             consignmentOwnerId: item.consignmentOwnerId || null,
-            expireDate: item.expireDate ? formatDate(item.expireDate) : 'N/A'
+            expireDate: item.expireDate ? formatDate(item.expireDate) : 'N/A',
+            currency: bill.currency || "USD"
           };
         });
       
       setReturnItems(validReturnItems);
-    } catch (error) {
-      console.error("Error calculating quantities:", error);
-      setError("Error calculating quantities");
     }
-  };
-
-  const handleCancelBillSelection = () => {
-    setSelectedBill(null);
-    setReturnItems([]);
-    setReturnNote("");
-    setError(null);
   };
 
   const handleReturnQuantityChange = (index, value) => {
@@ -599,40 +602,77 @@ export default function BoughtReturnHistory() {
     const newReturnItems = [...returnItems];
     if (!newReturnItems[index]) return;
     
-    newReturnItems[index].returnPriceUSD = parseFloat(value) || 0;
+    const priceValue = parseFloat(value) || 0;
+    const billCurrency = selectedBill?.currency || "USD";
+    const exchangeRate = selectedBill?.exchangeRate || 1500;
+    
+    if (billCurrency === "IQD") {
+      newReturnItems[index].returnPrice = priceValue;
+      newReturnItems[index].returnPriceIQD = priceValue;
+      newReturnItems[index].returnPriceUSD = priceValue / exchangeRate;
+    } else {
+      newReturnItems[index].returnPrice = priceValue;
+      newReturnItems[index].returnPriceUSD = priceValue;
+      newReturnItems[index].returnPriceIQD = priceValue * exchangeRate;
+    }
+    
     setReturnItems(newReturnItems);
   };
 
+  // FIXED: handleEditReturn - properly captures price based on currency
   const handleEditReturn = (returnItem) => {
     if (returnItem.isPaid) {
       alert("Cannot edit a return that has already been paid.");
       return;
     }
     
+    // Ensure we capture the correct price based on currency
+    let returnPriceValue = 0;
+    if (returnItem.currency === "IQD") {
+      returnPriceValue = returnItem.returnPriceIQD || returnItem.returnPrice || 0;
+    } else {
+      returnPriceValue = returnItem.returnPriceUSD || returnItem.returnPrice || 0;
+    }
+    
     setEditingReturn(returnItem);
-    
-    setEditItems([{
+    setEditItems([{ 
       ...returnItem,
-      returnQuantity: returnItem.returnQuantity,
-      returnPriceUSD: returnItem.returnPriceUSD || returnItem.returnPrice,
+      returnPriceValue: returnPriceValue,
+      originalCurrency: returnItem.currency,
+      originalQuantity: returnItem.returnQuantity
     }]);
-    
     setEditNote(returnItem.returnNote || "");
   };
 
+  // FIXED: handleEditQuantityChange - preserves currency when quantity changes
   const handleEditQuantityChange = (value) => {
     const newItems = [...editItems];
     if (!newItems[0]) return;
+    const newQuantity = Math.max(0, parseInt(value) || 0);
     
-    newItems[0].returnQuantity = Math.max(0, parseInt(value) || 0);
+    // Preserve the currency and price when quantity changes
+    const updatedItem = { 
+      ...newItems[0],
+      returnQuantity: newQuantity
+    };
+    
+    newItems[0] = updatedItem;
     setEditItems(newItems);
   };
 
+  // FIXED: handleEditPriceChange - preserves currency information
   const handleEditPriceChange = (value) => {
     const newItems = [...editItems];
     if (!newItems[0]) return;
+    const priceValue = parseFloat(value) || 0;
     
-    newItems[0].returnPriceUSD = parseFloat(value) || 0;
+    // Preserve currency information
+    const updatedItem = { 
+      ...newItems[0],
+      returnPriceValue: priceValue
+    };
+    
+    newItems[0] = updatedItem;
     setEditItems(newItems);
   };
 
@@ -642,132 +682,205 @@ export default function BoughtReturnHistory() {
     setEditNote("");
   };
 
-// In your page component (app/bought_returns/page.js)
-// Replace your existing handleSubmitEdit function with this:
-
-const handleSubmitEdit = async () => {
-  if (!editingReturn || !editingReturn.id) {
-    alert("Invalid return item: missing ID");
-    return;
-  }
-  
-  const editedItem = editItems[0];
-  if (!editedItem) {
-    alert("No item data found");
-    return;
-  }
-  
-  if (editedItem.returnQuantity <= 0) {
-    alert("Return quantity must be greater than 0");
-    return;
-  }
-  
-  if (editedItem.returnPriceUSD <= 0) {
-    alert("Return price must be greater than 0");
-    return;
-  }
-
-  try {
-    // Find the original bill to check maximum available quantity
-    const originalBill = boughtBills.find(bill => 
-      bill && String(bill.billNumber) === String(editingReturn.billNumber)
-    );
-    
-    if (!originalBill) {
-      alert("Original bill not found. Cannot validate quantity.");
+  // FIXED: handleSubmitEdit - handles multi-item returns correctly
+  const handleSubmitEdit = async () => {
+    if (!editingReturn || !editingReturn.id) {
+      alert("Invalid return item: missing ID");
       return;
     }
 
-    const originalItem = originalBill.items?.find(item => 
-      item && String(item.barcode) === String(editingReturn.barcode)
-    );
-    
-    if (!originalItem) {
-      alert("Original item not found in bill. Cannot validate quantity.");
+    const editedItem = editItems[0];
+    if (!editedItem) {
+      alert("No item data found");
       return;
     }
 
-    // Calculate total returned quantity for this item (excluding current return being edited)
-    const allReturnsForItem = allReturns.filter(r => 
-      r && 
-      String(r.billNumber) === String(editingReturn.billNumber) && 
-      String(r.barcode) === String(editingReturn.barcode) &&
-      String(r.id) !== String(editingReturn.id) // Exclude current return
-    );
-    
-    const totalPreviouslyReturned = allReturnsForItem.reduce((sum, r) => sum + (r.returnQuantity || 0), 0);
-    const originalPurchasedQuantity = originalItem.quantity || 0;
-    const maxAvailableForReturn = originalPurchasedQuantity - totalPreviouslyReturned;
-    
-    // Validate against max available quantity
-    if (editedItem.returnQuantity > maxAvailableForReturn) {
-      alert(
-        `Cannot return more than ${maxAvailableForReturn}.\n\n` +
-        `Original purchased: ${originalPurchasedQuantity}\n` +
-        `Already returned (excluding this): ${totalPreviouslyReturned}\n` +
-        `Maximum allowed now: ${maxAvailableForReturn}`
+    if (editedItem.returnQuantity <= 0) {
+      alert("Return quantity must be greater than 0");
+      return;
+    }
+
+    // Get the price based on the original currency
+    const priceValue = editedItem.returnPriceValue || 0;
+    if (priceValue <= 0) {
+      alert("Return price must be greater than 0");
+      return;
+    }
+
+    try {
+      const originalBill = boughtBills.find(bill =>
+        bill && String(bill.billNumber) === String(editingReturn.billNumber)
       );
+
+      if (!originalBill) {
+        alert("Original bill not found.");
+        return;
+      }
+
+      const originalItem = originalBill.items?.find(item =>
+        item && String(item.barcode) === String(editingReturn.barcode)
+      );
+
+      if (!originalItem) {
+        alert("Original item not found.");
+        return;
+      }
+
+      // Get all returns for this bill and barcode excluding the current one
+      const allReturnsForItem = allReturns.filter(r =>
+        r &&
+        String(r.billNumber) === String(editingReturn.billNumber) &&
+        String(r.barcode) === String(editingReturn.barcode) &&
+        String(r.id) !== String(editingReturn.id)
+      );
+
+      const totalPreviouslyReturned = allReturnsForItem.reduce((sum, r) => sum + (r.returnQuantity || 0), 0);
+      const originalPurchasedQuantity = originalItem.quantity || 0;
+      const maxAvailableForReturn = originalPurchasedQuantity - totalPreviouslyReturned;
+
+      if (editedItem.returnQuantity > maxAvailableForReturn) {
+        alert(`Cannot return more than ${maxAvailableForReturn}. Only ${maxAvailableForReturn} remain.`);
+        return;
+      }
+
+      // Get all items in this return bill (for multi-item returns)
+      const allItemsInReturn = allReturns.filter(r =>
+        r && String(r.returnNumber) === String(editingReturn.returnNumber)
+      );
+
+      // Create updated items array preserving all items
+      const updatedItems = allItemsInReturn.map(item => {
+        if (String(item.id) === String(editingReturn.id)) {
+          // This is the edited item - update with new values
+          const currency = editingReturn.currency || "USD";
+          const exchangeRate = editingReturn.exchangeRate || 1500;
+          
+          let returnPriceUSD = 0;
+          let returnPriceIQD = 0;
+          
+          if (currency === "USD") {
+            returnPriceUSD = priceValue;
+            returnPriceIQD = priceValue * exchangeRate;
+          } else {
+            returnPriceIQD = priceValue;
+            returnPriceUSD = priceValue / exchangeRate;
+          }
+          
+          return {
+            id: editingReturn.id,
+            barcode: String(editingReturn.barcode),
+            name: String(editingReturn.name),
+            returnQuantity: Number(editedItem.returnQuantity),
+            returnPrice: priceValue,
+            returnPriceUSD: returnPriceUSD,
+            returnPriceIQD: returnPriceIQD,
+            returnNote: editNote,
+            billNumber: String(editingReturn.billNumber),
+            quantity: Number(originalItem.quantity),
+            netPrice: Number(originalItem.netPrice),
+            outPrice: Number(originalItem.outPrice),
+            originalPrice: Number(editingReturn.originalPrice || 0),
+            expireDate: editingReturn.expireDate === 'N/A' ? null : editingReturn.expireDate,
+            isConsignment: Boolean(editingReturn.isConsignment),
+            consignmentOwnerId: editingReturn.consignmentOwnerId || null,
+            companyId: editingReturn.companyId,
+            returnDate: editingReturn.returnDate || new Date(),
+            currency: currency,
+            returnNumber: editingReturn.returnNumber
+          };
+        } else {
+          // Keep other items unchanged
+          const otherCurrency = item.currency || "USD";
+          const otherPriceValue = otherCurrency === "IQD" 
+            ? (item.returnPriceIQD || item.returnPrice || 0)
+            : (item.returnPriceUSD || item.returnPrice || 0);
+          
+          return {
+            id: item.id,
+            barcode: String(item.barcode),
+            name: String(item.name),
+            returnQuantity: Number(item.returnQuantity),
+            returnPrice: otherPriceValue,
+            returnPriceUSD: item.returnPriceUSD || (otherCurrency === "USD" ? otherPriceValue : 0),
+            returnPriceIQD: item.returnPriceIQD || (otherCurrency === "IQD" ? otherPriceValue : 0),
+            returnNote: item.returnNote || "",
+            billNumber: String(item.billNumber),
+            quantity: Number(item.quantity),
+            netPrice: Number(item.netPrice),
+            outPrice: Number(item.outPrice),
+            originalPrice: Number(item.originalPrice || 0),
+            expireDate: item.expireDate,
+            isConsignment: Boolean(item.isConsignment),
+            consignmentOwnerId: item.consignmentOwnerId || null,
+            companyId: item.companyId,
+            returnDate: item.returnDate,
+            currency: otherCurrency,
+            returnNumber: item.returnNumber
+          };
+        }
+      });
+
+      // Update each item in the return bill
+      for (const updatedItem of updatedItems) {
+        await updateBoughtReturnItems(updatedItem.id, [updatedItem]);
+      }
+      
+      alert("Return updated successfully!");
+      setEditingReturn(null);
+      setEditItems([]);
+      setEditNote("");
+      await fetchAllReturns();
+      
+    } catch (error) {
+      console.error("Error updating return:", error);
+      alert(`Failed to update return: ${error.message}`);
+    }
+  };
+
+  const handleDeleteReturnItem = async (returnItem) => {
+    if (!returnItem || !returnItem.id) {
+      alert("Invalid return item");
       return;
     }
 
-    // Prepare the updated item data - make sure no undefined values
-    const updatedItem = {
-      id: editingReturn.id,
-      barcode: String(editingReturn.barcode || ""),
-      name: String(editingReturn.name || ""),
-      returnQuantity: Number(editedItem.returnQuantity) || 0,
-      returnPrice: Number(editedItem.returnPriceUSD) || 0,
-      returnNote: String(editNote || ""),
-      billNumber: String(editingReturn.billNumber || ""),
-      quantity: Number(originalItem.quantity) || 0,
-      netPrice: Number(originalItem.netPrice) || 0,
-      outPrice: Number(originalItem.outPrice) || 0,
-      originalPrice: Number(editingReturn.originalPrice) || 0,
-      expireDate: editingReturn.expireDate === 'N/A' ? null : editingReturn.expireDate,
-      isConsignment: Boolean(editingReturn.isConsignment) || false,
-      consignmentOwnerId: editingReturn.consignmentOwnerId || null,
-      companyId: editingReturn.companyId || null,
-      returnDate: editingReturn.returnDate || new Date()
-    };
-
-    console.log("Updating return with ID:", editingReturn.id);
-    console.log("Updated item data:", updatedItem);
-
-    // Call the update function with the return ID
-    const result = await updateBoughtReturnItems(editingReturn.id, [updatedItem]);
-    console.log("Update result:", result);
-    
-    alert("Return updated successfully! Quantity has been adjusted.");
-    
-    // Close edit modal
-    setEditingReturn(null);
-    setEditItems([]);
-    setEditNote("");
-    
-    // Refresh the returns list
-    await fetchAllReturns();
-    
-  } catch (error) {
-    console.error("Error updating return:", error);
-    
-    // More detailed error message
-    let errorMessage = "Failed to update return";
-    if (error.message) {
-      errorMessage += `: ${error.message}`;
+    if (returnItem.isPaid) {
+      alert("Cannot delete a return that has already been paid.");
+      return;
     }
-    
-    alert(errorMessage);
-  }
-};
+
+    if (confirm(`Are you sure you want to delete return for "${returnItem.name}"? This will restore ${returnItem.returnQuantity} items to store.`)) {
+      try {
+        await deleteBoughtReturn(returnItem.id, returnItem.barcode);
+        alert("Return item deleted successfully!");
+        await fetchAllReturns();
+      } catch (error) {
+        console.error("Error deleting return:", error);
+        alert(`Failed to delete return: ${error.message}`);
+      }
+    }
+  };
 
   const calculateItemTotal = (item) => {
-    return (item.returnPriceUSD || 0) * (item.returnQuantity || 0);
+    const price = item.returnPrice || item.returnPriceUSD || 0;
+    return price * (item.returnQuantity || 0);
+  };
+
+  const getItemCurrency = (item) => {
+    return item.currency || selectedBill?.currency || "USD";
   };
 
   const calculateGrandTotal = () => {
     return returnItems.reduce((sum, item) => {
-      return sum + ((item.returnPriceUSD || 0) * (item.returnQuantity || 0));
+      const price = item.returnPrice || item.returnPriceUSD || 0;
+      return sum + (price * (item.returnQuantity || 0));
     }, 0);
+  };
+
+  const getGrandTotalCurrency = () => {
+    if (returnItems.length > 0 && returnItems[0].currency) {
+      return returnItems[0].currency;
+    }
+    return selectedBill?.currency || "USD";
   };
 
   const handleSubmitReturn = async () => {
@@ -782,41 +895,49 @@ const handleSubmitEdit = async () => {
       return;
     }
     
-    // Validate each item against available quantity
     for (const item of itemsToReturn) {
       if (item.returnQuantity > item.availableQuantity) {
-        alert(`Cannot return more than ${item.availableQuantity} of ${item.name}. Only ${item.availableQuantity} remain in this bill.`);
+        alert(`Cannot return more than ${item.availableQuantity} of ${item.name}.`);
         return;
       }
     }
     
     try {
+      const billCurrency = selectedBill.currency || "USD";
+      const exchangeRate = selectedBill.exchangeRate || 1500;
+      
       const preparedItems = itemsToReturn.map(item => {
-        if (!item.barcode) throw new Error(`Item ${item.name} is missing barcode`);
-        if (!item.name) throw new Error(`Item with barcode ${item.barcode} is missing name`);
-        if (!item.returnQuantity && item.returnQuantity !== 0) throw new Error(`Item ${item.name} is missing return quantity`);
-        if (!item.returnPriceUSD && item.returnPriceUSD !== 0) throw new Error(`Item ${item.name} is missing return price`);
-        
         const returnQuantity = Number(item.returnQuantity) || 0;
-        const returnPrice = Number(item.returnPriceUSD) || 0;
-        const netPrice = Number(item.netPrice || 0);
-        const outPrice = Number(item.outPrice || 0);
-        const originalPrice = Number(item.outPriceUSD || 0);
+        let returnPriceUSD = 0;
+        let returnPriceIQD = 0;
+        let returnPrice = Number(item.returnPrice) || 0;
+        
+        if (billCurrency === "IQD") {
+          returnPriceIQD = returnPrice;
+          returnPriceUSD = returnPrice / exchangeRate;
+        } else {
+          returnPriceUSD = returnPrice;
+          returnPriceIQD = returnPrice * exchangeRate;
+        }
         
         return {
           barcode: String(item.barcode),
           name: String(item.name),
-          billNumber: selectedBill?.billNumber ? String(selectedBill.billNumber) : "",
+          billNumber: String(selectedBill.billNumber),
           quantity: Number(item.originalQuantity) || 0,
           returnQuantity: returnQuantity,
           returnPrice: returnPrice,
+          returnPriceUSD: returnPriceUSD,
+          returnPriceIQD: returnPriceIQD,
           returnNote: returnNote,
-          originalPrice: originalPrice,
-          netPrice: netPrice,
-          outPrice: outPrice,
+          originalPrice: item.outPriceUSD || 0,
+          netPrice: Number(item.netPrice) || 0,
+          outPrice: Number(item.outPrice) || 0,
           expireDate: item.expireDate === 'N/A' ? null : item.expireDate,
           isConsignment: item.isConsignment || false,
           consignmentOwnerId: item.consignmentOwnerId || null,
+          currency: billCurrency,
+          exchangeRateAtReturn: exchangeRate
         };
       });
       
@@ -826,7 +947,6 @@ const handleSubmitEdit = async () => {
       setReturnItems([]);
       setReturnNote("");
       setError(null);
-      
       await fetchAllReturns();
       
     } catch (error) {
@@ -835,32 +955,41 @@ const handleSubmitEdit = async () => {
     }
   };
 
-  const handleDeleteReturn = async (returnItem) => {
-    if (!returnItem || !returnItem.id) {
-      alert("Invalid return item");
-      return;
-    }
-    
-    if (returnItem.isPaid) {
-      alert("Cannot delete a return that has already been paid.");
-      return;
-    }
-    
-    if (confirm("Are you sure you want to delete this return? The quantity will be restored to store.")) {
-      try {
-        await deleteBoughtReturn(returnItem.id);
-        alert("Return deleted successfully! Quantity restored to store.");
-        await fetchAllReturns();
-      } catch (error) {
-        console.error("Error deleting return:", error);
-        alert(`Failed to delete return: ${error.message}`);
-      }
-    }
+  const exportToExcel = () => {
+    const exportData = filteredSortedReturns.map(returnItem => ({
+      'Company': returnItem.companyName || 'N/A',
+      'Return #': returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A',
+      'Return Date': formatDate(returnItem.returnDate),
+      'Bill #': returnItem.billNumber || 'N/A',
+      'Item Name': returnItem.name || 'N/A',
+      'Barcode': returnItem.barcode || 'N/A',
+      'Return Quantity': returnItem.returnQuantity || 0,
+      'Currency': returnItem.currency || 'USD',
+      'Return Price': `${getCurrencySymbol(returnItem.currency)} ${formatCurrency(
+        returnItem.currency === "IQD" 
+          ? (returnItem.returnPriceIQD || returnItem.returnPrice || 0)
+          : (returnItem.returnPriceUSD || returnItem.returnPrice || 0),
+        returnItem.currency
+      )}`,
+      'Total': `${getCurrencySymbol(returnItem.currency)} ${formatCurrency(
+        (returnItem.currency === "IQD" 
+          ? (returnItem.returnPriceIQD || returnItem.returnPrice || 0)
+          : (returnItem.returnPriceUSD || returnItem.returnPrice || 0)) * (returnItem.returnQuantity || 0),
+        returnItem.currency
+      )}`,
+      'Expire Date': returnItem.expireDate || 'N/A',
+      'Note': returnItem.returnNote || '-',
+      'Payment Status': returnItem.paymentStatus
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Bought Returns');
+    XLSX.writeFile(wb, `bought_returns_${formatDate(new Date())}.xlsx`);
   };
 
-  // Apply filters to returns
-  const filteredReturns = returns.filter((returnItem) => {
-    try {
+  const filteredSortedReturns = (() => {
+    let filtered = returns.filter((returnItem) => {
       if (!returnItem) return false;
       
       let matchesBillNumber = true;
@@ -883,15 +1012,54 @@ const handleSubmitEdit = async () => {
         matchesPaymentStatus = returnItem.paymentStatus === filters.paymentStatus;
       }
       
+      let matchesReturnBillNumber = true;
+      if (filters.returnBillNumber && returnItem.returnNumber) {
+        matchesReturnBillNumber = String(returnItem.returnNumber).toLowerCase().includes(filters.returnBillNumber.toLowerCase());
+      }
+      
+      let matchesDateRange = true;
+      if (filters.startDate && returnItem.returnDate) {
+        const returnDate = new Date(returnItem.returnDate);
+        const startDate = new Date(filters.startDate);
+        if (returnDate < startDate) matchesDateRange = false;
+      }
+      if (filters.endDate && returnItem.returnDate && matchesDateRange) {
+        const returnDate = new Date(returnItem.returnDate);
+        const endDate = new Date(filters.endDate);
+        endDate.setHours(23, 59, 59);
+        if (returnDate > endDate) matchesDateRange = false;
+      }
+      
       const matchesItemFilters = itemFilters.length === 0 || (returnItem.name && itemFilters.includes(returnItem.name));
       
-      return matchesBillNumber && matchesItemName && matchesBarcode && matchesPaymentStatus && matchesItemFilters;
-    } catch (error) {
-      return false;
-    }
-  });
+      return matchesBillNumber && matchesItemName && matchesBarcode && matchesPaymentStatus && matchesItemFilters && matchesReturnBillNumber && matchesDateRange;
+    });
 
-  // Apply filters to bills
+    if (sortConfig.key) {
+      filtered.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        
+        if (sortConfig.key === 'returnTotal' || sortConfig.key === 'returnQuantity') {
+          aVal = Number(aVal) || 0;
+          bVal = Number(bVal) || 0;
+        } else if (sortConfig.key === 'returnDate') {
+          aVal = new Date(aVal);
+          bVal = new Date(bVal);
+        } else if (typeof aVal === 'string') {
+          aVal = (aVal || '').toLowerCase();
+          bVal = (bVal || '').toLowerCase();
+        }
+        
+        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+    
+    return filtered;
+  })();
+
   const filteredBills = boughtBills.filter((bill) => {
     if (!selectedCompany?.id) return false;
     if (!bill) return false;
@@ -927,11 +1095,6 @@ const handleSubmitEdit = async () => {
     
     return matchesBillNumber && matchesItemName && matchesBarcode && matchesItemFilters;
   });
-
-  const toggleReturnDetails = (returnItem) => {
-    if (!returnItem) return;
-    setSelectedReturn(selectedReturn?.id === returnItem.id ? null : returnItem);
-  };
 
   const PaymentStatusBadge = ({ status }) => {
     return (
@@ -1003,17 +1166,20 @@ const handleSubmitEdit = async () => {
 
       <div style={styles.wrapper}>
         <div style={styles.header}>
-          <h1 style={styles.title}>Bought Return History</h1>
-          <p style={styles.subtitle}>ARAN Retur Items for Company</p>
+          <p style={styles.subtitle}>ARAN Return Items for Company</p>
         </div>
 
         <div style={styles.mainCard}>
           <div style={styles.cardHeader}>
-            <h2 style={styles.cardHeaderTitle}>Return Management</h2>
+            <h2 style={styles.cardHeaderTitle}>
+              Return Management
+              <button onClick={exportToExcel} style={styles.buttonExport} className="hover-button">
+                📊 Export to Excel
+              </button>
+            </h2>
           </div>
 
           <div style={styles.cardBody}>
-            {/* Filter Section */}
             <div style={styles.filterGrid}>
               <div style={styles.filterItem}>
                 <label style={styles.label}>Company</label>
@@ -1036,6 +1202,17 @@ const handleSubmitEdit = async () => {
                 />
               </div>
              
+              <div style={styles.filterItem}>
+                <label style={styles.label}>Return Bill #</label>
+                <input
+                  style={styles.input}
+                  placeholder="Search by return #..."
+                  value={filters.returnBillNumber}
+                  onChange={(e) => handleFilterChange("returnBillNumber", e.target.value)}
+                  className="input-focus"
+                />
+              </div>
+
               <div style={styles.filterItem}>
                 <label style={styles.label}>Item Name</label>
                 <input
@@ -1082,9 +1259,30 @@ const handleSubmitEdit = async () => {
                   className="input-focus"
                 />
               </div>
+
+              <div style={styles.filterItem}>
+                <label style={styles.label}>Start Date</label>
+                <input
+                  type="date"
+                  style={styles.input}
+                  value={filters.startDate}
+                  onChange={(e) => handleFilterChange("startDate", e.target.value)}
+                  className="input-focus"
+                />
+              </div>
+
+              <div style={styles.filterItem}>
+                <label style={styles.label}>End Date</label>
+                <input
+                  type="date"
+                  style={styles.input}
+                  value={filters.endDate}
+                  onChange={(e) => handleFilterChange("endDate", e.target.value)}
+                  className="input-focus"
+                />
+              </div>
             </div>
 
-            {/* Filter by Items Section */}
             <div style={styles.filterBox}>
               <h3 style={{ fontWeight: "600", marginBottom: "1rem", color: "#1f2937" }}>Filter by Items:</h3>
               <Select
@@ -1105,12 +1303,11 @@ const handleSubmitEdit = async () => {
               </p>
             </div>
 
-            {/* Returns Table */}
             <div style={{ marginBottom: "2rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1f2937" }}>Bought Return History</h3>
                 <div style={{ background: "#dbeafe", color: "#1e40af", padding: "0.5rem 1rem", borderRadius: "9999px", fontSize: "0.875rem", fontWeight: "500" }}>
-                  Total: {filteredReturns.length} {filteredReturns.length === 1 ? 'return' : 'returns'}
+                  Total: {filteredSortedReturns.length} {filteredSortedReturns.length === 1 ? 'return' : 'returns'}
                 </div>
               </div>
               
@@ -1118,113 +1315,79 @@ const handleSubmitEdit = async () => {
                 <table style={styles.table}>
                   <thead>
                     <tr>
-                      <th style={styles.th}>Company</th>
-                      <th style={styles.th}>Return #</th>
-                      <th style={styles.th}>Return Date</th>
-                      <th style={styles.th}>Bill #</th>
-                      <th style={styles.th}>Item Name</th>
-                      <th style={styles.th}>Barcode</th>
-                      <th style={styles.th}>Return Qty</th>
-                      <th style={styles.th}>Return Price</th>
-                      <th style={styles.th}>Total</th>
-                      <th style={styles.th}>Expire Date</th>
-                      <th style={styles.th}>Note (max-width: 200px)</th>
-                      <th style={styles.th}>Status</th>
+                      <th style={styles.th} onClick={() => handleSort('companyName')}>Company {getSortIcon('companyName')}</th>
+                      <th style={styles.th} onClick={() => handleSort('returnNumber')}>Return # {getSortIcon('returnNumber')}</th>
+                      <th style={styles.th} onClick={() => handleSort('returnDate')}>Return Date {getSortIcon('returnDate')}</th>
+                      <th style={styles.th} onClick={() => handleSort('billNumber')}>Bill # {getSortIcon('billNumber')}</th>
+                      <th style={styles.th} onClick={() => handleSort('name')}>Item Name {getSortIcon('name')}</th>
+                      <th style={styles.th} onClick={() => handleSort('barcode')}>Barcode {getSortIcon('barcode')}</th>
+                      <th style={styles.th} onClick={() => handleSort('returnQuantity')}>Return Qty {getSortIcon('returnQuantity')}</th>
+                      <th style={styles.th} onClick={() => handleSort('currency')}>Currency {getSortIcon('currency')}</th>
+                      <th style={styles.th} onClick={() => handleSort('returnPrice')}>Return Price {getSortIcon('returnPrice')}</th>
+                      <th style={styles.th} onClick={() => handleSort('returnTotal')}>Total {getSortIcon('returnTotal')}</th>
+                      <th style={styles.th} onClick={() => handleSort('expireDate')}>Expire Date {getSortIcon('expireDate')}</th>
+                      <th style={styles.th}>Note</th>
+                      <th style={styles.th} onClick={() => handleSort('paymentStatus')}>Status {getSortIcon('paymentStatus')}</th>
                       <th style={styles.th}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredReturns.length > 0 ? (
-                      filteredReturns.map((returnItem, index) => {
-                        if (!returnItem) return null;
-                        
-                        const itemTotal = (returnItem.returnPriceUSD || returnItem.returnPrice || 0) * (returnItem.returnQuantity || 0);
+                    {filteredSortedReturns.length > 0 ? (
+                      filteredSortedReturns.map((returnItem, index) => {
+                        const returnPriceValue = returnItem.currency === "IQD" 
+                          ? (returnItem.returnPriceIQD || returnItem.returnPrice || 0)
+                          : (returnItem.returnPriceUSD || returnItem.returnPrice || 0);
+                        const itemTotal = returnPriceValue * (returnItem.returnQuantity || 0);
                         
                         return (
-                          <tr 
-                            key={`${returnItem.id}-${index}`}
-                            className="hover-row"
-                            style={{ 
-                              background: index % 2 === 0 ? '#ffffff' : '#f9fafb',
-                              cursor: 'pointer',
-                              transition: 'all 0.3s ease'
-                            }}
-                            onClick={() => toggleReturnDetails(returnItem)}
-                          >
+                          <tr key={`${returnItem.id}-${index}`} className="hover-row" style={{ background: index % 2 === 0 ? '#ffffff' : '#f9fafb' }}>
                             <td style={styles.td}>
                               <div style={{ fontWeight: "600", color: "#1f2937" }}>{returnItem.companyName || 'N/A'}</div>
                               <div style={styles.companyCode}>Code: {returnItem.companyCode || 'N/A'}</div>
                             </td>
-                            <td style={{...styles.td, ...styles.returnNumber}}>
-                              {returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A'}
-                            </td>
+                            <td style={{...styles.td, ...styles.returnNumber}}>{returnItem.returnNumber || returnItem.id?.slice(-6) || 'N/A'}</td>
                             <td style={styles.td}>{formatDate(returnItem.returnDate)}</td>
-                            <td style={styles.td}>
-                              <span style={{ background: "#f3f4f6", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
-                                {returnItem.billNumber || 'N/A'}
-                              </span>
-                            </td>
+                            <td style={styles.td}><span style={{ background: "#f3f4f6", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>{returnItem.billNumber || 'N/A'}</span></td>
                             <td style={{...styles.td, fontWeight: "500"}}>{returnItem.name || 'N/A'}</td>
                             <td style={styles.td}>{returnItem.barcode || 'N/A'}</td>
+                            <td style={styles.td}><span style={styles.quantityBadge}>{returnItem.returnQuantity || 0}</span></td>
                             <td style={styles.td}>
-                              <span style={styles.quantityBadge}>
-                                {returnItem.returnQuantity || 0}
+                              <span style={{ background: returnItem.currency === "IQD" ? "#fef3c7" : "#dbeafe", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem", color: returnItem.currency === "IQD" ? "#d97706" : "#2563eb" }}>
+                                {returnItem.currency || "USD"}
                               </span>
                             </td>
-                            <td style={{...styles.td, ...styles.priceBlue}}>
-                              ${formatCurrency(returnItem.returnPriceUSD || returnItem.returnPrice || 0)}
-                            </td>
-                            <td style={{...styles.td, ...styles.priceGreen}}>
-                              ${formatCurrency(itemTotal)}
-                            </td>
+                            <td style={{...styles.td, color: getCurrencyColor(returnItem.currency), fontWeight: "600"}}>
+                              {getCurrencySymbol(returnItem.currency)}{formatCurrency(returnPriceValue, returnItem.currency)}
+                             </td>
+                            <td style={{...styles.td, color: getCurrencyColor(returnItem.currency), fontWeight: "600"}}>
+                              {getCurrencySymbol(returnItem.currency)}{formatCurrency(itemTotal, returnItem.currency)}
+                             </td>
                             <td style={styles.td}>{returnItem.expireDate || 'N/A'}</td>
                             <td style={{...styles.td, maxWidth: "200px", wordWrap: "break-word", whiteSpace: "normal"}}>
                               <span style={{ color: "#6b7280" }} title={returnItem.returnNote}>
                                 {returnItem.returnNote ? returnItem.returnNote.substring(0, 50) + (returnItem.returnNote.length > 50 ? '...' : '') : '-'}
                               </span>
-                            </td>
-                            <td style={styles.td}>
-                              <PaymentStatusBadge status={returnItem.paymentStatus} />
-                            </td>
+                             </td>
+                            <td style={styles.td}><PaymentStatusBadge status={returnItem.paymentStatus} /></td>
                             <td style={styles.td}>
                               {returnItem.paymentStatus === "Unpaid" && (
                                 <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                                  <button
-                                    style={styles.buttonPrimary}
-                                    className="hover-button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleEditReturn(returnItem);
-                                    }}
-                                  >
-                                    Edit
-                                  </button>
-                                  <button
-                                    style={styles.buttonDanger}
-                                    className="hover-button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteReturn(returnItem);
-                                    }}
-                                  >
-                                    Delete
-                                  </button>
+                                  <button style={styles.buttonPrimary} className="hover-button" onClick={() => handleEditReturn(returnItem)}>Edit</button>
+                                  <button style={styles.buttonDanger} className="hover-button" onClick={() => handleDeleteReturnItem(returnItem)}>Delete</button>
                                 </div>
                               )}
-                              {returnItem.paymentStatus === "Paid" && (
-                                <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No actions</span>
-                              )}
-                            </td>
-                          </tr>
+                              {returnItem.paymentStatus === "Paid" && <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No actions</span>}
+                             </td>
+                           </tr>
                         );
                       })
                     ) : (
                       <tr>
-                        <td colSpan="13" style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>
+                        <td colSpan="14" style={{ padding: "3rem", textAlign: "center", color: "#6b7280" }}>
                           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📦</div>
                           <p style={{ fontSize: "1.125rem", fontWeight: "500" }}>No returns found</p>
                           <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>Try adjusting your filters</p>
-                        </td>
+                         </td>
                       </tr>
                     )}
                   </tbody>
@@ -1232,135 +1395,79 @@ const handleSubmitEdit = async () => {
               </div>
             </div>
 
-            {/* Edit Return Modal */}
+            {/* FIXED: Edit Modal */}
             {editingReturn && (
               <div style={styles.modal}>
                 <div style={styles.modalContent}>
                   <div style={styles.modalHeader}>
                     <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1f2937" }}>Edit Return Item</h3>
                   </div>
-                  
                   <div style={styles.modalBody}>
                     <p style={{ color: "#6b7280", marginBottom: "1rem" }}>Return #{editingReturn.returnNumber || editingReturn.id?.slice(-6)}</p>
-                    
-                    {/* Show available quantity info */}
-                    {(() => {
-                      const availableQty = calculateAvailableQuantity(
-                        editingReturn.billNumber, 
-                        editingReturn.barcode, 
-                        editingReturn.id
-                      );
-                      return (
-                        <div style={{ 
-                          background: availableQty > 0 ? "#f3f4f6" : "#fee2e2", 
-                          padding: "0.75rem", 
-                          borderRadius: "8px", 
-                          marginBottom: "1rem",
-                          border: `1px solid ${availableQty > 0 ? "#e5e7eb" : "#fecaca"}`
-                        }}>
-                          <p style={{ fontSize: "0.875rem", color: availableQty > 0 ? "#4b5563" : "#b91c1c" }}>
-                            <strong>Available quantity in bill:</strong> {availableQty} items
-                            {availableQty === 0 && " (No items left to return)"}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "1rem" }}>
                       <div>
                         <label style={{...styles.label, marginBottom: "0.25rem"}}>Barcode</label>
-                        <input
-                          type="text"
-                          value={editingReturn.barcode || ''}
-                          disabled
-                          style={{...styles.input, background: "#f3f4f6"}}
-                        />
+                        <input type="text" value={editingReturn.barcode || ''} disabled style={{...styles.input, background: "#f3f4f6"}} />
                       </div>
                       <div>
                         <label style={{...styles.label, marginBottom: "0.25rem"}}>Item Name</label>
-                        <input
-                          type="text"
-                          value={editingReturn.name || ''}
-                          disabled
-                          style={{...styles.input, background: "#f3f4f6"}}
-                        />
+                        <input type="text" value={editingReturn.name || ''} disabled style={{...styles.input, background: "#f3f4f6"}} />
                       </div>
                       <div>
                         <label style={{...styles.label, marginBottom: "0.25rem"}}>Return Quantity</label>
-                        <input
-                          type="number"
-                          min="1"
-                          max={calculateAvailableQuantity(
-                            editingReturn.billNumber, 
-                            editingReturn.barcode, 
-                            editingReturn.id
-                          )}
-                          value={editItems[0]?.returnQuantity || 0}
-                          onChange={(e) => handleEditQuantityChange(e.target.value)}
-                          style={styles.input}
-                          className="input-focus"
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={editItems[0]?.returnQuantity || 0} 
+                          onChange={(e) => handleEditQuantityChange(e.target.value)} 
+                          style={styles.input} 
+                          className="input-focus" 
                         />
                       </div>
                       <div>
-                        <label style={{...styles.label, marginBottom: "0.25rem"}}>Return Price (USD)</label>
-                        <input
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={editItems[0]?.returnPriceUSD || 0}
-                          onChange={(e) => handleEditPriceChange(e.target.value)}
-                          style={styles.input}
-                          className="input-focus"
+                        <label style={{...styles.label, marginBottom: "0.25rem"}}>Return Price ({getCurrencySymbol(editingReturn.currency)})</label>
+                        <input 
+                          type="number" 
+                          min="0.01" 
+                          step={editingReturn.currency === "IQD" ? "100" : "0.01"} 
+                          value={editItems[0]?.returnPriceValue || (editingReturn.currency === "IQD" ? (editingReturn.returnPriceIQD || 0) : (editingReturn.returnPriceUSD || 0))} 
+                          onChange={(e) => handleEditPriceChange(e.target.value)} 
+                          style={styles.input} 
+                          className="input-focus" 
                         />
                       </div>
                       <div style={{ gridColumn: "span 2" }}>
                         <label style={{...styles.label, marginBottom: "0.25rem"}}>Return Note</label>
-                        <textarea
-                          value={editNote}
-                          onChange={(e) => setEditNote(e.target.value)}
-                          rows="3"
-                          style={{...styles.input, resize: "vertical"}}
-                          className="input-focus"
-                          placeholder="Add a note..."
+                        <textarea 
+                          value={editNote} 
+                          onChange={(e) => setEditNote(e.target.value)} 
+                          rows="3" 
+                          style={{...styles.input, resize: "vertical"}} 
+                          className="input-focus" 
+                          placeholder="Add a note..." 
                         />
                       </div>
                     </div>
+                    {editingReturn.currency === "IQD" && (
+                      <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#fef3c7", borderRadius: "8px", color: "#d97706" }}>
+                        <small>⚠️ Note: Prices are in Iraqi Dinar (IQD)</small>
+                      </div>
+                    )}
                   </div>
-
                   <div style={styles.modalFooter}>
-                    <button
-                      onClick={handleCancelEdit}
-                      style={{...styles.buttonPrimary, background: "#6b7280", boxShadow: "0 4px 6px rgba(107, 114, 128, 0.3)"}}
-                      className="hover-button"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSubmitEdit}
-                      style={styles.buttonSuccess}
-                      className="hover-button"
-                    >
-                      Update Return
-                    </button>
+                    <button onClick={handleCancelEdit} style={{...styles.buttonPrimary, background: "#6b7280"}} className="hover-button">Cancel</button>
+                    <button onClick={handleSubmitEdit} style={styles.buttonSuccess} className="hover-button">Update Return</button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Create New Return Section */}
             {selectedCompany?.id && (
               <div style={styles.createSection}>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1f2937", marginBottom: "1rem" }}>
-                  ➕ Create New Bought Return
-                </h3>
+                <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1f2937", marginBottom: "1rem" }}>➕ Create New Bought Return</h3>
                 
-                {error && (
-                  <div style={{ marginBottom: "1rem", padding: "1rem", background: "#fee2e2", borderLeft: "4px solid #ef4444", color: "#b91c1c", borderRadius: "8px" }}>
-                    {error}
-                  </div>
-                )}
+                {error && <div style={{ marginBottom: "1rem", padding: "1rem", background: "#fee2e2", borderLeft: "4px solid #ef4444", color: "#b91c1c", borderRadius: "8px" }}>{error}</div>}
                 
-                {/* Bills Table */}
                 <div style={styles.tableContainer}>
                   <table style={styles.table}>
                     <thead>
@@ -1368,56 +1475,45 @@ const handleSubmitEdit = async () => {
                         <th style={styles.th}>Bill #</th>
                         <th style={styles.th}>Date</th>
                         <th style={styles.th}>Total Amount</th>
+                        <th style={styles.th}>Currency</th>
                         <th style={styles.th}>Bill Note</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredBills.length > 0 ? (
                         filteredBills.map((bill) => {
-                          if (!bill) return null;
-                          
-                          const billTotalUSD = bill.items ? bill.items.reduce((sum, item) => 
-                            sum + ((item.outPriceUSD || 0) * (item.quantity || 0)), 0) : 0;
+                          const billTotal = bill.currency === "IQD"
+                            ? (bill.items ? bill.items.reduce((sum, item) => sum + ((item.outPriceIQD || 0) * (item.quantity || 0)), 0) : 0)
+                            : (bill.items ? bill.items.reduce((sum, item) => sum + ((item.outPriceUSD || 0) * (item.quantity || 0)), 0) : 0);
                           
                           return (
                             <React.Fragment key={bill.id || bill.billNumber}>
-                              <tr
-                                onClick={() => handleBillSelect(bill)}
-                                className="hover-row"
-                                style={{ 
-                                  background: selectedBill?.id === bill.id ? '#dbeafe' : '#ffffff',
-                                  cursor: 'pointer'
-                                }}
-                              >
+                              <tr onClick={() => handleBillSelect(bill)} className="hover-row" style={{ background: selectedBill?.id === bill.id ? '#dbeafe' : '#ffffff', cursor: 'pointer' }}>
                                 <td style={{...styles.td, fontWeight: "600", color: "#2563eb"}}>{bill.billNumber || 'N/A'}</td>
                                 <td style={styles.td}>{formatDate(bill.date)}</td>
-                                <td style={{...styles.td, ...styles.priceBlue}}>${formatCurrency(billTotalUSD)}</td>
+                                <td style={{...styles.td, color: getCurrencyColor(bill.currency), fontWeight: "600"}}>
+                                  {getCurrencySymbol(bill.currency)}{formatCurrency(billTotal, bill.currency)}
+                                 </td>
+                                <td style={styles.td}>
+                                  <span style={{ background: bill.currency === "IQD" ? "#fef3c7" : "#dbeafe", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem", color: bill.currency === "IQD" ? "#d97706" : "#2563eb" }}>
+                                    {bill.currency || "USD"}
+                                  </span>
+                                 </td>
                                 <td style={styles.td}>{bill.billNote || 'No notes'}</td>
-                              </tr>
+                               </tr>
                               {selectedBill?.id === bill.id && (
                                 <tr>
-                                  <td colSpan="4" style={{ padding: 0 }}>
+                                  <td colSpan="5" style={{ padding: 0 }}>
                                     <div style={{ padding: "1.5rem", background: "#dbeafe", borderTop: "2px solid #3b82f6", borderBottom: "2px solid #3b82f6" }}>
-                                      <h4 style={{ fontWeight: "600", color: "#1e3a8a", textAlign: "center", marginBottom: "1rem" }}>
-                                        Bill #{bill.billNumber} Details - Select items to return
-                                      </h4>
+                                      <h4 style={{ fontWeight: "600", color: "#1e3a8a", textAlign: "center", marginBottom: "1rem" }}>Bill #{bill.billNumber} Details - Select items to return</h4>
                                       
-                                      {/* Return Note Input */}
                                       <div style={{ marginBottom: "1rem" }}>
                                         <label style={styles.label}>Return Note (Optional)</label>
-                                        <textarea
-                                          value={returnNote}
-                                          onChange={(e) => setReturnNote(e.target.value)}
-                                          style={{...styles.input, resize: "vertical"}}
-                                          rows="2"
-                                          className="input-focus"
-                                          placeholder="Add a note..."
-                                        />
+                                        <textarea value={returnNote} onChange={(e) => setReturnNote(e.target.value)} style={{...styles.input, resize: "vertical"}} rows="2" className="input-focus" placeholder="Add a note..." />
                                       </div>
                                       
-                                      {/* Items Table */}
                                       <div style={{ overflowX: "auto", borderRadius: "12px", border: "1px solid #93c5fd" }}>
-                                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
+                                        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
                                           <thead style={{ background: "linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%)" }}>
                                             <tr>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Barcode</th>
@@ -1426,111 +1522,68 @@ const handleSubmitEdit = async () => {
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Returned</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Available</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Return Qty</th>
-                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Return Price</th>
-                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Item Total</th>
+                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Return Price ({getCurrencySymbol(bill.currency)})</th>
+                                              <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Item Total ({getCurrencySymbol(bill.currency)})</th>
                                               <th style={{ padding: "0.75rem", fontSize: "0.75rem", fontWeight: "600", color: "#1e3a8a", textAlign: "center" }}>Expire Date</th>
                                             </tr>
                                           </thead>
                                           <tbody style={{ background: "#ffffff" }}>
                                             {returnItems.map((item, index) => {
-                                              if (!item) return null;
-                                              
-                                              const itemTotal = (item.returnPriceUSD || 0) * (item.returnQuantity || 0);
+                                              const itemTotal = calculateItemTotal(item);
+                                              const itemCurrency = getItemCurrency(item);
                                               
                                               return (
                                                 <tr key={index} className="hover-row">
                                                   <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem" }}>{item.barcode || 'N/A'}</td>
                                                   <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem", fontWeight: "500" }}>{item.name || 'N/A'}</td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}><span style={{ background: "#e0f2fe", color: "#0369a1", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>{item.originalQuantity || 0}</span></td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}><span style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>{item.previouslyReturned || 0}</span></td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}><span style={{ background: "#dcfce7", color: "#166534", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>{item.availableQuantity || 0}</span></td>
                                                   <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                                    <span style={{ background: "#e0f2fe", color: "#0369a1", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
-                                                      {item.originalQuantity || 0}
-                                                    </span>
-                                                  </td>
+                                                    <input type="number" min="0" max={item.availableQuantity || 0} value={item.returnQuantity || 0} onChange={(e) => handleReturnQuantityChange(index, e.target.value)} style={{ width: "70px", padding: "0.5rem", textAlign: "center", border: "2px solid #fde68a", borderRadius: "8px" }} className="input-focus" />
+                                                   </td>
                                                   <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                                    <span style={{ background: "#fee2e2", color: "#b91c1c", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
-                                                      {item.previouslyReturned || 0}
-                                                    </span>
-                                                  </td>
-                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                                    <span style={{ background: "#dcfce7", color: "#166534", padding: "0.25rem 0.75rem", borderRadius: "9999px", fontSize: "0.875rem" }}>
-                                                      {item.availableQuantity || 0}
-                                                    </span>
-                                                  </td>
-                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                                    <input
-                                                      type="number"
-                                                      min="0"
-                                                      max={item.availableQuantity || 0}
-                                                      value={item.returnQuantity || 0}
-                                                      onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
-                                                      style={{ width: "70px", padding: "0.5rem", textAlign: "center", border: "2px solid #fde68a", borderRadius: "8px" }}
-                                                      className="input-focus"
-                                                    />
-                                                  </td>
-                                                  <td style={{ padding: "0.75rem", textAlign: "center" }}>
-                                                    <input
-                                                      type="number"
-                                                      min="0.01"
-                                                      step="0.01"
-                                                      value={item.returnPriceUSD || 0}
-                                                      onChange={(e) => handleReturnPriceChange(index, e.target.value)}
-                                                      style={{ width: "80px", padding: "0.5rem", textAlign: "center", border: "2px solid #bfdbfe", borderRadius: "8px" }}
-                                                      className="input-focus"
-                                                    />
-                                                  </td>
-                                                  <td style={{ padding: "0.75rem", textAlign: "center", fontWeight: "600", color: "#059669" }}>
-                                                    ${formatCurrency(itemTotal)}
-                                                  </td>
-                                                  <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem" }}>
-                                                    {item.expireDate}
-                                                  </td>
-                                                </tr>
+                                                    <input type="number" min="0.01" step={itemCurrency === "IQD" ? "100" : "0.01"} value={item.returnPrice || 0} onChange={(e) => handleReturnPriceChange(index, e.target.value)} style={{ width: "100px", padding: "0.5rem", textAlign: "center", border: "2px solid #bfdbfe", borderRadius: "8px" }} className="input-focus" />
+                                                   </td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center", fontWeight: "600", color: getCurrencyColor(itemCurrency) }}>
+                                                    {getCurrencySymbol(itemCurrency)}{formatCurrency(itemTotal, itemCurrency)}
+                                                   </td>
+                                                  <td style={{ padding: "0.75rem", textAlign: "center", fontSize: "0.875rem" }}>{item.expireDate}</td>
+                                                 </tr>
                                               );
                                             })}
                                           </tbody>
                                           <tfoot style={{ background: "#dbeafe" }}>
                                             <tr>
-                                              <td colSpan="7" style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600" }}>Grand Total:</td>
-                                              <td style={{ padding: "0.75rem", textAlign: "center", fontWeight: "700", color: "#059669" }}>
-                                                ${formatCurrency(calculateGrandTotal())}
-                                              </td>
+                                              <td colSpan="7" style={{ padding: "0.75rem", textAlign: "right", fontWeight: "600" }}>Grand Total ({getCurrencySymbol(getGrandTotalCurrency())}):</td>
+                                              <td style={{ padding: "0.75rem", textAlign: "center", fontWeight: "700", color: getCurrencyColor(getGrandTotalCurrency()) }}>
+                                                {getCurrencySymbol(getGrandTotalCurrency())}{formatCurrency(calculateGrandTotal(), getGrandTotalCurrency())}
+                                               </td>
                                               <td></td>
                                             </tr>
                                           </tfoot>
                                         </table>
                                       </div>
                                       
-                                      {/* Action Buttons */}
                                       <div style={{ marginTop: "1rem", display: "flex", justifyContent: "flex-end", gap: "1rem" }}>
-                                        <button
-                                          style={{...styles.buttonPrimary, background: "#6b7280", boxShadow: "0 4px 6px rgba(107, 114, 128, 0.3)"}}
-                                          className="hover-button"
-                                          onClick={handleCancelBillSelection}
-                                        >
-                                          Cancel
-                                        </button>
-                                        <button
-                                          style={styles.buttonSuccess}
-                                          className="hover-button"
-                                          onClick={handleSubmitReturn}
-                                        >
-                                          Submit Return (${formatCurrency(calculateGrandTotal())})
+                                        <button style={styles.buttonSuccess} className="hover-button" onClick={handleSubmitReturn}>
+                                          Submit Return ({getCurrencySymbol(getGrandTotalCurrency())}{formatCurrency(calculateGrandTotal(), getGrandTotalCurrency())})
                                         </button>
                                       </div>
                                     </div>
-                                  </td>
-                                </tr>
+                                   </td>
+                                 </tr>
                               )}
                             </React.Fragment>
                           );
                         })
                       ) : (
                         <tr>
-                          <td colSpan="4" style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
+                          <td colSpan="5" style={{ padding: "2rem", textAlign: "center", color: "#6b7280" }}>
                             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>💳</div>
                             <p style={{ fontWeight: "500" }}>No bills found for this company</p>
-                          </td>
-                        </tr>
+                           </td>
+                         </tr>
                       )}
                     </tbody>
                   </table>

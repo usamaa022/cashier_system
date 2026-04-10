@@ -86,7 +86,6 @@ const formatDateForInput = (date) => {
 const styles = {
   container: {
     minHeight: '100vh',
-    // background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     padding: '20px',
   },
   mainCard: {
@@ -387,6 +386,15 @@ const styles = {
     fontSize: '13px',
     textAlign: 'right',
   },
+  outPriceInput: {
+    width: '120px',
+    padding: '8px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '6px',
+    fontSize: '13px',
+    textAlign: 'right',
+    backgroundColor: '#fef3c7',
+  },
   textInput: {
     width: '100%',
     padding: '8px',
@@ -440,6 +448,7 @@ export default function BuyingForm({ onBillCreated }) {
     name: "",
     quantity: "1",
     price: "",
+    outPrice: "", // Added out price field
     expireDate: ""
   });
 
@@ -491,10 +500,13 @@ export default function BuyingForm({ onBillCreated }) {
         }
 
         let price = 0;
+        let outPrice = 0;
         if (billData.currency === "USD") {
           price = item.basePriceUSD || item.basePrice || 0;
+          outPrice = item.outPriceUSD || item.outPrice || 0;
         } else {
           price = item.basePriceIQD || item.basePrice || 0;
+          outPrice = item.outPriceIQD || item.outPrice || 0;
         }
 
         return {
@@ -502,6 +514,7 @@ export default function BuyingForm({ onBillCreated }) {
           name: item.name || "",
           quantity: String(item.quantity || 1),
           price: formatNumber(price),
+          outPrice: formatNumber(outPrice),
           expireDate: expireDate,
           netPrice: item.netPrice || 0
         };
@@ -590,6 +603,8 @@ export default function BuyingForm({ onBillCreated }) {
       ...createEmptyItem(),
       barcode: item.barcode,
       name: item.name,
+      // Pre-fill out price if available from the item
+      outPrice: item.outPrice ? formatNumber(item.outPrice) : "",
       expireDate: item.expireDate && item.expireDate !== 'N/A' ?
         (typeof item.expireDate === 'string' ?
           (item.expireDate.includes('/') ?
@@ -610,13 +625,7 @@ export default function BuyingForm({ onBillCreated }) {
   const handleItemChange = useCallback((index, field, value) => {
     setBillItems(prev => {
       const updatedItems = [...prev];
-      if (field === 'price') {
-        updatedItems[index] = { ...updatedItems[index], [field]: value };
-      } else if (field === 'quantity') {
-        updatedItems[index] = { ...updatedItems[index], [field]: value };
-      } else {
-        updatedItems[index] = { ...updatedItems[index], [field]: value };
-      }
+      updatedItems[index] = { ...updatedItems[index], [field]: value };
       return updatedItems;
     });
   }, []);
@@ -659,6 +668,7 @@ export default function BuyingForm({ onBillCreated }) {
         { type: 'item', field: 'name', index: index },
         { type: 'item', field: 'quantity', index: index },
         { type: 'item', field: 'price', index: index },
+        { type: 'item', field: 'outPrice', index: index },
         { type: 'item', field: 'expireDate', index: index },
         { type: 'global', field: 'transportFee' },
         { type: 'global', field: 'externalExpense' },
@@ -761,6 +771,7 @@ export default function BuyingForm({ onBillCreated }) {
         );
         
         const priceValue = parseFloat(parseFormattedNumber(item.price)) || 0;
+        const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || (priceValue * 1.5); // Default 50% markup if not specified
 
         const itemData = {
           barcode: item.barcode,
@@ -772,6 +783,7 @@ export default function BuyingForm({ onBillCreated }) {
           consignmentOwnerId: isConsignment ? companyId : null,
           netPrice: netPrice,
           price: priceValue,
+          outPrice: outPriceValue, // Add out price to item data
           currency: currency,
         };
 
@@ -780,11 +792,15 @@ export default function BuyingForm({ onBillCreated }) {
           itemData.basePriceIQD = priceValue;
           itemData.netPriceUSD = netPrice;
           itemData.netPriceIQD = netPrice;
+          itemData.outPriceUSD = outPriceValue;
+          itemData.outPriceIQD = outPriceValue;
         } else {
           itemData.basePriceIQD = priceValue;
           itemData.basePriceUSD = priceValue;
           itemData.netPriceIQD = netPrice;
           itemData.netPriceUSD = netPrice;
+          itemData.outPriceIQD = outPriceValue;
+          itemData.outPriceUSD = outPriceValue;
         }
 
         return itemData;
@@ -1067,7 +1083,8 @@ export default function BuyingForm({ onBillCreated }) {
                       <th style={styles.th}>Barcode</th>
                       <th style={styles.th}>Item Name</th>
                       <th style={{ ...styles.th, textAlign: 'center' }}>Qty</th>
-                      <th style={{ ...styles.th, textAlign: 'right' }}>Price ({currency})</th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}>Buy Price ({currency})</th>
+                      <th style={{ ...styles.th, textAlign: 'right' }}>Out Price ({currency})</th>
                       <th style={{ ...styles.th, textAlign: 'right' }}>Net Price ({currency})</th>
                       <th style={styles.th}>Expire Date</th>
                       <th style={{ ...styles.th, textAlign: 'center' }}>Actions</th>
@@ -1125,14 +1142,34 @@ export default function BuyingForm({ onBillCreated }) {
                               onChange={(e) => {
                                 const formatted = formatNumber(e.target.value);
                                 handleItemChange(index, "price", formatted);
+                                // Auto-calculate out price as 50% markup if not manually set
+                                const rawPrice = parseFloat(e.target.value.replace(/,/g, ''));
+                                if (rawPrice && !isNaN(rawPrice) && (!item.outPrice || item.outPrice === '')) {
+                                  const autoOutPrice = rawPrice * 1.5;
+                                  handleItemChange(index, "outPrice", formatNumber(autoOutPrice));
+                                }
                               }}
                               onKeyDown={(e) => handleKeyDown(e, index, 'price')}
                               placeholder="0.00"
                             />
                           </td>
+                          <td style={{ ...styles.td, textAlign: 'right' }}>
+                            <input
+                              ref={(el) => itemInputRefs.current[`${index}-outPrice`] = el}
+                              type="text"
+                              style={styles.outPriceInput}
+                              value={item.outPrice || ''}
+                              onChange={(e) => {
+                                const formatted = formatNumber(e.target.value);
+                                handleItemChange(index, "outPrice", formatted);
+                              }}
+                              onKeyDown={(e) => handleKeyDown(e, index, 'outPrice')}
+                              placeholder="Selling price"
+                            />
+                          </td>
                           <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#4f46e5' }}>
                             {formatNumber(netPrice)}
-                           </td>
+                          </td>
                           <td style={styles.td}>
                             <input
                               ref={(el) => itemInputRefs.current[`${index}-expireDate`] = el}
@@ -1142,7 +1179,7 @@ export default function BuyingForm({ onBillCreated }) {
                               onChange={(e) => handleItemChange(index, "expireDate", e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, index, 'expireDate')}
                             />
-                           </td>
+                          </td>
                           <td style={{ ...styles.td, textAlign: 'center' }}>
                             <button
                               type="button"
@@ -1151,8 +1188,8 @@ export default function BuyingForm({ onBillCreated }) {
                             >
                               <FiTrash2 size={16} />
                             </button>
-                           </td>
-                         </tr>
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>

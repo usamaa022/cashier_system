@@ -1477,6 +1477,7 @@ export default function BuyingList({ refreshTrigger }) {
                                     <th className="text-center">Qty</th>
                                     <th className="text-right">Base Price</th>
                                     <th className="text-right">Net Price</th>
+                                    <th className="text-right">Net Price</th>
                                     <th className="text-center">Expire Date</th>
                                   </tr>
                                 </thead>

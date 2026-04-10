@@ -58,6 +58,7 @@ export default function ReturnHistory() {
   const [billToPrint, setBillToPrint] = useState(null);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [users, setUsers] = useState([]);
+  const [expandedBillId, setExpandedBillId] = useState(null);
 
   const printRef = useRef();
 
@@ -85,12 +86,64 @@ export default function ReturnHistory() {
     }
   }, [showPrintPreview, billToPrint]);
 
-  // Format currency
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', {
+  // Format currency based on currency type
+  const formatCurrency = (amount, currency = "IQD") => {
+    const formatted = new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount || 0);
+    return currency === "USD" ? `$${formatted}` : `${formatted} IQD`;
+  };
+
+  // Parse formatted currency string back to number
+  const parseCurrency = (formattedValue) => {
+    if (!formattedValue) return 0;
+    const cleaned = formattedValue.toString().replace(/[^0-9.-]/g, '');
+    return parseFloat(cleaned) || 0;
+  };
+
+  // Format number input with comma formatting
+  const formatNumberInput = (value) => {
+    if (!value && value !== 0) return '';
+    const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
+    if (isNaN(num)) return '';
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(num);
+  };
+
+  // Handle number input change
+  const handleNumberInput = (value, setter, currency) => {
+    const rawValue = value.replace(/,/g, '');
+    if (rawValue === '' || isNaN(parseFloat(rawValue))) {
+      setter('');
+    } else {
+      setter(formatNumberInput(rawValue));
+    }
+  };
+
+  // Get bill currency
+  const getBillCurrency = (bill) => {
+    return bill?.currency || bill?.items?.[0]?.currency || "IQD";
+  };
+
+  // Get item price based on bill currency
+  const getItemPrice = (item, billCurrency) => {
+    if (billCurrency === "USD") {
+      return item.outPriceUSD || item.price || item.outPrice || 0;
+    } else {
+      return item.outPriceIQD || item.outPrice || item.price || 0;
+    }
+  };
+
+  // Get item net price based on currency
+  const getItemNetPrice = (item, billCurrency) => {
+    if (billCurrency === "USD") {
+      return item.netPriceUSD || item.netPrice || 0;
+    } else {
+      return item.netPriceIQD || item.netPrice || 0;
+    }
   };
 
   // Calculate available quantity for return
@@ -214,23 +267,41 @@ export default function ReturnHistory() {
     setOriginalReturnItems([]);
     setPharmacyReturnBillNumber("");
     setReturnNote("");
+    setExpandedBillId(null);
   };
 
   const handleFilterChange = (field, value) => {
     setFilters({ ...filters, [field]: value });
   };
 
-  const handleBillSelect = async (bill) => {
+  // Toggle bill selection (click to expand/collapse)
+  const toggleBillSelection = (bill) => {
+    if (selectedBill?.id === bill.id) {
+      // Close if already selected
+      setSelectedBill(null);
+      setExpandedBillId(null);
+      setReturnItems([]);
+    } else {
+      // Open new bill
+      setSelectedBill(bill);
+      setExpandedBillId(bill.id);
+      initializeReturnItems(bill);
+    }
+  };
+
+  // Initialize return items for selected bill
+  const initializeReturnItems = async (bill) => {
     if (!bill || !bill.items || !Array.isArray(bill.items)) {
       console.error("Invalid bill selected");
       setError("Invalid bill selected");
       return;
     }
-    setSelectedBill(bill);
     try {
       const newReturnBillNumber = await generateUniqueReturnBillNumber();
       setReturnBillNumber(newReturnBillNumber);
       const originalQuantities = await getOriginalBillQuantities(bill.id);
+      const billCurrency = getBillCurrency(bill);
+      
       const validReturnItems = bill.items
         .filter(item => item && item.barcode)
         .map((item) => {
@@ -242,20 +313,24 @@ export default function ReturnHistory() {
           );
           const originalQty = originalQuantities[item.barcode]?.original || item.originalQuantity || item.quantity || 0;
           const availableQty = originalQty - alreadyReturned;
+          const itemPrice = getItemPrice(item, billCurrency);
+          const itemNetPrice = getItemNetPrice(item, billCurrency);
+          
           return {
             ...item,
             billNumber: bill.billNumber,
             billId: bill.id,
             returnQuantity: 0,
-            returnPrice: item.outPrice || item.price || 0,
+            returnPrice: formatNumberInput(itemPrice),
             originalQuantity: originalQty,
             originalPrice: item.price || 0,
-            netPrice: item.netPrice || 0,
-            outPrice: item.outPrice || 0,
+            netPrice: itemNetPrice,
+            outPrice: itemPrice,
             availableQuantity: availableQty,
             alreadyReturned: alreadyReturned,
             maxReturnQuantity: availableQty,
-            newRemainingQuantity: availableQty
+            newRemainingQuantity: availableQty,
+            currency: billCurrency
           };
         });
       setReturnItems(validReturnItems);
@@ -268,6 +343,7 @@ export default function ReturnHistory() {
 
   const handleCancelBillSelection = () => {
     setSelectedBill(null);
+    setExpandedBillId(null);
     setReturnItems([]);
     setOriginalReturnItems([]);
     setPharmacyReturnBillNumber("");
@@ -287,10 +363,11 @@ export default function ReturnHistory() {
     setReturnItems(newReturnItems);
   };
 
-  const handleReturnPriceChange = (index, value) => {
+  const handleReturnPriceChange = (index, value, currency) => {
     const newReturnItems = [...returnItems];
     if (!newReturnItems[index]) return;
-    newReturnItems[index].returnPrice = parseFloat(value) || 0;
+    const rawValue = parseCurrency(value);
+    newReturnItems[index].returnPrice = formatNumberInput(rawValue);
     setReturnItems(newReturnItems);
   };
 
@@ -327,6 +404,8 @@ export default function ReturnHistory() {
     }
     try {
       setIsSubmitting(true);
+      const billCurrency = getBillCurrency(selectedBill);
+      
       const preparedItems = itemsToReturn.map(item => ({
         barcode: item.barcode || '',
         name: item.name || 'Unknown Item',
@@ -334,18 +413,21 @@ export default function ReturnHistory() {
         billId: selectedBill.id || '',
         originalQuantity: item.originalQuantity || 0,
         returnQuantity: item.returnQuantity || 0,
-        returnPrice: item.returnPrice || 0,
+        returnPrice: parseCurrency(item.returnPrice),
         originalPrice: item.originalPrice || 0,
         netPrice: item.netPrice || 0,
-        outPrice: item.outPrice || 0,
+        outPrice: parseCurrency(item.returnPrice),
         expireDate: item.expireDate || null,
         pharmacyId: selectedPharmacy.id,
         pharmacyReturnBillNumber: pharmacyReturnBillNumber || "",
         availableQuantity: item.availableQuantity || 0,
         alreadyReturned: item.alreadyReturned || 0,
-        newRemainingQuantity: item.newRemainingQuantity || 0
+        newRemainingQuantity: item.newRemainingQuantity || 0,
+        currency: billCurrency
       }));
+      
       const result = await returnItemsToStore(selectedPharmacy.id, preparedItems, returnNote);
+      
       const updatePromises = preparedItems.map(item =>
         updateSaleBillQuantities(
           item.billId,
@@ -355,14 +437,17 @@ export default function ReturnHistory() {
         )
       );
       await Promise.all(updatePromises);
+      
       setSuccessMessage(`Return processed successfully! Return Bill: ${result.returnBillNumber}`);
       setSelectedBill(null);
+      setExpandedBillId(null);
       setReturnItems([]);
       setOriginalReturnItems([]);
       setPharmacyReturnBillNumber("");
       setReturnNote("");
       setReturnBillNumber("");
       setError(null);
+      
       const filteredReturns = await getFilteredReturns(
         selectedPharmacy?.id,
         filters.note,
@@ -440,7 +525,10 @@ export default function ReturnHistory() {
       setPharmacyReturnBillNumber(returnDetails.pharmacyReturnBillNumber || "");
       setReturnBillNumber(returnDetails.returnBillNumber);
       setReturnNote(returnDetails.returnBillNote || "");
+      
       const originalQuantities = await getOriginalBillQuantities(returnDetails.items[0]?.billId);
+      const returnCurrency = returnDetails.currency || "IQD";
+      
       const editableItems = returnDetails.items.map((item) => {
         const alreadyReturnedByOthers = calculateAvailableQuantity(
           item.barcode,
@@ -454,7 +542,7 @@ export default function ReturnHistory() {
         return {
           ...item,
           returnQuantity: item.returnQuantity || 0,
-          returnPrice: item.returnPrice || 0,
+          returnPrice: formatNumberInput(item.returnPrice || 0),
           originalQuantity: originalQty,
           originalPrice: item.originalPrice || 0,
           netPrice: item.netPrice || 0,
@@ -462,7 +550,8 @@ export default function ReturnHistory() {
           availableQuantity: availableForEditing,
           alreadyReturnedByOthers: alreadyReturnedByOthers,
           newRemainingQuantity: availableForEditing - (item.returnQuantity || 0),
-          maxReturnQuantity: availableForEditing
+          maxReturnQuantity: availableForEditing,
+          currency: returnCurrency
         };
       });
       setReturnItems(editableItems);
@@ -507,22 +596,20 @@ export default function ReturnHistory() {
         billId: item.billId || '',
         originalQuantity: item.originalQuantity || 0,
         returnQuantity: item.returnQuantity || 0,
-        returnPrice: item.returnPrice || 0,
+        returnPrice: parseCurrency(item.returnPrice),
         originalPrice: item.originalPrice || 0,
         netPrice: item.netPrice || 0,
-        outPrice: item.outPrice || 0,
+        outPrice: parseCurrency(item.returnPrice),
         expireDate: item.expireDate || null,
         pharmacyId: editingReturn.pharmacyId,
         pharmacyReturnBillNumber: pharmacyReturnBillNumber || "",
         availableQuantity: item.availableQuantity || 0,
         alreadyReturnedByOthers: item.alreadyReturnedByOthers || 0,
-        newRemainingQuantity: item.newRemainingQuantity || 0
+        newRemainingQuantity: item.newRemainingQuantity || 0,
+        currency: item.currency
       }));
       await updateReturnItems(editingReturn.returnBillNumber, preparedItems);
       const updatePromises = preparedItems.map(item => {
-        const originalItem = originalReturnItems.find(oi => oi.barcode === item.barcode);
-        const previousReturnQty = originalItem?.returnQuantity || 0;
-        const quantityDifference = item.returnQuantity - previousReturnQty;
         return updateSaleBillQuantities(
           item.billId,
           item.barcode,
@@ -560,6 +647,7 @@ export default function ReturnHistory() {
     setPharmacyReturnBillNumber("");
     setReturnNote("");
     setSelectedBill(null);
+    setExpandedBillId(null);
     setError(null);
     setSuccessMessage(null);
   };
@@ -604,6 +692,14 @@ export default function ReturnHistory() {
   const previewPrintBill = (returnItem) => {
     setBillToPrint(returnItem);
     setShowPrintPreview(true);
+  };
+
+  // Toggle return details
+  const toggleReturnDetails = (returnItem) => {
+    if (!returnItem) return;
+    setSelectedReturn(
+      selectedReturn?.id === returnItem.id ? null : returnItem
+    );
   };
 
   // Filter returns
@@ -659,14 +755,6 @@ export default function ReturnHistory() {
     }
   });
 
-  // Toggle return details
-  const toggleReturnDetails = (returnItem) => {
-    if (!returnItem) return;
-    setSelectedReturn(
-      selectedReturn?.id === returnItem.id ? null : returnItem
-    );
-  };
-
   // Format date
   const formatDate = (date) => {
     if (!date) return "N/A";
@@ -705,7 +793,7 @@ export default function ReturnHistory() {
     return user ? (user.displayName || user.name || user.email || "Unknown") : "Unknown";
   };
 
-  // Payment status badge
+  // Payment status badge component
   const PaymentStatusBadge = ({ status, paymentNumber, paymentDate }) => {
     const getStatusStyles = () => {
       switch (status) {
@@ -852,14 +940,6 @@ export default function ReturnHistory() {
       outline: none;
       border-color: #3b82f6;
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    .filter-input-icon {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #9ca3af;
-      pointer-events: none;
     }
     .table-container {
       background: white;
@@ -1088,7 +1168,7 @@ export default function ReturnHistory() {
     }
     .quantity-input,
     .price-input {
-      width: 80px;
+      width: 100px;
       padding: 6px 10px;
       border: 1px solid #d1d5db;
       border-radius: 6px;
@@ -1189,6 +1269,9 @@ export default function ReturnHistory() {
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+    .cursor-pointer {
+      cursor: pointer;
     }
     @media (max-width: 768px) {
       .filter-row {
@@ -1337,6 +1420,7 @@ export default function ReturnHistory() {
                             <div><strong>Pharmacy Return #:</strong> {billToPrint.pharmacyReturnBillNumber}</div>
                           )}
                           <div><strong>Original Bill #:</strong> {billToPrint.billNumber}</div>
+                          <div><strong>Currency:</strong> {billToPrint.currency || "IQD"}</div>
                           {billToPrint.createdBy && (
                             <div><strong>Created By:</strong> {getUserDisplayName(billToPrint.createdBy)}</div>
                           )}
@@ -1397,42 +1481,45 @@ export default function ReturnHistory() {
                           <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "left", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>Barcode</th>
                           <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "left", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>Item Name</th>
                           <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "center", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>Return Qty</th>
-                          <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "right", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>Price (IQD)</th>
-                          <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "right", fontFamily: "'NRT-Bd', sans-serif" }}>Total (IQD)</th>
+                          <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "right", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>Price</th>
+                          <th style={{ padding: "15px 10px", fontSize: "12px", fontWeight: "600", textAlign: "right", fontFamily: "'NRT-Bd', sans-serif" }}>Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {billToPrint.items && billToPrint.items.map((item, idx) => (
-                          <tr key={idx} style={{
-                            borderBottom: "1px solid #e5e7eb",
-                            background: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
-                            transition: "background-color 0.2s"
-                          }}>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "center", borderRight: "1px solid #e5e7eb", fontFamily: "'NRT-Reg', sans-serif" }}>{idx + 1}</td>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", fontFamily: "'Courier New', monospace", fontWeight: "500", borderRight: "1px solid #e5e7eb" }}>{item.barcode || 'N/A'}</td>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", fontWeight: "500", borderRight: "1px solid #e5e7eb", fontFamily: "'NRT-Reg', sans-serif" }}>{item.name || 'N/A'}</td>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "center", borderRight: "1px solid #e5e7eb" }}>
-                              <span style={{
-                                display: "inline-block",
-                                padding: "3px 10px",
-                                background: "#fef3c7",
-                                color: "#92400e",
-                                borderRadius: "4px",
-                                fontWeight: "bold",
-                                border: "1px solid #fbbf24",
-                                fontFamily: "'NRT-Bd', sans-serif"
-                              }}>
-                                {item.returnQuantity || 0}
-                              </span>
-                            </td>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "right", borderRight: "1px solid #e5e7eb", fontWeight: "500", fontFamily: "'NRT-Bd', sans-serif" }}>
-                              {formatCurrency(item.returnPrice || 0)}
-                            </td>
-                            <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "right", fontWeight: "bold", color: "#059669", fontFamily: "'NRT-Bd', sans-serif" }}>
-                              {formatCurrency((item.returnPrice || 0) * (item.returnQuantity || 0))}
-                            </td>
-                          </tr>
-                        ))}
+                        {billToPrint.items && billToPrint.items.map((item, idx) => {
+                          const currency = billToPrint.currency || "IQD";
+                          return (
+                            <tr key={idx} style={{
+                              borderBottom: "1px solid #e5e7eb",
+                              background: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
+                              transition: "background-color 0.2s"
+                            }}>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "center", borderRight: "1px solid #e5e7eb", fontFamily: "'NRT-Reg', sans-serif" }}>{idx + 1}</td>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", fontFamily: "'Courier New', monospace", fontWeight: "500", borderRight: "1px solid #e5e7eb" }}>{item.barcode || 'N/A'}</td>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", fontWeight: "500", borderRight: "1px solid #e5e7eb", fontFamily: "'NRT-Reg', sans-serif" }}>{item.name || 'N/A'}</td>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "center", borderRight: "1px solid #e5e7eb" }}>
+                                <span style={{
+                                  display: "inline-block",
+                                  padding: "3px 10px",
+                                  background: "#fef3c7",
+                                  color: "#92400e",
+                                  borderRadius: "4px",
+                                  fontWeight: "bold",
+                                  border: "1px solid #fbbf24",
+                                  fontFamily: "'NRT-Bd', sans-serif"
+                                }}>
+                                  {item.returnQuantity || 0}
+                                </span>
+                              </td>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "right", borderRight: "1px solid #e5e7eb", fontWeight: "500", fontFamily: "'NRT-Bd', sans-serif" }}>
+                                {formatCurrency(item.returnPrice || 0, currency)}
+                              </td>
+                              <td style={{ padding: "12px 10px", fontSize: "12px", textAlign: "right", fontWeight: "bold", color: "#059669", fontFamily: "'NRT-Bd', sans-serif" }}>
+                                {formatCurrency((item.returnPrice || 0) * (item.returnQuantity || 0), currency)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                       <tfoot>
                         <tr style={{
@@ -1447,7 +1534,7 @@ export default function ReturnHistory() {
                             {billToPrint.totalReturnQty || 0}
                           </td>
                           <td style={{ padding: "15px 10px", fontSize: "13px", textAlign: "right", borderRight: "1px solid rgba(255,255,255,0.2)", fontFamily: "'NRT-Bd', sans-serif" }}>
-                            {formatCurrency(billToPrint.totalReturnAmount || 0)}
+                            {formatCurrency(billToPrint.totalReturnAmount || 0, billToPrint.currency || "IQD")}
                           </td>
                         </tr>
                       </tfoot>
@@ -1524,6 +1611,7 @@ export default function ReturnHistory() {
             </div>
           </div>
         )}
+
         {/* Error and success messages */}
         {error && (
           <div className="alert alert-error">
@@ -1537,6 +1625,7 @@ export default function ReturnHistory() {
             <span>{successMessage}</span>
           </div>
         )}
+
         {/* Filter card */}
         <div className="filter-card">
           <div className="filter-title">
@@ -1732,6 +1821,7 @@ export default function ReturnHistory() {
             </div>
           </div>
         </div>
+
         {/* Return history table */}
         <div className="table-container">
           <div className="table-header">
@@ -1749,8 +1839,9 @@ export default function ReturnHistory() {
                   <th>Return #</th>
                   <th>Pharmacy</th>
                   <th>Original Bill #</th>
+                  <th>Currency</th>
                   <th>Total Qty</th>
-                  <th>Total Amount (IQD)</th>
+                  <th>Total Amount</th>
                   <th>Return Date</th>
                   <th>Payment Status</th>
                   <th>Created By</th>
@@ -1761,6 +1852,7 @@ export default function ReturnHistory() {
                 {filteredReturns.length > 0 ? (
                   filteredReturns.map((returnItem, index) => {
                     if (!returnItem) return null;
+                    const returnCurrency = returnItem.currency || "IQD";
                     return (
                       <React.Fragment key={`${returnItem.id}-${index}`}>
                         <tr
@@ -1809,12 +1901,17 @@ export default function ReturnHistory() {
                             </span>
                           </td>
                           <td>
+                            <span className={`badge ${returnCurrency === 'USD' ? 'badge-info' : 'badge-purple'}`}>
+                              {returnCurrency}
+                            </span>
+                          </td>
+                          <td>
                             <span className="badge badge-warning">
                               {returnItem.totalReturnQty || 0}
                             </span>
                           </td>
                           <td className="font-bold text-green-700 nrt-bold">
-                            {formatCurrency(returnItem.totalReturnAmount || 0)}
+                            {formatCurrency(returnItem.totalReturnAmount || 0, returnCurrency)}
                           </td>
                           <td className="text-gray-600">
                             <div className="flex items-center gap-1">
@@ -1875,7 +1972,7 @@ export default function ReturnHistory() {
                         </tr>
                         {selectedReturn?.id === returnItem.id && (
                           <tr>
-                            <td colSpan="9" className="p-0">
+                            <td colSpan="10" className="p-0">
                               <div className="glass-card m-2">
                                 <div className="flex justify-between items-center mb-4">
                                   <h4 className="section-subtitle flex items-center gap-2">
@@ -1895,6 +1992,9 @@ export default function ReturnHistory() {
                                         Created by: {getUserDisplayName(returnItem.createdBy)}
                                       </span>
                                     )}
+                                    <span className={`badge ${returnCurrency === 'USD' ? 'badge-info' : 'badge-purple'}`}>
+                                      Currency: {returnCurrency}
+                                    </span>
                                   </div>
                                 </div>
                                 {returnItem.returnBillNote && (
@@ -1914,8 +2014,8 @@ export default function ReturnHistory() {
                                         <th>Original Qty</th>
                                         <th>Return Qty</th>
                                         <th>Remaining Qty</th>
-                                        <th>Return Price (IQD)</th>
-                                        <th>Total (IQD)</th>
+                                        <th>Return Price</th>
+                                        <th>Total</th>
                                         <th>Expire Date</th>
                                         <th>Actions</th>
                                       </tr>
@@ -1941,10 +2041,10 @@ export default function ReturnHistory() {
                                             </span>
                                           </td>
                                           <td className="font-bold text-red-700 nrt-bold">
-                                            {formatCurrency(item.returnPrice || 0)}
+                                            {formatCurrency(item.returnPrice || 0, returnCurrency)}
                                           </td>
                                           <td className="font-bold text-green-700 nrt-bold">
-                                            {formatCurrency((item.returnPrice || 0) * (item.returnQuantity || 0))}
+                                            {formatCurrency((item.returnPrice || 0) * (item.returnQuantity || 0), returnCurrency)}
                                           </td>
                                           <td className="text-gray-600">
                                             <div className="flex items-center gap-1">
@@ -1976,9 +2076,10 @@ export default function ReturnHistory() {
                                     <tfoot>
                                       <tr className="font-bold bg-gray-50">
                                         <td colSpan="6" className="text-right nrt-bold">Total:</td>
-                                        <td className="text-center text-green-800 nrt-bold">
-                                          {formatCurrency(returnItem.totalReturnAmount || 0)}
+                                        <td className="text-green-800 nrt-bold">
+                                          {formatCurrency(returnItem.totalReturnAmount || 0, returnCurrency)}
                                         </td>
+                                        <td colSpan="2"></td>
                                       </tr>
                                     </tfoot>
                                   </table>
@@ -1992,7 +2093,7 @@ export default function ReturnHistory() {
                   })
                 ) : (
                   <tr>
-                    <td colSpan="9" className="empty-state">
+                    <td colSpan="10" className="empty-state">
                       <div className="empty-state-icon">
                         <FaBox />
                       </div>
@@ -2007,6 +2108,7 @@ export default function ReturnHistory() {
             </table>
           </div>
         </div>
+
         {/* Create/Edit Return Section */}
         {selectedPharmacy?.id && (
           <div className="section-card">
@@ -2023,7 +2125,7 @@ export default function ReturnHistory() {
                 </>
               )}
             </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
               <div className="filter-input-group">
                 <label>
                   Our Return Bill Number *
@@ -2062,12 +2164,13 @@ export default function ReturnHistory() {
                 />
               </div>
             </div>
+
             {!editingReturn ? (
               <div className="table-container">
                 <div className="table-header">
                   <h3 className="table-title">Available Bills for Return</h3>
                   <div className="text-sm text-gray-600">
-                    Showing {filteredBills.length} bills (All statuses)
+                    Showing {filteredBills.length} bills (Click on a bill to expand/collapse)
                   </div>
                 </div>
                 <table className="table">
@@ -2075,8 +2178,9 @@ export default function ReturnHistory() {
                     <tr>
                       <th>Bill #</th>
                       <th>Date</th>
+                      <th>Currency</th>
                       <th>Payment Status</th>
-                      <th>Total Amount (IQD)</th>
+                      <th>Total Amount</th>
                       <th>Items</th>
                       <th>Actions</th>
                     </tr>
@@ -2085,15 +2189,18 @@ export default function ReturnHistory() {
                     {filteredBills.length > 0 ? (
                       filteredBills.map((bill) => {
                         if (!bill) return null;
+                        const billCurrency = getBillCurrency(bill);
                         const billTotal = bill.items ? bill.items.reduce((sum, item) =>
-                          sum + ((item.price || 0) * (item.quantity || 0)), 0) : 0;
+                          sum + (getItemPrice(item, billCurrency) * (item.quantity || 0)), 0) : 0;
                         const itemsCount = bill.items ? bill.items.length : 0;
                         const isPaid = bill.paymentStatus === "Paid" || bill.paymentStatus === "Cash";
+                        const isExpanded = expandedBillId === bill.id;
+                        
                         return (
                           <React.Fragment key={bill.id || bill.billNumber}>
                             <tr
-                              onClick={() => handleBillSelect(bill)}
-                              className={selectedBill?.id === bill.id ? "selected" : ""}
+                              className="cursor-pointer"
+                              onClick={() => toggleBillSelection(bill)}
                             >
                               <td className="font-bold text-blue-700 nrt-bold">{bill.billNumber || 'N/A'}</td>
                               <td className="text-gray-600">
@@ -2101,6 +2208,11 @@ export default function ReturnHistory() {
                                   <FaCalendarAlt className="text-xs" />
                                   {formatDate(bill.date)}
                                 </div>
+                              </td>
+                              <td>
+                                <span className={`badge ${billCurrency === 'USD' ? 'badge-info' : 'badge-purple'}`}>
+                                  {billCurrency}
+                                </span>
                               </td>
                               <td>
                                 {isPaid ? (
@@ -2115,27 +2227,43 @@ export default function ReturnHistory() {
                                   </span>
                                 )}
                               </td>
-                              <td className="font-bold text-green-700 nrt-bold">{formatCurrency(billTotal)}</td>
+                              <td className="font-bold text-green-700 nrt-bold">
+                                {formatCurrency(billTotal, billCurrency)}
+                              </td>
                               <td>
                                 <span className="badge badge-primary">
                                   {itemsCount} items
                                 </span>
                               </td>
                               <td>
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleBillSelect(bill);
-                                  }}
-                                >
-                                  {selectedBill?.id === bill.id ? "Selected" : "Select"}
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleBillSelection(bill);
+                                    }}
+                                  >
+                                    {isExpanded ? "Close" : "Select"}
+                                  </button>
+                                  {selectedBill?.id === bill.id && (
+                                    <button
+                                      className="btn btn-outline btn-sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCancelBillSelection();
+                                      }}
+                                    >
+                                      <FaTimes />
+                                      Cancel
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
-                            {selectedBill?.id === bill.id && (
+                            {isExpanded && selectedBill?.id === bill.id && (
                               <tr>
-                                <td colSpan="6" className="p-0">
+                                <td colSpan="7" className="p-0">
                                   <div className="glass-card m-2">
                                     <div className="flex justify-between items-center mb-4">
                                       <h4 className="section-subtitle flex items-center gap-2">
@@ -2143,13 +2271,9 @@ export default function ReturnHistory() {
                                         Bill {bill.billNumber} - Items for Return
                                       </h4>
                                       <div className="flex items-center gap-4">
-                                        <button
-                                          className="btn btn-outline btn-sm"
-                                          onClick={handleCancelBillSelection}
-                                        >
-                                          <FaTimes />
-                                          Cancel Selection
-                                        </button>
+                                        <div className="text-sm text-gray-600">
+                                          Currency: <span className="font-bold">{billCurrency}</span>
+                                        </div>
                                         <div className="text-sm text-gray-600">
                                           Total Items: {bill.items?.length || 0}
                                         </div>
@@ -2169,8 +2293,8 @@ export default function ReturnHistory() {
                                                 <th>Available for Return</th>
                                                 <th>Return Qty</th>
                                                 <th>New Remaining</th>
-                                                <th>Price (IQD)</th>
-                                                <th>Total (IQD)</th>
+                                                <th>Price ({billCurrency})</th>
+                                                <th>Total ({billCurrency})</th>
                                                 <th>Actions</th>
                                               </tr>
                                             </thead>
@@ -2213,17 +2337,17 @@ export default function ReturnHistory() {
                                                   </td>
                                                   <td>
                                                     <input
-                                                      type="number"
+                                                      type="text"
                                                       step="0.01"
                                                       min="0"
-                                                      value={item.returnPrice || 0}
-                                                      onChange={(e) => handleReturnPriceChange(index, e.target.value)}
+                                                      value={item.returnPrice || ''}
+                                                      onChange={(e) => handleReturnPriceChange(index, e.target.value, billCurrency)}
                                                       className="price-input"
-                                                      placeholder="0.00"
+                                                      placeholder={`0.00 ${billCurrency}`}
                                                     />
                                                   </td>
                                                   <td className="font-bold text-green-700 nrt-bold">
-                                                    {formatCurrency((item.returnQuantity || 0) * (item.returnPrice || 0))}
+                                                    {formatCurrency((item.returnQuantity || 0) * parseCurrency(item.returnPrice), billCurrency)}
                                                   </td>
                                                   <td>
                                                     <button
@@ -2248,7 +2372,7 @@ export default function ReturnHistory() {
                                                 <td className="text-center">—</td>
                                                 <td className="text-center">—</td>
                                                 <td className="text-center text-green-800 nrt-bold">
-                                                  {formatCurrency(returnItems.reduce((sum, item) => sum + ((item.returnQuantity || 0) * (item.returnPrice || 0)), 0))}
+                                                  {formatCurrency(returnItems.reduce((sum, item) => sum + ((item.returnQuantity || 0) * parseCurrency(item.returnPrice)), 0), billCurrency)}
                                                 </td>
                                                 <td className="text-center">—</td>
                                               </tr>
@@ -2259,6 +2383,7 @@ export default function ReturnHistory() {
                                           <div className="text-sm text-gray-600">
                                             <p>Select items to return and enter quantities</p>
                                             <p className="mt-1">Max available quantities are shown</p>
+                                            <p className="mt-1 text-blue-600">Price format: {billCurrency === 'USD' ? '$0.00' : '0.00 IQD'}</p>
                                           </div>
                                           <div className="flex gap-4">
                                             <button
@@ -2308,7 +2433,7 @@ export default function ReturnHistory() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="6" className="empty-state">
+                        <td colSpan="7" className="empty-state">
                           <div className="empty-state-icon">
                             <FaFileInvoice />
                           </div>
@@ -2344,73 +2469,76 @@ export default function ReturnHistory() {
                             <th>Available for Return</th>
                             <th>Return Qty</th>
                             <th>New Remaining</th>
-                            <th>Price (IQD)</th>
-                            <th>Total (IQD)</th>
+                            <th>Price</th>
+                            <th>Total</th>
                             <th>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {returnItems.map((item, index) => (
-                            <tr key={index}>
-                              <td>{index + 1}</td>
-                              <td className="font-mono">{item.barcode || 'N/A'}</td>
-                              <td className="font-medium nrt-bold">{item.name || 'N/A'}</td>
-                              <td>
-                                <span className="badge badge-success">
-                                  {item.originalQuantity || 0}
-                                </span>
-                              </td>
-                              <td>
-                                <span className="badge badge-warning">
-                                  {item.alreadyReturnedByOthers || 0}
-                                </span>
-                              </td>
-                              <td>
-                                <span className="badge badge-primary">
-                                  {item.availableQuantity || 0}
-                                </span>
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max={item.availableQuantity || 0}
-                                  value={item.returnQuantity || 0}
-                                  onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
-                                  className="quantity-input"
-                                  placeholder="0"
-                                />
-                              </td>
-                              <td>
-                                <span className="badge badge-info">
-                                  {item.newRemainingQuantity || 0}
-                                </span>
-                              </td>
-                              <td>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.returnPrice || 0}
-                                  onChange={(e) => handleReturnPriceChange(index, e.target.value)}
-                                  className="price-input"
-                                  placeholder="0.00"
-                                />
-                              </td>
-                              <td className="font-bold text-green-700 nrt-bold">
-                                {formatCurrency((item.returnQuantity || 0) * (item.returnPrice || 0))}
-                              </td>
-                              <td>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => handleDeleteItem(index)}
-                                  title="Remove item"
-                                >
-                                  <FaTrash size={10} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                          {returnItems.map((item, index) => {
+                            const editCurrency = item.currency || "IQD";
+                            return (
+                              <tr key={index}>
+                                <td>{index + 1}</td>
+                                <td className="font-mono">{item.barcode || 'N/A'}</td>
+                                <td className="font-medium nrt-bold">{item.name || 'N/A'}</td>
+                                <td>
+                                  <span className="badge badge-success">
+                                    {item.originalQuantity || 0}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="badge badge-warning">
+                                    {item.alreadyReturnedByOthers || 0}
+                                  </span>
+                                </td>
+                                <td>
+                                  <span className="badge badge-primary">
+                                    {item.availableQuantity || 0}
+                                  </span>
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    max={item.availableQuantity || 0}
+                                    value={item.returnQuantity || 0}
+                                    onChange={(e) => handleReturnQuantityChange(index, e.target.value)}
+                                    className="quantity-input"
+                                    placeholder="0"
+                                  />
+                                </td>
+                                <td>
+                                  <span className="badge badge-info">
+                                    {item.newRemainingQuantity || 0}
+                                  </span>
+                                </td>
+                                <td>
+                                  <input
+                                    type="text"
+                                    step="0.01"
+                                    min="0"
+                                    value={item.returnPrice || ''}
+                                    onChange={(e) => handleReturnPriceChange(index, e.target.value, editCurrency)}
+                                    className="price-input"
+                                    placeholder={`0.00 ${editCurrency}`}
+                                  />
+                                </td>
+                                <td className="font-bold text-green-700 nrt-bold">
+                                  {formatCurrency((item.returnQuantity || 0) * parseCurrency(item.returnPrice), editCurrency)}
+                                </td>
+                                <td>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => handleDeleteItem(index)}
+                                    title="Remove item"
+                                  >
+                                    <FaTrash size={10} />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr className="font-bold bg-gray-50">
@@ -2423,7 +2551,7 @@ export default function ReturnHistory() {
                             <td className="text-center">—</td>
                             <td className="text-center">—</td>
                             <td className="text-center text-green-800 nrt-bold">
-                              {formatCurrency(returnItems.reduce((sum, item) => sum + ((item.returnQuantity || 0) * (item.returnPrice || 0)), 0))}
+                              {formatCurrency(returnItems.reduce((sum, item) => sum + ((item.returnQuantity || 0) * parseCurrency(item.returnPrice)), 0), returnItems[0]?.currency || "IQD")}
                             </td>
                             <td className="text-center">—</td>
                           </tr>
@@ -2434,6 +2562,7 @@ export default function ReturnHistory() {
                       <div className="text-sm text-gray-600">
                         <p>Editing return {editingReturn?.returnBillNumber}</p>
                         <p className="mt-1">Update quantities as needed</p>
+                        <p className="mt-1 text-blue-600">Price format: {returnItems[0]?.currency === 'USD' ? '$0.00' : '0.00 IQD'}</p>
                       </div>
                       <div className="flex gap-4">
                         <button

@@ -100,7 +100,7 @@ export default function Home() {
         <div className="text-center mb-16">
           <div className="inline-flex items-center px-4 py-2 bg-blue-50 rounded-full border border-blue-200 mb-6">
             <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse mr-2"></span>
-            <span className="text-sm font-medium text-blue-700">Aran Med Store v2.0</span>
+          
           </div>
           
           <h1 className="text-5xl md:text-6xl font-bold mb-4">
