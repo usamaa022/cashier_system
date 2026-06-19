@@ -11,7 +11,7 @@ export default function TransportList({ transports, user }) {
             <th className="py-2 px-4 border">ID</th>
             <th className="py-2 px-4 border">From</th>
             <th className="py-2 px-4 border">To</th>
-            <th className="py-2 px-4 border">Status</th>
+            <th className="py-2 px-4 border">Statuss</th>
             <th className="py-2 px-4 border">Sent At</th>
             <th className="py-2 px-4 border">Actions</th>
           </tr>
