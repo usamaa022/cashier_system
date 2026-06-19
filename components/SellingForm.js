@@ -2344,25 +2344,25 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     }
   }, [handleScanDocument, handleFileUpload]);
 
-  // ── Store / batch helpers ───────────────────────────────────────────────────
-  const getBatchesForItem = useCallback((barcode) => {
-    return storeItems
-      .filter((item) => item.barcode === barcode && item.quantity > 0)
-      .map((item) => ({
-        ...item,
-        expireDate: item.expireDate,
-        batchId: item.id,
-        netPriceDisplay: item.originalCurrency === "IQD" ? item.netPriceIQD : item.netPriceUSD,
-        outPriceDisplay: item.originalCurrency === "IQD" ? item.outPriceIQD : item.outPriceUSD,
-        currency: item.originalCurrency || "USD",
-        netPriceUSD: item.netPriceUSD,
-        netPriceIQD: item.netPriceIQD,
-        outPriceUSD: item.outPriceUSD,
-        outPriceIQD: item.outPriceIQD,
-        originalCurrency: item.originalCurrency || "USD",
-      }))
-      .sort((a, b) => new Date(a.expireDate) - new Date(b.expireDate));
-  }, [storeItems]);
+const getBatchesForItem = useCallback((barcode) => {
+  return storeItems
+    .filter((item) => item.barcode === barcode && item.quantity > 0)
+    .map((item) => ({
+      ...item,
+      expireDate: item.expireDate,
+      batchId: item.id,
+      netPriceDisplay: item.originalCurrency === "IQD" ? item.netPriceIQD : item.netPriceUSD,
+      outPriceDisplay: item.originalCurrency === "IQD" ? item.outPriceIQD : item.outPriceUSD,
+      currency: item.originalCurrency || "USD",
+      netPriceUSD: item.netPriceUSD,
+      netPriceIQD: item.netPriceIQD,
+      outPriceUSD: item.outPriceUSD,
+      outPriceIQD: item.outPriceIQD,
+      originalCurrency: item.originalCurrency || "USD",
+      branch: item.branch || "N/A", // Add branch here
+    }))
+    .sort((a, b) => new Date(a.expireDate) - new Date(b.expireDate));
+}, [storeItems]);
 
   const handleSelectBatch = useCallback((batch) => {
     const existingItemIndex = selectedItems.findIndex((item) => item.batchId === batch.batchId);
@@ -3315,7 +3315,8 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                   <table style={styles.table}>
                     <thead>
                       <tr>
-                        <th style={styles.tableHeader}>Expire Date</th>
+                        <th style={styles.tableHeader}>Expire Datee</th>
+                        <th style={{ ...styles.tableHeader, textAlign: "center" }}>Branch</th>
                         <th style={{ ...styles.tableHeader, textAlign: "right" }}>Net Price</th>
                         <th style={{ ...styles.tableHeader, textAlign: "right" }}>Selling Price</th>
                         <th style={{ ...styles.tableHeader, textAlign: "right" }}>Available</th>
@@ -3326,6 +3327,31 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                       {item.batches.map((batch, batchIndex) => (
                         <tr key={`${item.id}-${batchIndex}`}>
                           <td style={styles.tableCell}>{formatExpireDate(batch.expireDate)}</td>
+                        <td style={{ 
+  ...styles.tableCell, 
+  textAlign: "center",
+  fontWeight: "600",
+  // Text Colors
+  color: batch.branch === "Slemany" ? "#16a34a" : // Green
+         batch.branch === "Erbil" ? "#dc2626" :   // Red
+         batch.branch === "Duhok" ? "#2563eb" :   // Blue (shifted)
+         batch.branch === "Kirkuk" ? "#f59e0b" :  // Amber
+         batch.branch === "Kalar" ? "#8b5cf6" :   // Purple
+         "#4b5563",
+  // Light Background Colors
+  backgroundColor: batch.branch === "Slemany" ? "#f0fdf4" : // Light Green
+                   batch.branch === "Erbil" ? "#fef2f2" :   // Light Red
+                   batch.branch === "Duhok" ? "#eff6ff" :   // Light Blue
+                   batch.branch === "Kirkuk" ? "#fffbeb" :  // Light Amber
+                   batch.branch === "Kalar" ? "#f5f3ff" :   // Light Purple
+                   "transparent",
+  // Optional: adds a bit of inner spacing and a neat rounded look inside the cell
+  padding: "6px 10px",
+  borderRadius: "0px", 
+  fontSize:"17px"
+}}>
+  {batch.branch || "N/A"}
+</td>
                           <td style={{ ...styles.tableCell, textAlign: "right" }}>
                             {batch.currency === "IQD"
                               ? Math.round(batch.netPriceDisplay).toLocaleString() + " IQD"

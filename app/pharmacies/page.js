@@ -1,6 +1,7 @@
 // app/pharmacies/page.js
 "use client";
 import { useState, useEffect } from "react";
+import * as XLSX from 'xlsx';
 import {
   getPharmacies,
   addPharmacy,
@@ -16,7 +17,8 @@ export default function PharmaciesPage() {
     name: "",
     code: "",
     phone: "",
-    city: ""
+    phone2: "",
+    city: "سلێمانی"
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -25,12 +27,23 @@ export default function PharmaciesPage() {
     name: "",
     code: "",
     phone: "",
+    phone2: "",
     city: ""
   });
   const [sortConfig, setSortConfig] = useState({
-    key: "name",
-    direction: "asc"
+    key: "code",
+    direction: "desc"
   });
+
+  const cities = [
+    "سلێمانی",
+    "هەولێر",
+    "دهۆک",
+    "کەرکوک",
+    "کەلار",
+    "بغداد",
+    "هەڵەبجە"
+  ];
 
   useEffect(() => {
     const fetchPharmacies = async () => {
@@ -54,6 +67,7 @@ export default function PharmaciesPage() {
         pharmacy.name.toLowerCase().includes(searchQuery.name.toLowerCase()) &&
         pharmacy.code.toLowerCase().includes(searchQuery.code.toLowerCase()) &&
         (pharmacy.phone || "").toLowerCase().includes(searchQuery.phone.toLowerCase()) &&
+        (pharmacy.phone2 || "").toLowerCase().includes(searchQuery.phone2.toLowerCase()) &&
         (pharmacy.city || "").toLowerCase().includes(searchQuery.city.toLowerCase())
       );
     });
@@ -66,20 +80,17 @@ export default function PharmaciesPage() {
         
         // Special handling for code field - try numeric sorting first
         if (sortConfig.key === "code") {
-          // Try to extract numbers from the code
+          // Extract numbers from the code
           const aNum = parseFloat(aValue.replace(/[^\d.-]/g, ''));
           const bNum = parseFloat(bValue.replace(/[^\d.-]/g, ''));
           
-          // If both values contain valid numbers, sort numerically
           if (!isNaN(aNum) && !isNaN(bNum)) {
             return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
           }
-          // If only one has a number, put the one with number first
           if (!isNaN(aNum) && isNaN(bNum)) return -1;
           if (isNaN(aNum) && !isNaN(bNum)) return 1;
         }
         
-        // For name or if code doesn't contain numbers, use string comparison
         aValue = aValue.toString().toLowerCase();
         bValue = bValue.toString().toLowerCase();
         
@@ -104,7 +115,7 @@ export default function PharmaciesPage() {
       }
       
       await addPharmacy(newPharmacy);
-      setNewPharmacy({ name: "", code: "", phone: "", city: "" });
+      setNewPharmacy({ name: "", code: "", phone: "", phone2: "", city: "سلێمانی" });
       setRefreshTrigger(!refreshTrigger);
       setError(null);
     } catch (err) {
@@ -114,12 +125,17 @@ export default function PharmaciesPage() {
 
   const handleUpdatePharmacy = async () => {
     try {
+      if (!editingPharmacy || !editingPharmacy.id) {
+        setError("هیچ دەرمانخانەیەک هەڵنەبژێردراوە");
+        return;
+      }
+      
       if (!editingPharmacy.name || !editingPharmacy.code) {
         setError("ناو و کۆد پێویستە");
         return;
       }
       
-      await updatePharmacy(editingPharmacy.id, editingPharmacy);
+      await updatePharmacy(editingPharmacy);
       setEditingPharmacy(null);
       setRefreshTrigger(!refreshTrigger);
       setError(null);
@@ -130,12 +146,12 @@ export default function PharmaciesPage() {
 
   const handleEdit = (pharmacy) => {
     setEditingPharmacy({ ...pharmacy });
-    setNewPharmacy({ name: "", code: "", phone: "", city: "" });
+    setNewPharmacy({ name: "", code: "", phone: "", phone2: "", city: "سلێمانی" });
   };
 
   const handleCancel = () => {
     setEditingPharmacy(null);
-    setNewPharmacy({ name: "", code: "", phone: "", city: "" });
+    setNewPharmacy({ name: "", code: "", phone: "", phone2: "", city: "سلێمانی" });
   };
 
   const handleDelete = async (id) => {
@@ -179,21 +195,101 @@ export default function PharmaciesPage() {
 
   const getSortLabel = (key) => {
     if (sortConfig.key !== key) return "";
-    return sortConfig.direction === "asc" ? " (بەرەوچوون) " : " (بەرەوژێر) ";
+    return sortConfig.direction === "asc" ? " (بچووک بۆ گەورە) " : " (گەورە بۆ بچووک) ";
+  };
+
+  const handleWhatsApp = (phone) => {
+    if (!phone) {
+      alert("ژمارەی مۆبایل بۆ ئەم دەرمانخانەیە نییە");
+      return;
+    }
+    // Remove any non-digit characters
+    const cleanPhone = phone.replace(/\D/g, '');
+    // Ensure it starts with country code (assuming 964 for Iraq)
+    const formattedPhone = cleanPhone.startsWith('964') ? cleanPhone : `964${cleanPhone}`;
+    const whatsappUrl = `https://wa.me/${formattedPhone}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const exportToExcel = () => {
+    try {
+      // Prepare data for export
+      const exportData = filteredPharmacies.map((pharmacy, index) => ({
+        'ژمارە': index + 1,
+        'ناو': pharmacy.name,
+        'کۆد': pharmacy.code,
+        'ژمارەی مۆبایل ١': pharmacy.phone || '---',
+        'ژمارەی مۆبایل ٢': pharmacy.phone2 || '---',
+        'شار': pharmacy.city || '---',
+      }));
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths
+      const colWidths = [
+        { wch: 10 },  // ژمارە
+        { wch: 25 },  // ناو
+        { wch: 15 },  // کۆد
+        { wch: 18 },  // ژمارەی مۆبایل ١
+        { wch: 18 },  // ژمارەی مۆبایل ٢
+        { wch: 15 },  // شار
+      ];
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'دەرمانخانەکان');
+      
+      // Generate and download file
+      const fileName = `دەرمانخانەکان_${new Date().toLocaleDateString('fa-IR')}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (err) {
+      setError('export to excel: ' + err.message);
+    }
   };
 
   return (
-    <div style={{ fontFamily: "var(--font-nrt-reg)", maxWidth: "1600px", margin: "0 auto" }}>
-      <h1 style={{
-        fontSize: "1.75rem",
-        fontWeight: "bold",
+    <div style={{ 
+      fontFamily: "var(--font-nrt-reg)", 
+      maxWidth: "1600px", 
+      margin: "0 auto",
+      padding: "16px"
+    }}>
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
         marginBottom: "1.5rem",
-        color: "#1e293b",
-        textAlign: "center",
-        fontFamily: "var(--font-nrt-bd)"
+        flexWrap: "wrap",
+        gap: "16px"
       }}>
-        دەرمانخانەکان
-      </h1>
+        <h1 style={{
+          fontSize: "1.75rem",
+          fontWeight: "bold",
+          color: "#1e293b",
+          fontFamily: "var(--font-nrt-bd)"
+        }}>
+          دەرمانخانەکان
+        </h1>
+        <button
+          onClick={exportToExcel}
+          style={{
+            padding: "10px 20px",
+            backgroundColor: "#22c55e",
+            color: "#fff",
+            border: "none",
+            borderRadius: "0.5rem",
+            cursor: "pointer",
+            fontSize: "0.875rem",
+            fontFamily: "var(--font-nrt-bd)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px"
+          }}
+        >
+          📊 export to excel
+        </button>
+      </div>
 
       {error && (
         <div style={{
@@ -225,7 +321,7 @@ export default function PharmaciesPage() {
         </div>
       )}
 
-      {/* Full-width form section */}
+      {/* Form section */}
       <div style={{
         width: "100%",
         marginBottom: "1.5rem",
@@ -300,11 +396,11 @@ export default function PharmaciesPage() {
               fontSize: "0.875rem",
               color: "#4b5563",
               fontFamily: "var(--font-nrt-reg)"
-            }}>ژمارەی مۆبایل</label>
+            }}>ژمارەی مۆبایل (بەرپرسی کڕین)</label>
             <input
               type="text"
               name="phone"
-              placeholder="ژمارەی مۆبایل "
+              placeholder="ژمارەی مۆبایل"
               value={editingPharmacy ? editingPharmacy.phone : newPharmacy.phone}
               onChange={editingPharmacy ? handleEditingPharmacyChange : handleNewPharmacyChange}
               style={{
@@ -324,12 +420,12 @@ export default function PharmaciesPage() {
               fontSize: "0.875rem",
               color: "#4b5563",
               fontFamily: "var(--font-nrt-reg)"
-            }}>شاری سەرەکی</label>
+            }}>ژمارەی مۆبایل (محاسب)</label>
             <input
               type="text"
-              name="city"
-              placeholder="شاری سەرەکی"
-              value={editingPharmacy ? editingPharmacy.city : newPharmacy.city}
+              name="phone2"
+              placeholder="ژمارەی مۆبایلی محاسب"
+              value={editingPharmacy ? editingPharmacy.phone2 : newPharmacy.phone2}
               onChange={editingPharmacy ? handleEditingPharmacyChange : handleNewPharmacyChange}
               style={{
                 width: "100%",
@@ -340,6 +436,33 @@ export default function PharmaciesPage() {
                 fontFamily: "var(--font-nrt-reg)"
               }}
             />
+          </div>
+          <div>
+            <label style={{
+              display: "block",
+              marginBottom: "0.25rem",
+              fontSize: "0.875rem",
+              color: "#4b5563",
+              fontFamily: "var(--font-nrt-reg)"
+            }}>شار</label>
+            <select
+              name="city"
+              value={editingPharmacy ? editingPharmacy.city : newPharmacy.city}
+              onChange={editingPharmacy ? handleEditingPharmacyChange : handleNewPharmacyChange}
+              style={{
+                width: "100%",
+                padding: "0.75rem",
+                border: "1px solid #e2e8f0",
+                borderRadius: "0.375rem",
+                fontSize: "0.875rem",
+                fontFamily: "var(--font-nrt-reg)",
+                backgroundColor: "#fff"
+              }}
+            >
+              {cities.map(city => (
+                <option key={city} value={city}>{city}</option>
+              ))}
+            </select>
           </div>
         </div>
         <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
@@ -359,7 +482,7 @@ export default function PharmaciesPage() {
           >
             {editingPharmacy ? "نوێکردنەوە" : "زیادکردن"}
           </button>
-          {(editingPharmacy || (newPharmacy.name || newPharmacy.code || newPharmacy.phone || newPharmacy.city)) && (
+          {(editingPharmacy || (newPharmacy.name || newPharmacy.code || newPharmacy.phone || newPharmacy.phone2 || newPharmacy.city)) && (
             <button
               onClick={handleCancel}
               style={{
@@ -405,7 +528,7 @@ export default function PharmaciesPage() {
           }}>
             گەڕان
           </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.75rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "0.75rem" }}>
             <div>
               <label style={{
                 display: "block",
@@ -461,30 +584,6 @@ export default function PharmaciesPage() {
                 fontSize: "0.875rem",
                 color: "#4b5563",
                 fontFamily: "var(--font-nrt-reg)"
-              }}>ژمارەی مۆبایل</label>
-              <input
-                type="text"
-                name="phone"
-                placeholder="ژمارەی مۆبایل"
-                value={searchQuery.phone}
-                onChange={handleSearchChange}
-                style={{
-                  width: "100%",
-                  padding: "0.5rem",
-                  border: "1px solid #e2e8f0",
-                  borderRadius: "0.375rem",
-                  fontSize: "0.875rem",
-                  fontFamily: "var(--font-nrt-reg)"
-                }}
-              />
-            </div>
-            <div>
-              <label style={{
-                display: "block",
-                marginBottom: "0.25rem",
-                fontSize: "0.875rem",
-                color: "#4b5563",
-                fontFamily: "var(--font-nrt-reg)"
               }}>شار</label>
               <input
                 type="text"
@@ -505,26 +604,37 @@ export default function PharmaciesPage() {
           </div>
         </div>
 
-        <div style={{ overflowX: "auto" }}>
+        <div style={{
+          marginBottom: "1rem",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "8px"
+        }}>
           <div style={{
-            marginBottom: "1rem",
             color: "#4b5563",
             fontSize: "0.875rem",
             fontFamily: "var(--font-nrt-reg)"
           }}>
             {sortConfig.key === "name" ? (
-              <>پێڕستکردن بەپێی ناو{getSortLabel("name")}</>
+              <>ڕیزکردن بەپێی ناو{getSortLabel("name")}</>
             ) : sortConfig.key === "code" ? (
-              <>پێڕستکردن بەپێی کۆد{getSortLabel("code")}</>
+              <>ڕیزکردن بەپێی کۆد{getSortLabel("code")}</>
             ) : (
-              <>پێڕست نه‌کراوە</>
+              <>ڕیز نه‌کراوە</>
             )}
+            <span style={{ marginLeft: "8px", color: "#94a3b8" }}>
+              (کۆی گشتی: {filteredPharmacies.length})
+            </span>
           </div>
-          
+        </div>
+        
+        <div style={{ overflowX: "auto" }}>
           <table style={{
             width: "100%",
             borderCollapse: "collapse",
-            minWidth: "600px",
+            minWidth: "700px",
             fontFamily: "var(--font-nrt-reg)"
           }}>
             <thead style={{ backgroundColor: "#f1f5f9" }}>
@@ -568,7 +678,16 @@ export default function PharmaciesPage() {
                   color: "#334155",
                   fontFamily: "var(--font-nrt-bd)"
                 }}>
-                  ژمارەی مۆبایل
+                  ژ. مۆبایل (کڕین)
+                </th>
+                <th style={{
+                  padding: "0.75rem",
+                  textAlign: "left",
+                  fontWeight: "bold",
+                  color: "#334155",
+                  fontFamily: "var(--font-nrt-bd)"
+                }}>
+                  ژ. مۆبایل (ئەژمێردار)
                 </th>
                 <th style={{
                   padding: "0.75rem",
@@ -593,7 +712,7 @@ export default function PharmaciesPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan="5" style={{
+                  <td colSpan="6" style={{
                     padding: "1rem",
                     textAlign: "center",
                     color: "#64748b",
@@ -604,7 +723,7 @@ export default function PharmaciesPage() {
                 </tr>
               ) : filteredPharmacies.length === 0 ? (
                 <tr>
-                  <td colSpan="5" style={{
+                  <td colSpan="6" style={{
                     padding: "1rem",
                     textAlign: "center",
                     color: "#94a3b8",
@@ -619,18 +738,61 @@ export default function PharmaciesPage() {
                     key={pharmacy.id}
                     style={{
                       borderBottom: "1px solid #e2e8f0",
-                      ":hover": { backgroundColor: "#f8fafc" }
+                      transition: "background-color 0.2s"
                     }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f8fafc"}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}
                   >
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>{pharmacy.name}</td>
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>{pharmacy.code}</td>
-                    <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>{pharmacy.phone || '---'}</td>
+                    <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>
+                      {pharmacy.phone ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {pharmacy.phone}
+                          <button
+                            onClick={() => handleWhatsApp(pharmacy.phone)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "20px",
+                              padding: "2px 4px"
+                            }}
+                            title="بە وەتسئەپ نامەی بۆ بنێرە"
+                          >
+                            
+                            <img src="/whatsappicon.png" alt="WhatsApp" style={{ width: "20px" }} />    
+                          </button>
+                        </div>
+                      ) : '---'}
+                    </td>
+                    <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>
+                      {pharmacy.phone2 ? (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          {pharmacy.phone2}
+                          <button
+                            onClick={() => handleWhatsApp(pharmacy.phone2)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "20px",
+                              padding: "2px 4px"
+                            }}
+                            title="بە وەتسئەپ نامەی بۆ بنێرە"
+                          >
+                             <img src="/whatsappicon.png" alt="WhatsApp" style={{ width: "20px" }} />    
+                          </button>
+                        </div>
+                      ) : '---'}
+                    </td>
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)" }}>{pharmacy.city || '---'}</td>
                     <td style={{
                       padding: "0.75rem",
                       display: "flex",
                       gap: "0.5rem",
-                      justifyContent: "center"
+                      justifyContent: "center",
+                      flexWrap: "wrap"
                     }}>
                       <button
                         onClick={() => handleEdit(pharmacy)}

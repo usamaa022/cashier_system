@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useRef, useMemo } from "react";
-import { searchSoldBills, getPharmacies } from "@/lib/data";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { searchSoldBills, getPharmacies, getBase64BillAttachment, getBillAttachmentUrlEnhanced } from "@/lib/data";
 import React from "react";
 import Select from "react-select";
 import * as XLSX from 'xlsx';
@@ -51,8 +51,25 @@ export default function SoldPage() {
           searchSoldBills(""),
           getPharmacies()
         ]);
-        billsData.sort((a, b) => new Date(b.date) - new Date(a.date));
-        setBills(billsData);
+        
+        // Fetch attachments for each bill
+        const billsWithAttachments = await Promise.all(
+          billsData.map(async (bill) => {
+            try {
+              let url = await getBase64BillAttachment(bill.billNumber);
+              if (!url) {
+                url = await getBillAttachmentUrlEnhanced(bill.billNumber);
+              }
+              return { ...bill, attachment: url || null, hasAttachment: !!url };
+            } catch (error) {
+              console.error(`Error fetching attachment for bill ${bill.billNumber}:`, error);
+              return { ...bill, attachment: null, hasAttachment: false };
+            }
+          })
+        );
+        
+        billsWithAttachments.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setBills(billsWithAttachments);
         setPharmacies(pharmaciesData);
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -88,8 +105,10 @@ export default function SoldPage() {
           pharmacyName: pharmacies.find(p => p.id === bill.pharmacyId)?.name || 'Unknown',
           paymentStatus: bill.paymentStatus,
           isConsignment: bill.isConsignment,
-          attachment: bill.attachment,
-          attachmentDate: bill.attachmentDate,
+          // IMPORTANT: Pass attachment from bill to item
+          attachment: bill.attachment || item.attachment || null,
+          hasAttachment: bill.hasAttachment || false,
+          attachmentDate: bill.attachmentDate || item.attachmentDate || null,
           // Currency fields - only one should have values
           priceIQD,
           priceUSD,
@@ -103,6 +122,8 @@ export default function SoldPage() {
           netPriceIQD: isIQD ? (item.netPriceIQD || 0) : 0,
           basePriceUSD: isUSD ? (item.basePriceUSD || 0) : 0,
           basePriceIQD: isIQD ? (item.basePriceIQD || 0) : 0,
+          // Pass expireDate from item
+          expireDate: item.expireDate || null,
         };
       }) || []
     ), [bills, pharmacies]
@@ -178,7 +199,7 @@ export default function SoldPage() {
 
       let matchesAttachment = true;
       if (filters.hasAttachment !== "all") {
-        matchesAttachment = filters.hasAttachment === "yes" ? !!item.attachment : !item.attachment;
+        matchesAttachment = filters.hasAttachment === "yes" ? !!item.hasAttachment : !item.hasAttachment;
       }
 
       const matchesConsignmentStatus = filters.consignmentStatus === "all" ||
@@ -261,7 +282,6 @@ export default function SoldPage() {
   // Format functions - IQD without decimals, USD with decimals
   const formatNumberIQD = (num) => {
     if (num === null || num === undefined || num === 0) return "0";
-    // Remove decimal places for IQD
     return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
@@ -285,15 +305,77 @@ export default function SoldPage() {
     if (!date) return 'N/A';
     try {
       let dateObj;
-      if (date.toDate && typeof date.toDate === 'function') {
-        dateObj = date.toDate();
-      } else if (date.seconds) {
-        dateObj = new Date(date.seconds * 1000);
-      } else {
-        dateObj = new Date(date);
+      
+      // Handle Firestore Timestamp
+      if (date && typeof date === 'object') {
+        if ('toDate' in date && typeof date.toDate === 'function') {
+          dateObj = date.toDate();
+        } else if (date.seconds !== undefined) {
+          dateObj = new Date(date.seconds * 1000);
+        } else if (date._seconds !== undefined) {
+          dateObj = new Date(date._seconds * 1000);
+        } else if (date instanceof Date) {
+          dateObj = date;
+        }
+      }
+      
+      // If still not a valid date, try string parsing
+      if (!dateObj || isNaN(dateObj.getTime())) {
+        if (typeof date === 'string') {
+          // Try different formats
+          const formats = [
+            // DD/MM/YYYY
+            (d) => {
+              const parts = d.split('/');
+              if (parts.length === 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const year = parseInt(parts[2]);
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                  return new Date(year, month, day);
+                }
+              }
+              return null;
+            },
+            // YYYY-MM-DD
+            (d) => {
+              const parts = d.split('-');
+              if (parts.length === 3) {
+                const year = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const day = parseInt(parts[2]);
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                  return new Date(year, month, day);
+                }
+              }
+              return null;
+            },
+            // MM/DD/YYYY
+            (d) => {
+              const parts = d.split('/');
+              if (parts.length === 3) {
+                const month = parseInt(parts[0]) - 1;
+                const day = parseInt(parts[1]);
+                const year = parseInt(parts[2]);
+                if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+                  return new Date(year, month, day);
+                }
+              }
+              return null;
+            }
+          ];
+          
+          for (const parser of formats) {
+            const result = parser(date);
+            if (result && !isNaN(result.getTime())) {
+              dateObj = result;
+              break;
+            }
+          }
+        }
       }
 
-      if (isNaN(dateObj.getTime())) return 'N/A';
+      if (!dateObj || isNaN(dateObj.getTime())) return 'N/A';
 
       const day = String(dateObj.getDate()).padStart(2, '0');
       const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -306,9 +388,39 @@ export default function SoldPage() {
   };
 
   // Attachment modal functions
-  const openAttachmentModal = (item) => {
+  const openAttachmentModal = async (item) => {
     setAttachmentModal(item);
-    setImagePreview(item.attachment || null);
+    
+    // Check if item has attachment already
+    if (item.attachment) {
+      setImagePreview(item.attachment);
+      return;
+    }
+    
+    // Try to fetch attachment from Firebase
+    try {
+      let url = await getBase64BillAttachment(item.billNumber);
+      if (!url) {
+        url = await getBillAttachmentUrlEnhanced(item.billNumber);
+      }
+      
+      if (url) {
+        setImagePreview(url);
+        // Update the item with the attachment
+        setBills(prevBills => 
+          prevBills.map(bill => 
+            bill.billNumber === item.billNumber 
+              ? { ...bill, attachment: url, hasAttachment: true } 
+              : bill
+          )
+        );
+      } else {
+        setImagePreview(null);
+      }
+    } catch (error) {
+      console.error('Error loading attachment:', error);
+      setImagePreview(null);
+    }
   };
 
   const closeAttachmentModal = () => {
@@ -351,7 +463,7 @@ export default function SoldPage() {
       'جۆری پارەدان': item.paymentStatus === 'Cash' ? 'Cash' : item.paymentStatus === 'Paid' ? 'Paid' : 'Unpaid',
       'دۆخی تحت صرف': item.isConsignment ? 'تحت صرف' : 'خاوەنیاری',
       'بەرواری بەسەرچوون': formatExpireDate(item.expireDate),
-      'هاوپێچ': item.attachment ? 'هەیە' : 'نیە'
+      'هاوپێچ': item.hasAttachment ? 'هەیە' : 'نیە'
     }));
 
     // Add summary rows
@@ -613,6 +725,19 @@ export default function SoldPage() {
               <option value="owned">Owned</option>
             </select>
           </div>
+
+          <div>
+            <label style={{ display: "block", marginBottom: "0.375rem", fontSize: "0.875rem", fontWeight: "500", color: "#4b5563", fontFamily: "var(--font-nrt-bd)" }}>هاوپێچ</label>
+            <select
+              style={{ width: "100%", padding: "0.5rem 0.75rem", border: "1px solid #e2e8f0", borderRadius: "0.375rem", fontSize: "0.875rem", fontFamily: "var(--font-nrt-reg)", backgroundColor: "white", outline: "none" }}
+              value={filters.hasAttachment}
+              onChange={(e) => handleFilterChange('hasAttachment', e.target.value)}
+            >
+              <option value="all">هەموو</option>
+              <option value="yes">هەیە</option>
+              <option value="no">نیە</option>
+            </select>
+          </div>
         </div>
 
         {/* Third Row - Quantity and Price Ranges */}
@@ -757,105 +882,90 @@ export default function SoldPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "1800px", fontFamily: "var(--font-nrt-reg)" }}>
             <thead style={{ backgroundColor: "#f1f5f9", position: "sticky", top: 0 }}>
               <tr>
-                {/* ناوی کاڵا */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("name")}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     ناوی کاڵا <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("name")}</span>
                   </div>
                 </th>
 
-                {/* بارکۆد */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("barcode")}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     بارکۆد <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("barcode")}</span>
                   </div>
                 </th>
 
-                {/* عدد */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("quantity")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     عدد <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("quantity")}</span>
                   </div>
                 </th>
 
-                {/* نرخ (دینار) - IQD only, no decimals */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#059669", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("priceIQD")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.5rem" }}>
                     نرخ (دینار) <span style={{ fontSize: "0.75rem", color: "#059669" }}>{getSortIndicator("priceIQD")}</span>
                   </div>
                 </th>
 
-                {/* کۆی گشتی (دینار) - IQD only, no decimals */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#059669", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("totalPriceIQD")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.5rem" }}>
                     کۆی گشتی (دینار) <span style={{ fontSize: "0.75rem", color: "#059669" }}>{getSortIndicator("totalPriceIQD")}</span>
                   </div>
                 </th>
 
-                {/* نرخ ($) - USD with decimals */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#1e40af", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("priceUSD")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.5rem" }}>
                     نرخ ($) <span style={{ fontSize: "0.75rem", color: "#1e40af" }}>{getSortIndicator("priceUSD")}</span>
                   </div>
                 </th>
 
-                {/* کۆی گشتی ($) - USD with decimals */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#1e40af", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("totalPriceUSD")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "0.5rem" }}>
                     کۆی گشتی ($) <span style={{ fontSize: "0.75rem", color: "#1e40af" }}>{getSortIndicator("totalPriceUSD")}</span>
                   </div>
                 </th>
 
-                {/* ژمارەی پسوڵە */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("billNumber")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     ژمارەی پسوڵە <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("billNumber")}</span>
                   </div>
                 </th>
 
-                {/* دەرمانخانە */}
                 <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("pharmacyName")}>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                     دەرمانخانە <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("pharmacyName")}</span>
                   </div>
                 </th>
 
-                {/* بەرواری فرۆشتن */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("saleDate")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     بەرواری فرۆشتن <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("saleDate")}</span>
                   </div>
                 </th>
 
-                {/* جۆری پارەدان */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("paymentStatus")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     جۆری پارەدان <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("paymentStatus")}</span>
                   </div>
                 </th>
 
-                {/* دۆخی تحت صرف */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("isConsignment")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     دۆخی تحت صرف <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("isConsignment")}</span>
                   </div>
                 </th>
 
-                {/* بەرواری بەسەرچوون */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("expireDate")}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     بەرواری بەسەرچوون <span style={{ fontSize: "0.75rem", color: "#6b7280" }}>{getSortIndicator("expireDate")}</span>
                   </div>
                 </th>
 
-                {/* هاوپێچ */}
                 <th style={{ padding: "0.75rem", textAlign: "center", fontWeight: "bold", color: "#334155", fontFamily: "var(--font-nrt-bd)", borderBottom: "2px solid #e5e7eb" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem" }}>
                     هاوپێچ
                   </div>
                 </th>
 
-                {/* Admin fields - net price and base price (only for admin/superAdmin) */}
                 {['admin', 'superAdmin'].includes(userRole) && (
                   <>
                     <th style={{ padding: "0.75rem", textAlign: "right", fontWeight: "bold", color: "#ea580c", fontFamily: "var(--font-nrt-bd)", cursor: "pointer", borderBottom: "2px solid #e5e7eb" }} onClick={() => handleSort("netPriceIQD")}>
@@ -898,74 +1008,60 @@ export default function SoldPage() {
                       borderBottom: "1px solid #e2e8f0",
                     }}
                   >
-                    {/* ناوی کاڵا */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", fontWeight: "500", borderBottom: "1px solid #e2e8f0" }}>
                       {item.name}
                     </td>
 
-                    {/* بارکۆد */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", fontSize: "0.875rem", color: "#4b5563", borderBottom: "1px solid #e2e8f0" }}>
                       {item.barcode}
                     </td>
 
-                    {/* عدد */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "center", borderBottom: "1px solid #e2e8f0" }}>
                       {item.quantity}
                     </td>
 
-                    {/* نرخ (دینار) - IQD only, no decimals */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "right", borderBottom: "1px solid #e2e8f0", color: "#059669", fontWeight: item.originalCurrency === 'IQD' ? "600" : "normal" }}>
                       {item.originalCurrency === 'IQD' ? `${formatNumberIQD(item.priceIQD)} IQD` : ""}
                     </td>
 
-                    {/* کۆی گشتی (دینار) - IQD only, no decimals */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "right", borderBottom: "1px solid #e2e8f0", color: "#059669", fontWeight: item.originalCurrency === 'IQD' ? "600" : "normal" }}>
                       {item.originalCurrency === 'IQD' ? `${formatNumberIQD(item.totalPriceIQD)} IQD` : ""}
                     </td>
 
-                    {/* نرخ ($) - USD with decimals */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "right", borderBottom: "1px solid #e2e8f0", color: "#1e40af", fontWeight: item.originalCurrency === 'USD' ? "600" : "normal" }}>
                       {item.originalCurrency === 'USD' ? `${formatNumberUSD(item.priceUSD)} $` : ""}
                     </td>
 
-                    {/* کۆی گشتی ($) - USD with decimals */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "right", borderBottom: "1px solid #e2e8f0", color: "#1e40af", fontWeight: item.originalCurrency === 'USD' ? "600" : "normal" }}>
                       {item.originalCurrency === 'USD' ? `${formatNumberUSD(item.totalPriceUSD)} $` : ""}
                     </td>
 
-                    {/* ژمارەی پسوڵە */}
                     <td style={{ padding: "0.75rem", fontFamily: "monospace", textAlign: "center", borderBottom: "1px solid #e2e8f0" }}>
                       {item.billNumber}
                     </td>
 
-                    {/* دەرمانخانە */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", borderBottom: "1px solid #e2e8f0" }}>
                       {item.pharmacyName}
                     </td>
 
-                    {/* بەرواری فرۆشتن */}
                     <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "center", fontSize: "0.75rem", borderBottom: "1px solid #e2e8f0" }}>
                       {formatDate(item.saleDate)}
                     </td>
 
-                    {/* جۆری پارەدان */}
                     <td style={{ padding: "0.75rem", textAlign: "center", borderBottom: "1px solid #e2e8f0" }}>
                       <PaymentStatusBadge status={item.paymentStatus} />
                     </td>
 
-                    {/* دۆخی تحت صرف */}
                     <td style={{ padding: "0.75rem", textAlign: "center", borderBottom: "1px solid #e2e8f0" }}>
                       <ConsignmentBadge isConsignment={item.isConsignment} />
                     </td>
 
-                    {/* بەرواری بەسەرچوون */}
-                    <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "center", fontSize: "0.75rem", color: item.expireDate !== 'N/A' && new Date(item.expireDate) < new Date() ? "#dc2626" : "#4b5563", borderBottom: "1px solid #e2e8f0" }}>
+                    <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "center", fontSize: "0.75rem", color: item.expireDate && item.expireDate !== 'N/A' && new Date(item.expireDate) < new Date() ? "#dc2626" : "#4b5563", borderBottom: "1px solid #e2e8f0" }}>
                       {formatExpireDate(item.expireDate)}
                     </td>
 
-                    {/* هاوپێچ - Attachment button */}
                     <td style={{ padding: "0.75rem", textAlign: "center", borderBottom: "1px solid #e2e8f0" }}>
-                      {item.attachment ? (
+                      {item.hasAttachment || item.attachment ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -989,7 +1085,6 @@ export default function SoldPage() {
                       )}
                     </td>
 
-                    {/* Admin fields */}
                     {['admin', 'superAdmin'].includes(userRole) && (
                       <>
                         <td style={{ padding: "0.75rem", fontFamily: "var(--font-nrt-reg)", textAlign: "right", borderBottom: "1px solid #e2e8f0", color: "#ea580c" }}>
@@ -1010,7 +1105,6 @@ export default function SoldPage() {
                 ))
               )}
             </tbody>
-            {/* Totals Row */}
             <tfoot style={{ backgroundColor: "#f1f5f9", borderTop: "2px solid #e5e7eb" }}>
               <tr>
                 <td colSpan="2" style={{ padding: "0.75rem", textAlign: "right", fontFamily: "var(--font-nrt-bd)", fontWeight: "bold" }}>
@@ -1019,11 +1113,9 @@ export default function SoldPage() {
                 <td style={{ padding: "0.75rem", textAlign: "center", fontFamily: "var(--font-nrt-bd)", fontWeight: "bold" }}>
                   {totalQuantity}
                 </td>
-                {/* IQD Totals (Green) - No decimals */}
                 <td colSpan="2" style={{ padding: "0.75rem", textAlign: "right", fontFamily: "var(--font-nrt-bd)", fontWeight: "bold", color: "#059669" }}>
                   {formatNumberIQD(totalSumIQD)} IQD
                 </td>
-                {/* USD Totals (Dark Blue) - With decimals */}
                 <td colSpan="2" style={{ padding: "0.75rem", textAlign: "right", fontFamily: "var(--font-nrt-bd)", fontWeight: "bold", color: "#1e40af" }}>
                   {formatNumberUSD(totalSumUSD)} $
                 </td>
@@ -1055,7 +1147,7 @@ export default function SoldPage() {
             <div style={{ padding: "1.5rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
                 <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1f2937", fontFamily: "var(--font-nrt-bd)" }}>
-                  پسوڵەی #{attachmentModal.billNumber} - هاوبەش
+                  پسوڵەی #{attachmentModal.billNumber} - 
                 </h3>
                 <button
                   onClick={closeAttachmentModal}
@@ -1080,9 +1172,7 @@ export default function SoldPage() {
                       display: "block"
                     }}
                   />
-                  <div style={{ textAlign: "center", marginTop: "0.5rem", color: "#6b7280", fontSize: "0.875rem" }}>
-                    هاوبەشی ئێستا
-                  </div>
+              
                 </div>
               ) : (
                 <div style={{ textAlign: "center", padding: "2rem", color: "#9ca3af", fontSize: "0.875rem" }}>
@@ -1098,7 +1188,7 @@ export default function SoldPage() {
                   accept="image/*"
                   style={{ display: "none" }}
                 />
-                <button
+                {/* <button
                   onClick={triggerFileInput}
                   style={{
                     width: "100%",
@@ -1118,7 +1208,7 @@ export default function SoldPage() {
                   }}
                 >
                   📁 هەڵبژاردنی فایل
-                </button>
+                </button> */}
               </div>
 
               <div style={{ display: "flex", gap: "0.5rem" }}>
