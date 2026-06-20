@@ -5,7 +5,7 @@ import { getBoughtBills, getCompanies, deleteBoughtBill, updateBoughtBill } from
 import Card from "./Card";
 import { useRouter } from "next/navigation";
 import Select from "react-select";
-import { FiChevronUp, FiChevronDown } from "react-icons/fi";
+import { FiChevronUp, FiChevronDown, FiX, FiDownload, FiCamera, FiImage } from "react-icons/fi";
 
 // Helper functions
 const formatNumber = (number) => {
@@ -124,6 +124,15 @@ const formatDateForInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+// FIXED: Get out price based on bill's currency
+const getOutPrice = (item, billCurrency) => {
+  if (billCurrency === "USD") {
+    return item.outPriceUSD !== undefined && item.outPriceUSD !== null ? item.outPriceUSD : 0;
+  } else {
+    return item.outPriceIQD !== undefined && item.outPriceIQD !== null ? item.outPriceIQD : 0;
+  }
+};
+
 // FIXED: Get purchase price based on bill's currency
 const getPurchasePrice = (item, billCurrency) => {
   if (billCurrency === "USD") {
@@ -133,16 +142,14 @@ const getPurchasePrice = (item, billCurrency) => {
   }
 };
 
-// FIXED: Get net price based on bill's currency - uses the stored netPriceUSD/IQD
+// FIXED: Get net price based on bill's currency
 const getNetPrice = (item, billCurrency) => {
   if (billCurrency === "USD") {
-    // Use netPriceUSD if available, otherwise fallback to basePriceUSD + expenses
     if (item.netPriceUSD !== undefined && item.netPriceUSD !== null) {
       return item.netPriceUSD;
     }
     return item.netPrice !== undefined ? item.netPrice : item.basePriceUSD || 0;
   } else {
-    // Use netPriceIQD if available, otherwise fallback to basePriceIQD + expenses
     if (item.netPriceIQD !== undefined && item.netPriceIQD !== null) {
       return item.netPriceIQD;
     }
@@ -191,7 +198,9 @@ export default function BuyingList({ refreshTrigger }) {
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [displayCurrency, setDisplayCurrency] = useState("USD");
   const [sortConfig, setSortConfig] = useState({ key: 'billNumber', direction: 'desc' });
+  const [fullScreenImage, setFullScreenImage] = useState(null);
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -391,6 +400,23 @@ export default function BuyingList({ refreshTrigger }) {
     setAttachmentPreview(null);
   };
 
+  const openFullScreen = (imageData) => {
+    setFullScreenImage(imageData);
+  };
+
+  const closeFullScreen = () => {
+    setFullScreenImage(null);
+  };
+
+  const downloadImage = (imageData) => {
+    const link = document.createElement('a');
+    link.href = imageData;
+    link.download = `attachment_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -429,6 +455,12 @@ export default function BuyingList({ refreshTrigger }) {
       } else {
         alert('Please select an image file.');
       }
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
     }
   };
 
@@ -960,6 +992,12 @@ export default function BuyingList({ refreshTrigger }) {
           border-radius: 8px;
           margin-bottom: 1rem;
           background: #f9fafb;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+        }
+
+        .attachment-preview:hover {
+          transform: scale(1.02);
         }
 
         .attachment-placeholder {
@@ -973,7 +1011,7 @@ export default function BuyingList({ refreshTrigger }) {
 
         .modal-actions {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: repeat(4, 1fr);
           gap: 0.5rem;
           margin-top: 1rem;
         }
@@ -986,6 +1024,10 @@ export default function BuyingList({ refreshTrigger }) {
           border: none;
           cursor: pointer;
           transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
         }
 
         .modal-btn:disabled {
@@ -1020,6 +1062,15 @@ export default function BuyingList({ refreshTrigger }) {
           background: #2563eb;
         }
 
+        .modal-btn-camera {
+          background: #10b981;
+          color: white;
+        }
+
+        .modal-btn-camera:hover {
+          background: #059669;
+        }
+
         .file-input {
           display: none;
         }
@@ -1035,11 +1086,80 @@ export default function BuyingList({ refreshTrigger }) {
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
-          margin-bottom: 1rem;
+          margin-bottom: 0.5rem;
         }
 
         .file-upload-btn:hover {
           background: #e5e7eb;
+        }
+
+        /* Full Screen Image Viewer */
+        .fullscreen-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.95);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 1rem;
+        }
+
+        .fullscreen-content {
+          position: relative;
+          max-width: 90vw;
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .fullscreen-image {
+          max-width: 90vw;
+          max-height: 80vh;
+          object-fit: contain;
+          border-radius: 8px;
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .fullscreen-actions {
+          display: flex;
+          gap: 1rem;
+          margin-top: 1.5rem;
+        }
+
+        .fullscreen-btn {
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 8px;
+          font-size: 1rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .fullscreen-btn-close {
+          background: #ef4444;
+          color: white;
+        }
+
+        .fullscreen-btn-close:hover {
+          background: #dc2626;
+        }
+
+        .fullscreen-btn-download {
+          background: #3b82f6;
+          color: white;
+        }
+
+        .fullscreen-btn-download:hover {
+          background: #2563eb;
         }
 
         /* Empty State */
@@ -1088,7 +1208,7 @@ export default function BuyingList({ refreshTrigger }) {
           }
 
           .modal-actions {
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr;
           }
         }
 
@@ -1136,14 +1256,14 @@ export default function BuyingList({ refreshTrigger }) {
 
       <Card title="Purchase History">
         {/* Currency Toggle */}
-        <div className="currency-toggle">
+        {/* <div className="currency-toggle">
           <button onClick={toggleCurrency} className="currency-button">
             <span>Show in {displayCurrency === "USD" ? "IQD" : "USD"}</span>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
           </button>
-        </div>
+        </div> */}
 
         {/* Search Filters Section */}
         <div className="filter-section">
@@ -1466,7 +1586,7 @@ export default function BuyingList({ refreshTrigger }) {
                               </div>
                             </div>
 
-                            {/* Items Table */}
+                            {/* Items Table - FIXED: Shows OUT PRICE based on bill currency */}
                             <div className="items-table-container">
                               <h5 className="font-semibold text-gray-700 mb-3 text-sm px-4 pt-4">Items List</h5>
                               <table className="items-table">
@@ -1477,7 +1597,7 @@ export default function BuyingList({ refreshTrigger }) {
                                     <th className="text-center">Qty</th>
                                     <th className="text-right">Base Price</th>
                                     <th className="text-right">Net Price</th>
-                                    <th className="text-right">Net Price</th>
+                                    <th className="text-right">Out Price</th>
                                     <th className="text-center">Expire Date</th>
                                   </tr>
                                 </thead>
@@ -1487,10 +1607,10 @@ export default function BuyingList({ refreshTrigger }) {
                                     const quantity = item.quantity || 0;
                                     const billCurrency = bill.currency || "USD";
 
-                                    // FIXED: Get the correct base price based on bill currency
+                                    // FIXED: Get the correct prices based on bill currency
                                     const basePrice = getPurchasePrice(item, billCurrency);
-                                    // FIXED: Get the correct net price based on bill currency
                                     const netPrice = getNetPrice(item, billCurrency);
+                                    const outPrice = getOutPrice(item, billCurrency);
 
                                     return (
                                       <tr key={index}>
@@ -1525,6 +1645,19 @@ export default function BuyingList({ refreshTrigger }) {
                                             </div>
                                           </div>
                                         </td>
+                                        {/* FIXED: OUT PRICE column - shows the selling price in the bill's currency */}
+                                        <td className="text-right">
+                                          <div className="price-display">
+                                            <div className="purchase-price" style={{ color: '#059669', fontWeight: 'bold' }}>
+                                              {billCurrency === "USD" 
+                                                ? `$${formatNumber(outPrice)}` 
+                                                : `${formatNumber(outPrice)} IQD`}
+                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                {billCurrency}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </td>
                                         <td className="text-center">
                                           <span className={`expire-badge ${expireDate === 'N/A' ? 'expire-na' : 'expire-ok'}`}>
                                             {expireDate}
@@ -1549,6 +1682,13 @@ export default function BuyingList({ refreshTrigger }) {
                                         {bill.currency === "USD" 
                                           ? `$${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))}`
                                           : `${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                      </div>
+                                    </td>
+                                    <td className="text-right font-bold">
+                                      <div className="price-display" style={{ color: '#059669' }}>
+                                        {bill.currency === "USD" 
+                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))}`
+                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))} IQD`}
                                       </div>
                                     </td>
                                     <td></td>
@@ -1576,16 +1716,16 @@ export default function BuyingList({ refreshTrigger }) {
           </div>
         )}
 
-        {/* Attachment Modal */}
+        {/* Attachment Modal with Full Screen and Camera Support */}
         {attachmentModal && (
-          <div className="modal-overlay">
+          <div className="modal-overlay" onClick={(e) => {
+            if (e.target === e.currentTarget) closeAttachmentModal();
+          }}>
             <div className="modal-content">
               <div className="modal-header">
                 <h3>Bill #{attachmentModal.billNumber} - Attachment</h3>
                 <button onClick={closeAttachmentModal} className="modal-close">
-                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <FiX size={24} />
                 </button>
               </div>
               <div className="modal-body">
@@ -1595,11 +1735,16 @@ export default function BuyingList({ refreshTrigger }) {
                     alt="Bill Attachment"
                     className="attachment-preview"
                     style={{ filter: 'grayscale(100%)' }}
+                    onClick={() => openFullScreen(attachmentPreview)}
+                    title="Click to view full screen"
                   />
                 ) : (
                   <div className="attachment-placeholder">
-                    <div className="icon">📎</div>
+                    <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📎</div>
                     <div>No attachment yet</div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#d1d5db' }}>
+                      Upload an image or take a photo
+                    </div>
                   </div>
                 )}
 
@@ -1611,8 +1756,23 @@ export default function BuyingList({ refreshTrigger }) {
                   className="file-input"
                 />
                 <button onClick={triggerFileInput} className="file-upload-btn">
-                  📁 Choose File from Device
+                  <FiImage style={{ display: 'inline', marginRight: '0.5rem' }} />
+                  Choose File from Device
                 </button>
+
+                <button onClick={handleCameraCapture} className="file-upload-btn" style={{ background: '#10b981', color: 'white', border: 'none' }}>
+                  <FiCamera style={{ display: 'inline', marginRight: '0.5rem' }} />
+                  Take Photo with Camera
+                </button>
+
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  capture="environment"
+                  className="file-input"
+                />
 
                 <div className="modal-actions">
                   <button
@@ -1620,6 +1780,7 @@ export default function BuyingList({ refreshTrigger }) {
                     className="modal-btn modal-btn-remove"
                     disabled={!attachmentModal.attachment && !attachmentPreview}
                   >
+                    <FiX size={16} />
                     Remove
                   </button>
                   <button
@@ -1636,6 +1797,37 @@ export default function BuyingList({ refreshTrigger }) {
                     Save
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Full Screen Image Viewer */}
+        {fullScreenImage && (
+          <div className="fullscreen-overlay" onClick={(e) => {
+            if (e.target === e.currentTarget) closeFullScreen();
+          }}>
+            <div className="fullscreen-content">
+              <img
+                src={fullScreenImage}
+                alt="Full screen attachment"
+                className="fullscreen-image"
+              />
+              <div className="fullscreen-actions">
+                <button
+                  onClick={closeFullScreen}
+                  className="fullscreen-btn fullscreen-btn-close"
+                >
+                  <FiX size={20} />
+                  Close
+                </button>
+                <button
+                  onClick={() => downloadImage(fullScreenImage)}
+                  className="fullscreen-btn fullscreen-btn-download"
+                >
+                  <FiDownload size={20} />
+                  Download
+                </button>
               </div>
             </div>
           </div>

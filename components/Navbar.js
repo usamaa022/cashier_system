@@ -10,44 +10,15 @@ export default function Navbar() {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [isAccountsOpen, setIsAccountsOpen] = useState(false);
-  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
-  const [isSalesOpen, setIsSalesOpen] = useState(false);
-  const [isTransportOpen, setIsTransportOpen] = useState(false);
-  const [isBuyingOpen, setIsBuyingOpen] = useState(false);
-  const [isPaymentsOpen, setIsPaymentsOpen] = useState(false);
-  const [isEmployeeOpen, setIsEmployeeOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
 
-  const accountsRef = useRef(null);
-  const inventoryRef = useRef(null);
-  const salesRef = useRef(null);
-  const transportRef = useRef(null);
-  const buyingRef = useRef(null);
-  const paymentsRef = useRef(null);
-  const employeeRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (accountsRef.current && !accountsRef.current.contains(event.target)) {
-        setIsAccountsOpen(false);
-      }
-      if (inventoryRef.current && !inventoryRef.current.contains(event.target)) {
-        setIsInventoryOpen(false);
-      }
-      if (salesRef.current && !salesRef.current.contains(event.target)) {
-        setIsSalesOpen(false);
-      }
-      if (transportRef.current && !transportRef.current.contains(event.target)) {
-        setIsTransportOpen(false);
-      }
-      if (buyingRef.current && !buyingRef.current.contains(event.target)) {
-        setIsBuyingOpen(false);
-      }
-      if (paymentsRef.current && !paymentsRef.current.contains(event.target)) {
-        setIsPaymentsOpen(false);
-      }
-      if (employeeRef.current && !employeeRef.current.contains(event.target)) {
-        setIsEmployeeOpen(false);
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setIsMobileMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -61,264 +32,114 @@ export default function Navbar() {
     router.push("/login");
   };
 
-  const navLinks = [{ href: "/statements", label: "Statements" }];
+  const isLoginPage = pathname === '/login';
+  
+  if (isLoginPage || !user) {
+    return null;
+  }
+
+  const toggleDropdown = (name) => {
+    setOpenDropdown(openDropdown === name ? null : name);
+  };
 
   return (
-    <nav
-      className="navbar"
-      style={{
-        backgroundColor: "#fff",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-        position: "sticky",
-        top: 0,
-        zIndex: 1000,
-        width: "100%",
-      }}
-    >
-      <div className="container">
+    <>
+      <nav
+        style={{
+          backgroundColor: "#fff",
+          boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          width: "100%",
+          padding: "0.5rem 0",
+        }}
+      >
         <div
           style={{
+            maxWidth: "1280px",
+            margin: "0 auto",
+            padding: "0 1rem",
+            width: "100%",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
-            height: "100%",
+            justifyContent: "space-between",
           }}
         >
+          {/* Logo */}
           <Link
             href="/"
             style={{
-              fontSize: "1.25rem",
+              fontSize: "1.1rem",
               fontWeight: "bold",
               color: "#3b82f6",
               textDecoration: "none",
+              whiteSpace: "nowrap",
+              flexShrink: 0,
             }}
           >
             Aran Med Store
           </Link>
+
+          {/* Desktop Navigation */}
           <div
             style={{
-              display: "flex",
-              gap: "1rem",
-              height: "100%",
+              display: "none",
               alignItems: "center",
+              gap: "0.25rem",
+              flexWrap: "wrap",
             }}
+            className="desktop-nav"
           >
-            {navLinks.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="nav-link"
-                style={{
-                  borderBottom:
-                    pathname === link.href ? "2px solid #3b82f6" : "none",
-                  color: pathname === link.href ? "#3b82f6" : "var(--gray)",
-                  textDecoration: "none",
-                  padding: "0.5rem 0",
-                  position: "relative",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {link.label}
-              </Link>
-            ))}
-
-            {/* Employee Management Dropdown - Only for superAdmin */}
-            {/* {user?.role === "superAdmin" && (
-              <div ref={employeeRef} style={{ position: "relative" }}>
-                <button
-                  onClick={() => setIsEmployeeOpen(!isEmployeeOpen)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: pathname.includes("/employee")
-                      ? "#3b82f6"
-                      : "var(--gray)",
-                    fontSize: "1rem",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.25rem",
-                    padding: "0.5rem 0",
-                    borderBottom: pathname.includes("/employee")
-                      ? "2px solid #3b82f6"
-                      : "none",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  Employee Management
-                  <svg
-                    style={{
-                      width: "16px",
-                      height: "16px",
-                      transition: "transform 0.2s ease",
-                      transform: isEmployeeOpen ? "rotate(180deg)" : "rotate(0deg)",
-                    }}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-                {isEmployeeOpen && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "100%",
-                      width: "220px",
-                      backgroundColor: "#fff",
-                      borderRadius: "0.375rem",
-                      boxShadow:
-                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                      padding: "0.5rem 0",
-                      zIndex: 50,
-                      border: "1px solid #e5e7eb",
-                    }}
-                  >
-                    <Link
-                      href="/employee_accounts"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_accounts")
-                          ? "#3b82f6"
-                          : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/employee_accounts")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
-                      }}
-                      onClick={() => setIsEmployeeOpen(false)}
-                    >
-                      Employee Accounts
-                    </Link>
-                    <Link
-                      href="/employee_purchases"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_purchases")
-                          ? "#3b82f6"
-                          : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/employee_purchases")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
-                      }}
-                      onClick={() => setIsEmployeeOpen(false)}
-                    >
-                      Create Purchase
-                    </Link>
-                    <Link
-                      href="/shipment_arrivals"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/shipment_arrivals")
-                          ? "#3b82f6"
-                          : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/shipment_arrivals")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
-                      }}
-                      onClick={() => setIsEmployeeOpen(false)}
-                    >
-                      Record Shipment
-                    </Link>
-                    <Link
-                      href="/employee_purchases_history"
-                      style={{
-                        display: "block",
-                        padding: "0.5rem 1rem",
-                        color: pathname.includes("/employee_purchases_history")
-                          ? "#3b82f6"
-                          : "#374151",
-                        textDecoration: "none",
-                        transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes(
-                          "/employee_purchases_history"
-                        )
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
-                      }}
-                      onClick={() => setIsEmployeeOpen(false)}
-                    >
-                      Purchase History
-                    </Link>
-                  </div>
-                )}
-              </div>
-            )} */}
-
             {/* Buying Dropdown - Only for superAdmin */}
             {user?.role === "superAdmin" && (
-              <div ref={buyingRef} style={{ position: "relative" }}>
+              <div style={{ position: "relative" }}>
                 <button
-                  onClick={() => setIsBuyingOpen(!isBuyingOpen)}
+                  onClick={() => toggleDropdown('buying')}
                   style={{
                     background: "none",
                     border: "none",
-                    color: pathname.includes("/buying") ? "#3b82f6" : "var(--gray)",
-                    fontSize: "1rem",
+                    color: pathname.includes("/buying") ? "#3b82f6" : "#6b7280",
+                    fontSize: "0.85rem",
                     fontWeight: 500,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.25rem",
-                    padding: "0.5rem 0",
-                    borderBottom: pathname.includes("/buying")
-                      ? "2px solid #3b82f6"
-                      : "none",
+                    padding: "0.5rem 0.6rem",
+                    borderRadius: "6px",
                     transition: "all 0.2s ease",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   Buying
                   <svg
                     style={{
-                      width: "16px",
-                      height: "16px",
+                      width: "14px",
+                      height: "14px",
                       transition: "transform 0.2s ease",
-                      transform: isBuyingOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transform: openDropdown === 'buying' ? "rotate(180deg)" : "rotate(0deg)",
                     }}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                {isBuyingOpen && (
+                {openDropdown === 'buying' && (
                   <div
                     style={{
                       position: "absolute",
-                      right: 0,
                       top: "100%",
-                      width: "200px",
+                      left: 0,
+                      minWidth: "180px",
                       backgroundColor: "#fff",
-                      borderRadius: "0.375rem",
-                      boxShadow:
-                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                       padding: "0.5rem 0",
-                      zIndex: 50,
                       border: "1px solid #e5e7eb",
+                      zIndex: 50,
                     }}
                   >
                     <Link
@@ -326,54 +147,40 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/buying")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/buying" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/buying")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsBuyingOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Buying Form
                     </Link>
                     <Link
                       href="/bought_returns"
-                      className="nav-link"
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/bought_returns")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/bought_returns" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/bought_returns")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsBuyingOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Bought Returns
                     </Link>
                     <Link
                       href="/Bought_Statement"
-                      className="nav-link"
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/Bought_Statement")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/Bought_Statement" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/Bought_Statement")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsBuyingOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Bought Statement
                     </Link>
@@ -382,66 +189,165 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Inventory Dropdown */}
-            <div ref={inventoryRef} style={{ position: "relative" }}>
+            {/* Sales Dropdown with Statements inside */}
+            <div style={{ position: "relative" }}>
               <button
-                onClick={() => setIsInventoryOpen(!isInventoryOpen)}
+                onClick={() => toggleDropdown('sales')}
                 style={{
                   background: "none",
                   border: "none",
-                  color:
-                    pathname.includes("/items") || pathname.includes("/store")
-                      ? "#3b82f6"
-                      : "var(--gray)",
-                  fontSize: "1rem",
+                  color: pathname.includes("/selling") || pathname.includes("/sold") || pathname.includes("/return") || pathname === "/statements" ? "#3b82f6" : "#6b7280",
+                  fontSize: "0.85rem",
                   fontWeight: 500,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.25rem",
-                  padding: "0.5rem 0",
-                  borderBottom:
-                    pathname.includes("/items") || pathname.includes("/store")
-                      ? "2px solid #3b82f6"
-                      : "none",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "6px",
                   transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Sales
+                <svg
+                  style={{
+                    width: "14px",
+                    height: "14px",
+                    transition: "transform 0.2s ease",
+                    transform: openDropdown === 'sales' ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {openDropdown === 'sales' && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    minWidth: "180px",
+                    backgroundColor: "#fff",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    padding: "0.5rem 0",
+                    border: "1px solid #e5e7eb",
+                    zIndex: 50,
+                  }}
+                >
+                  <Link
+                    href="/selling"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname === "/selling" ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      fontSize: "0.85rem",
+                      transition: "all 0.2s ease",
+                    }}
+                    onClick={() => setOpenDropdown(null)}
+                  >
+                    Create Sale
+                  </Link>
+                  <Link
+                    href="/sold"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname === "/sold" ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      fontSize: "0.85rem",
+                      transition: "all 0.2s ease",
+                    }}
+                    onClick={() => setOpenDropdown(null)}
+                  >
+                    Sales History
+                  </Link>
+                  <Link
+                    href="/return"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname === "/return" ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      fontSize: "0.85rem",
+                      transition: "all 0.2s ease",
+                    }}
+                    onClick={() => setOpenDropdown(null)}
+                  >
+                    Returns
+                  </Link>
+                  <div style={{ borderTop: "1px solid #e5e7eb", margin: "0.25rem 0" }} />
+                  <Link
+                    href="/statements"
+                    style={{
+                      display: "block",
+                      padding: "0.5rem 1rem",
+                      color: pathname === "/statements" ? "#3b82f6" : "#374151",
+                      textDecoration: "none",
+                      fontSize: "0.85rem",
+                      transition: "all 0.2s ease",
+                    }}
+                    onClick={() => setOpenDropdown(null)}
+                  >
+                    Statements
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* Inventory Dropdown */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => toggleDropdown('inventory')}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: pathname.includes("/items") || pathname.includes("/store") ? "#3b82f6" : "#6b7280",
+                  fontSize: "0.85rem",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "6px",
+                  transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
                 }}
               >
                 Inventory
                 <svg
                   style={{
-                    width: "16px",
-                    height: "16px",
+                    width: "14px",
+                    height: "14px",
                     transition: "transform 0.2s ease",
-                    transform: isInventoryOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transform: openDropdown === 'inventory' ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {isInventoryOpen && (
+              {openDropdown === 'inventory' && (
                 <div
                   style={{
                     position: "absolute",
-                    right: 0,
                     top: "100%",
-                    width: "200px",
+                    left: 0,
+                    minWidth: "180px",
                     backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow:
-                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
-                    zIndex: 50,
                     border: "1px solid #e5e7eb",
+                    zIndex: 50,
                   }}
                 >
                   {user?.role !== "employee" && (
@@ -450,16 +356,12 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/items")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/items" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/items")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsInventoryOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Items
                     </Link>
@@ -469,16 +371,12 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/store")
-                        ? "#3b82f6"
-                        : "#374151",
+                      color: pathname === "/store" ? "#3b82f6" : "#374151",
                       textDecoration: "none",
+                      fontSize: "0.85rem",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/store")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
                     }}
-                    onClick={() => setIsInventoryOpen(false)}
+                    onClick={() => setOpenDropdown(null)}
                   >
                     Store
                   </Link>
@@ -486,186 +384,54 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Sales Dropdown */}
-            <div ref={salesRef} style={{ position: "relative" }}>
-              <button
-                onClick={() => setIsSalesOpen(!isSalesOpen)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color:
-                    pathname.includes("/selling") ||
-                    pathname.includes("/sold") ||
-                    pathname.includes("/return")
-                      ? "#3b82f6"
-                      : "var(--gray)",
-                  fontSize: "1rem",
-                  fontWeight: 500,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.25rem",
-                  padding: "0.5rem 0",
-                  borderBottom:
-                    pathname.includes("/selling") ||
-                    pathname.includes("/sold") ||
-                    pathname.includes("/return")
-                      ? "2px solid #3b82f6"
-                      : "none",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                Sales
-                <svg
-                  style={{
-                    width: "16px",
-                    height: "16px",
-                    transition: "transform 0.2s ease",
-                    transform: isSalesOpen ? "rotate(180deg)" : "rotate(0deg)",
-                  }}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-              {isSalesOpen && (
-                <div
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: "100%",
-                    width: "200px",
-                    backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow:
-                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
-                    padding: "0.5rem 0",
-                    zIndex: 50,
-                    border: "1px solid #e5e7eb",
-                  }}
-                >
-                  <Link
-                    href="/selling"
-                    style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/selling")
-                        ? "#3b82f6"
-                        : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/selling")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
-                    }}
-                    onClick={() => setIsSalesOpen(false)}
-                  >
-                    Sales
-                  </Link>
-                  <Link
-                    href="/sold"
-                    style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/sold")
-                        ? "#3b82f6"
-                        : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/sold")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
-                    }}
-                    onClick={() => setIsSalesOpen(false)}
-                  >
-                    Sales History
-                  </Link>
-                  <Link
-                    href="/return"
-                    style={{
-                      display: "block",
-                      padding: "0.5rem 1rem",
-                      color: pathname.includes("/return")
-                        ? "#3b82f6"
-                        : "#374151",
-                      textDecoration: "none",
-                      transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/return")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
-                    }}
-                    onClick={() => setIsSalesOpen(false)}
-                  >
-                    Return
-                  </Link>
-                </div>
-              )}
-            </div>
-
             {/* Payments Dropdown */}
-            <div ref={paymentsRef} style={{ position: "relative" }}>
+            <div style={{ position: "relative" }}>
               <button
-                onClick={() => setIsPaymentsOpen(!isPaymentsOpen)}
+                onClick={() => toggleDropdown('payments')}
                 style={{
                   background: "none",
                   border: "none",
-                  color: pathname.includes("/payments") ? "#3b82f6" : "var(--gray)",
-                  fontSize: "1rem",
+                  color: pathname.includes("/payments") ? "#3b82f6" : "#6b7280",
+                  fontSize: "0.85rem",
                   fontWeight: 500,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.25rem",
-                  padding: "0.5rem 0",
-                  borderBottom: pathname.includes("/payments")
-                    ? "2px solid #3b82f6"
-                    : "none",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "6px",
                   transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
                 }}
               >
                 Payments
                 <svg
                   style={{
-                    width: "16px",
-                    height: "16px",
+                    width: "14px",
+                    height: "14px",
                     transition: "transform 0.2s ease",
-                    transform: isPaymentsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transform: openDropdown === 'payments' ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {isPaymentsOpen && (
+              {openDropdown === 'payments' && (
                 <div
                   style={{
                     position: "absolute",
-                    right: 0,
                     top: "100%",
-                    width: "200px",
+                    left: 0,
+                    minWidth: "180px",
                     backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow:
-                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
-                    zIndex: 50,
                     border: "1px solid #e5e7eb",
+                    zIndex: 50,
                   }}
                 >
                   <Link
@@ -673,16 +439,12 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/payments/create")
-                        ? "#3b82f6"
-                        : "#374151",
+                      color: pathname === "/payments/create" ? "#3b82f6" : "#374151",
                       textDecoration: "none",
+                      fontSize: "0.85rem",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/payments/create")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
                     }}
-                    onClick={() => setIsPaymentsOpen(false)}
+                    onClick={() => setOpenDropdown(null)}
                   >
                     Sales Payment
                   </Link>
@@ -692,16 +454,12 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/bought_payments/")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname.includes("/bought_payments/") ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/bought_payments/")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsPaymentsOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Buy Payment
                     </Link>
@@ -710,62 +468,54 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Transport Dropdown - Visible to all roles */}
-            <div ref={transportRef} style={{ position: "relative" }}>
+            {/* Transport Dropdown */}
+            <div style={{ position: "relative" }}>
               <button
-                onClick={() => setIsTransportOpen(!isTransportOpen)}
+                onClick={() => toggleDropdown('transport')}
                 style={{
                   background: "none",
                   border: "none",
-                  color: pathname.includes("/transport") ? "#3b82f6" : "var(--gray)",
-                  fontSize: "1rem",
+                  color: pathname.includes("/transport") ? "#3b82f6" : "#6b7280",
+                  fontSize: "0.85rem",
                   fontWeight: 500,
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: "0.25rem",
-                  padding: "0.5rem 0",
-                  borderBottom: pathname.includes("/transport")
-                    ? "2px solid #3b82f6"
-                    : "none",
+                  padding: "0.5rem 0.6rem",
+                  borderRadius: "6px",
                   transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
                 }}
               >
                 Transport
                 <svg
                   style={{
-                    width: "16px",
-                    height: "16px",
+                    width: "14px",
+                    height: "14px",
                     transition: "transform 0.2s ease",
-                    transform: isTransportOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transform: openDropdown === 'transport' ? "rotate(180deg)" : "rotate(0deg)",
                   }}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
-                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
-              {isTransportOpen && (
+              {openDropdown === 'transport' && (
                 <div
                   style={{
                     position: "absolute",
-                    right: 0,
                     top: "100%",
-                    width: "200px",
+                    left: 0,
+                    minWidth: "180px",
                     backgroundColor: "#fff",
-                    borderRadius: "0.375rem",
-                    boxShadow:
-                      "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                    borderRadius: "8px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
-                    zIndex: 50,
                     border: "1px solid #e5e7eb",
+                    zIndex: 50,
                   }}
                 >
                   <Link
@@ -773,16 +523,12 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/transport/send")
-                        ? "#3b82f6"
-                        : "#374151",
+                      color: pathname === "/transport/send" ? "#3b82f6" : "#374151",
                       textDecoration: "none",
+                      fontSize: "0.85rem",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/transport/send")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
                     }}
-                    onClick={() => setIsTransportOpen(false)}
+                    onClick={() => setOpenDropdown(null)}
                   >
                     Send Transport
                   </Link>
@@ -791,16 +537,12 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/transport/receive")
-                        ? "#3b82f6"
-                        : "#374151",
+                      color: pathname === "/transport/receive" ? "#3b82f6" : "#374151",
                       textDecoration: "none",
+                      fontSize: "0.85rem",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes("/transport/receive")
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
                     }}
-                    onClick={() => setIsTransportOpen(false)}
+                    onClick={() => setOpenDropdown(null)}
                   >
                     Receive Transport
                   </Link>
@@ -809,18 +551,12 @@ export default function Navbar() {
                     style={{
                       display: "block",
                       padding: "0.5rem 1rem",
-                      color: pathname.includes("/transport/transportHistory")
-                        ? "#3b82f6"
-                        : "#374151",
+                      color: pathname === "/transport/transportHistory" ? "#3b82f6" : "#374151",
                       textDecoration: "none",
+                      fontSize: "0.85rem",
                       transition: "all 0.2s ease",
-                      backgroundColor: pathname.includes(
-                        "/transport/transportHistory"
-                      )
-                        ? "rgba(59, 130, 246, 0.1)"
-                        : "transparent",
                     }}
-                    onClick={() => setIsTransportOpen(false)}
+                    onClick={() => setOpenDropdown(null)}
                   >
                     Transport History
                   </Link>
@@ -828,69 +564,55 @@ export default function Navbar() {
               )}
             </div>
 
-            {/* Accounts Dropdown - Only for admin and superAdmin */}
+            {/* Accounts Dropdown */}
             {(user?.role === "admin" || user?.role === "superAdmin") && (
-              <div ref={accountsRef} style={{ position: "relative" }}>
+              <div style={{ position: "relative" }}>
                 <button
-                  onClick={() => setIsAccountsOpen(!isAccountsOpen)}
+                  onClick={() => toggleDropdown('accounts')}
                   style={{
                     background: "none",
                     border: "none",
-                    color:
-                      pathname.includes("/companies") ||
-                      pathname.includes("/pharmacies")
-                        ? "#3b82f6"
-                        : "var(--gray)",
-                    fontSize: "1rem",
+                    color: pathname.includes("/companies") || pathname.includes("/pharmacies") ? "#3b82f6" : "#6b7280",
+                    fontSize: "0.85rem",
                     fontWeight: 500,
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.25rem",
-                    padding: "0.5rem 0",
-                    borderBottom:
-                      pathname.includes("/companies") ||
-                      pathname.includes("/pharmacies")
-                        ? "2px solid #3b82f6"
-                        : "none",
+                    padding: "0.5rem 0.6rem",
+                    borderRadius: "6px",
                     transition: "all 0.2s ease",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   Accounts
                   <svg
                     style={{
-                      width: "16px",
-                      height: "16px",
+                      width: "14px",
+                      height: "14px",
                       transition: "transform 0.2s ease",
-                      transform: isAccountsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                      transform: openDropdown === 'accounts' ? "rotate(180deg)" : "rotate(0deg)",
                     }}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                {isAccountsOpen && (
+                {openDropdown === 'accounts' && (
                   <div
                     style={{
                       position: "absolute",
-                      right: 0,
                       top: "100%",
-                      width: "200px",
+                      left: 0,
+                      minWidth: "180px",
                       backgroundColor: "#fff",
-                      borderRadius: "0.375rem",
-                      boxShadow:
-                        "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+                      borderRadius: "8px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                       padding: "0.5rem 0",
-                      zIndex: 50,
                       border: "1px solid #e5e7eb",
+                      zIndex: 50,
                     }}
                   >
                     <Link
@@ -898,16 +620,12 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/pharmacies")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/pharmacies" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/pharmacies")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsAccountsOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Pharmacies
                     </Link>
@@ -916,16 +634,12 @@ export default function Navbar() {
                       style={{
                         display: "block",
                         padding: "0.5rem 1rem",
-                        color: pathname.includes("/companies")
-                          ? "#3b82f6"
-                          : "#374151",
+                        color: pathname === "/companies" ? "#3b82f6" : "#374151",
                         textDecoration: "none",
+                        fontSize: "0.85rem",
                         transition: "all 0.2s ease",
-                        backgroundColor: pathname.includes("/companies")
-                          ? "rgba(59, 130, 246, 0.1)"
-                          : "transparent",
                       }}
-                      onClick={() => setIsAccountsOpen(false)}
+                      onClick={() => setOpenDropdown(null)}
                     >
                       Companies
                     </Link>
@@ -933,30 +647,457 @@ export default function Navbar() {
                 )}
               </div>
             )}
+          </div>
 
-            {/* User Info and Login/Logout */}
-            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-              {user ? (
-                <>
-                  <div style={{ color: "#374151", fontWeight: 500 }}>
-                    {user.email} ({user.role})
-                  </div>
-                  <button
-                    onClick={handleLogout}
-                    style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer" }}
-                  >
-                    Logout
-                  </button>
-                </>
-              ) : (
-                <Link href="/login" style={{ color: "#3b82f6", textDecoration: "none" }}>
-                  Login
-                </Link>
-              )}
+          {/* Right side - User & Mobile Menu */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+            {/* User Badge - Desktop only */}
+            <div
+              style={{
+                display: "none",
+                color: "#374151",
+                fontWeight: 500,
+                fontSize: "0.75rem",
+                backgroundColor: "#f3f4f6",
+                padding: "0.25rem 0.6rem",
+                borderRadius: "20px",
+                border: "1px solid #e5e7eb",
+                whiteSpace: "nowrap",
+              }}
+              className="user-badge"
+            >
+              {user?.email}
             </div>
+
+            {/* Logout Button - Desktop only (hidden on mobile) */}
+            {/* <button
+              onClick={handleLogout}
+              style={{
+                backgroundColor: "#ef4444",
+                color: "white",
+                border: "none",
+                padding: "0.35rem 0.8rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.8rem",
+                boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
+                transition: "all 0.2s ease",
+                whiteSpace: "nowrap",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+                flexShrink: 0,
+              }}
+              className="desktop-logout"
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#dc2626";
+                e.target.style.transform = "scale(1.05)";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#ef4444";
+                e.target.style.transform = "scale(1)";
+              }}
+            >
+              <span style={{ fontSize: "0.9rem" }}>🚪</span>
+              <span className="logout-text">Logout</span>
+            </button> */}
+
+            {/* Mobile Menu Toggle */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              style={{
+                display: "flex",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "0.25rem",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#6b7280",
+              }}
+              className="mobile-toggle"
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {isMobileMenuOpen ? (
+                  <>
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </>
+                ) : (
+                  <>
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </>
+                )}
+              </svg>
+            </button>
           </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div
+          ref={mobileMenuRef}
+          style={{
+            position: "fixed",
+            top: "56px",
+            left: 0,
+            right: 0,
+            backgroundColor: "#fff",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+            padding: "1rem",
+            zIndex: 999,
+            maxHeight: "calc(100vh - 56px)",
+            overflowY: "auto",
+            borderTop: "1px solid #e5e7eb",
+          }}
+        >
+          {/* Buying - FIRST in mobile menu (only for superAdmin) */}
+          {user?.role === "superAdmin" && (
+            <div style={{ marginBottom: "0.5rem" }}>
+              <button
+                onClick={() => toggleDropdown('mobile-buying')}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#374151",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "0.5rem 0",
+                  borderBottom: "1px solid #f3f4f6",
+                }}
+              >
+                Buying
+                <svg
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    transition: "transform 0.2s ease",
+                    transform: openDropdown === 'mobile-buying' ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {openDropdown === 'mobile-buying' && (
+                <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                  <Link href="/buying" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Buying Form</Link>
+                  <Link href="/bought_returns" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Bought Returns</Link>
+                  <Link href="/Bought_Statement" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Bought Statement</Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Sales */}
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              onClick={() => toggleDropdown('mobile-sales')}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#374151",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0.5rem 0",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              Sales
+              <svg
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  transition: "transform 0.2s ease",
+                  transform: openDropdown === 'mobile-sales' ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openDropdown === 'mobile-sales' && (
+              <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                <Link href="/selling" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Create Sale</Link>
+                <Link href="/sold" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Sales History</Link>
+                <Link href="/return" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Returns</Link>
+                <Link href="/statements" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Statements</Link>
+              </div>
+            )}
+          </div>
+
+          {/* Inventory */}
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              onClick={() => toggleDropdown('mobile-inventory')}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#374151",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0.5rem 0",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              Inventory
+              <svg
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  transition: "transform 0.2s ease",
+                  transform: openDropdown === 'mobile-inventory' ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openDropdown === 'mobile-inventory' && (
+              <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                {user?.role !== "employee" && (
+                  <Link href="/items" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Items</Link>
+                )}
+                <Link href="/store" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Store</Link>
+              </div>
+            )}
+          </div>
+
+          {/* Payments */}
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              onClick={() => toggleDropdown('mobile-payments')}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#374151",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0.5rem 0",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              Payments
+              <svg
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  transition: "transform 0.2s ease",
+                  transform: openDropdown === 'mobile-payments' ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openDropdown === 'mobile-payments' && (
+              <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                <Link href="/payments/create" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Sales Payment</Link>
+                {user?.role === "superAdmin" && (
+                  <Link href="/bought_payments/" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Buy Payment</Link>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Transport */}
+          <div style={{ marginBottom: "0.5rem" }}>
+            <button
+              onClick={() => toggleDropdown('mobile-transport')}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#374151",
+                fontSize: "1rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                width: "100%",
+                padding: "0.5rem 0",
+                borderBottom: "1px solid #f3f4f6",
+              }}
+            >
+              Transport
+              <svg
+                style={{
+                  width: "18px",
+                  height: "18px",
+                  transition: "transform 0.2s ease",
+                  transform: openDropdown === 'mobile-transport' ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {openDropdown === 'mobile-transport' && (
+              <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                <Link href="/transport/send" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Send Transport</Link>
+                <Link href="/transport/receive" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Receive Transport</Link>
+                <Link href="/transport/transportHistory" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Transport History</Link>
+              </div>
+            )}
+          </div>
+
+          {/* Accounts */}
+          {(user?.role === "admin" || user?.role === "superAdmin") && (
+            <div style={{ marginBottom: "0.5rem" }}>
+              <button
+                onClick={() => toggleDropdown('mobile-accounts')}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#374151",
+                  fontSize: "1rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  padding: "0.5rem 0",
+                  borderBottom: "1px solid #f3f4f6",
+                }}
+              >
+                Accounts
+                <svg
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    transition: "transform 0.2s ease",
+                    transform: openDropdown === 'mobile-accounts' ? "rotate(180deg)" : "rotate(0deg)",
+                  }}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {openDropdown === 'mobile-accounts' && (
+                <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
+                  <Link href="/pharmacies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Pharmacies</Link>
+                  <Link href="/companies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Companies</Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Logout Button - ONLY AT THE BOTTOM of mobile menu (not in header) */}
+          <div style={{
+            borderTop: "1px solid #e5e7eb",
+            paddingTop: "0.75rem",
+            marginTop: "0.5rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}>
+            <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>{user?.email}</span>
+            <button
+              onClick={handleLogout}
+              style={{
+                backgroundColor: "#ef4444",
+                color: "white",
+                border: "none",
+                padding: "0.5rem 1.5rem",
+                borderRadius: "6px",
+                cursor: "pointer",
+                fontWeight: "600",
+                fontSize: "0.9rem",
+                boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = "#dc2626";
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = "#ef4444";
+              }}
+            >
+              🚪 Logout
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @media (min-width: 768px) {
+          .desktop-nav {
+            display: flex !important;
+          }
+          .mobile-toggle {
+            display: none !important;
+          }
+          .desktop-logout {
+            display: flex !important;
+          }
+        }
+        @media (max-width: 767px) {
+          .desktop-nav {
+            display: none !important;
+          }
+          .mobile-toggle {
+            display: flex !important;
+          }
+          .user-badge {
+            display: none !important;
+          }
+          .desktop-logout {
+            display: none !important;
+          }
+        }
+        @media (min-width: 1024px) {
+          .user-badge {
+            display: block !important;
+          }
+        }
+        @media (min-width: 640px) {
+          .logout-text {
+            display: inline !important;
+          }
+        }
+        @media (max-width: 639px) {
+          .logout-text {
+            display: none !important;
+          }
+        }
+      `}</style>
+    </>
   );
 }

@@ -302,18 +302,19 @@ const calculatePharmacyFinancialSummary = (
 // ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = {
   container: {
-    maxWidth: "90%",
+    maxWidth: "100%",
     margin: "0 auto",
-    padding: "20px",
+    padding: "10px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     backgroundColor: "#f5f6fa",
     minHeight: "100vh",
-    fontSize: "17px",
+    fontSize: "16px",
+    boxSizing: "border-box",
   },
   header: {
-    fontSize: "36px",
+    fontSize: "24px",
     fontWeight: "700",
-    marginBottom: "30px",
+    marginBottom: "20px",
     color: "#2c3e50",
     textAlign: "center",
     textTransform: "uppercase",
@@ -322,90 +323,93 @@ const styles = {
   },
   formContainer: {
     backgroundColor: "white",
-    padding: "25px",
+    padding: "16px",
     borderRadius: "12px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
     border: "1px solid #e1e8ed",
-    marginBottom: "30px",
+    marginBottom: "20px",
+    overflow: "hidden",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "20px",
-    marginBottom: "20px",
+    gridTemplateColumns: "1fr",
+    gap: "15px",
+    marginBottom: "15px",
   },
   inputGroup: {
-    marginBottom: "20px",
+    marginBottom: "15px",
     position: "relative",
   },
   label: {
     display: "block",
-    marginBottom: "8px",
+    marginBottom: "6px",
     fontWeight: "600",
     color: "#2c3e50",
-    fontSize: "17px",
+    fontSize: "15px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   input: {
     width: "100%",
-    padding: "16px 17px",
+    padding: "12px 14px",
     border: "2px solid #e1e8ed",
     borderRadius: "8px",
-    fontSize: "17px",
+    fontSize: "16px",
     boxSizing: "border-box",
     backgroundColor: "white",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     outline: "none",
+    WebkitAppearance: "none",
   },
   textarea: {
     width: "100%",
-    padding: "16px 17px",
+    padding: "12px 14px",
     border: "2px solid #e1e8ed",
     borderRadius: "8px",
-    fontSize: "17px",
+    fontSize: "16px",
     boxSizing: "border-box",
     backgroundColor: "white",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     outline: "none",
     resize: "vertical",
-    minHeight: "100px",
+    minHeight: "80px",
   },
   select: {
     width: "100%",
-    padding: "16px 17px",
+    padding: "12px 14px",
     border: "2px solid #e1e8ed",
     borderRadius: "8px",
-    fontSize: "17px",
+    fontSize: "16px",
     boxSizing: "border-box",
     backgroundColor: "white",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     outline: "none",
+    WebkitAppearance: "none",
   },
   checkboxContainer: {
     display: "flex",
     alignItems: "center",
-    marginBottom: "20px",
-    padding: "15px",
+    marginBottom: "15px",
+    padding: "12px",
     backgroundColor: "#f8f9fa",
     borderRadius: "8px",
     border: "1px solid #e1e8ed",
   },
   checkbox: {
-    marginRight: "12px",
-    width: "20px",
-    height: "20px",
+    marginRight: "10px",
+    width: "18px",
+    height: "18px",
     accentColor: "#3498db",
   },
   checkboxLabel: {
-    fontSize: "17px",
+    fontSize: "15px",
     fontWeight: "600",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   searchSection: {
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
   suggestionsDropdown: {
     position: "absolute",
@@ -414,17 +418,17 @@ const styles = {
     border: "2px solid #3498db",
     borderRadius: "8px",
     marginTop: "2px",
-    maxHeight: "250px",
+    maxHeight: "200px",
     overflowY: "auto",
     zIndex: "1000",
     boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   suggestionItem: {
-    padding: "16px 17px",
+    padding: "12px 14px",
     cursor: "pointer",
     borderBottom: "1px solid #e1e8ed",
-    fontSize: "17px",
+    fontSize: "15px",
     transition: "background-color 0.2s ease",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
@@ -434,80 +438,85 @@ const styles = {
     border: "2px solid #e1e8ed",
     borderRadius: "8px",
     overflow: "hidden",
+    maxWidth: "100%",
+    overflowX: "auto",
   },
   itemGroup: {
     border: "2px solid #e1e8ed",
-    marginBottom: "15px",
+    marginBottom: "10px",
     borderRadius: "8px",
     overflow: "hidden",
     backgroundColor: "white",
   },
   itemGroupHeader: {
     backgroundColor: "#34495e",
-    padding: "16px 17px",
+    padding: "12px 14px",
     fontWeight: "600",
     color: "white",
-    fontSize: "18px",
+    fontSize: "15px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: "column",
+    gap: "8px",
+    alignItems: "flex-start",
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "16px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    minWidth: "600px",
   },
   tableCell: {
-    padding: "14px 12px",
+    padding: "10px 8px",
     borderBottom: "1px solid #e1e8ed",
-    fontSize: "16px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   tableHeader: {
     backgroundColor: "#34495e",
     color: "white",
-    padding: "14px 12px",
+    padding: "10px 8px",
     textAlign: "left",
-    fontSize: "16px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   addButton: {
     backgroundColor: "#27ae60",
     color: "white",
     border: "none",
-    padding: "10px 18px",
+    padding: "8px 14px",
     borderRadius: "6px",
-    fontSize: "16px",
+    fontSize: "14px",
     cursor: "pointer",
-    marginRight: "5px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   historyButton: {
     backgroundColor: "#8e44ad",
     color: "white",
     border: "none",
-    padding: "10px 18px",
+    padding: "8px 14px",
     borderRadius: "6px",
-    fontSize: "16px",
+    fontSize: "14px",
     fontWeight: "600",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   selectedItems: {
-    marginTop: "25px",
+    marginTop: "20px",
   },
   selectedItem: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "17px",
+    flexDirection: "column",
+    padding: "14px",
     border: "2px solid #e1e8ed",
     borderRadius: "8px",
     marginBottom: "10px",
     backgroundColor: "#f8f9fa",
     transition: "all 0.3s ease",
+    gap: "10px",
   },
   lockedItem: {
     opacity: 0.85,
@@ -517,64 +526,69 @@ const styles = {
   warningBadge: {
     backgroundColor: "#e74c3c",
     color: "white",
-    padding: "4px 10px",
+    padding: "2px 8px",
     borderRadius: "12px",
-    fontSize: "12px",
+    fontSize: "11px",
     fontWeight: "600",
-    marginLeft: "8px",
+    marginLeft: "6px",
     fontFamily: "'NRT-Bd', sans-serif",
+    display: "inline-block",
+    marginTop: "4px",
   },
   itemDetails: {
     flex: 1,
+    minWidth: 0,
   },
   itemName: {
     fontWeight: "600",
-    fontSize: "17px",
+    fontSize: "15px",
     marginBottom: "4px",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    wordBreak: "break-word",
   },
   itemMeta: {
-    fontSize: "15px",
+    fontSize: "13px",
     color: "#7f8c8d",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   quantityInput: {
-    width: "80px",
-    padding: "12px",
+    width: "60px",
+    padding: "8px",
     border: "2px solid #e1e8ed",
     borderRadius: "6px",
     textAlign: "center",
-    marginRight: "8px",
-    fontSize: "16px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    WebkitAppearance: "none",
   },
   priceInput: {
-    width: "120px",
-    padding: "12px",
+    width: "90px",
+    padding: "8px",
     border: "2px solid #e1e8ed",
     borderRadius: "6px",
     textAlign: "center",
-    marginRight: "8px",
-    fontSize: "16px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    WebkitAppearance: "none",
   },
   removeButton: {
     backgroundColor: "#e74c3c",
     color: "white",
     border: "none",
-    padding: "12px 17px",
+    padding: "8px 14px",
     borderRadius: "6px",
-    fontSize: "16px",
+    fontSize: "14px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   total: {
     textAlign: "right",
-    fontSize: "20px",
+    fontSize: "17px",
     fontWeight: "600",
-    marginTop: "15px",
-    padding: "15px",
+    marginTop: "12px",
+    padding: "12px",
     backgroundColor: "#34495e",
     color: "white",
     borderRadius: "8px",
@@ -582,69 +596,71 @@ const styles = {
   },
   buttonContainer: {
     display: "flex",
-    gap: "15px",
-    marginTop: "20px",
+    flexDirection: "column",
+    gap: "10px",
+    marginTop: "15px",
   },
   editModeButtons: {
     display: "flex",
-    gap: "15px",
-    marginTop: "20px",
+    flexDirection: "column",
+    gap: "10px",
+    marginTop: "15px",
   },
   button: {
     backgroundColor: "#3498db",
     color: "white",
-    padding: "18px 32px",
+    padding: "14px 20px",
     border: "none",
     borderRadius: "8px",
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: "600",
     cursor: "pointer",
     width: "100%",
-    marginTop: "10px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
+    touchAction: "manipulation",
   },
   updateButton: {
     backgroundColor: "#f39c12",
     color: "white",
-    padding: "18px 32px",
+    padding: "14px 20px",
     border: "none",
     borderRadius: "8px",
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: "600",
     cursor: "pointer",
     width: "100%",
-    marginTop: "10px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
+    touchAction: "manipulation",
   },
   previewButton: {
     backgroundColor: "#95a5a6",
     color: "white",
-    padding: "18px 32px",
+    padding: "14px 20px",
     border: "none",
     borderRadius: "8px",
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: "600",
     cursor: "pointer",
     width: "100%",
-    marginTop: "10px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
+    touchAction: "manipulation",
   },
   cancelButton: {
     backgroundColor: "#95a5a6",
     color: "white",
-    padding: "18px 32px",
+    padding: "14px 20px",
     border: "none",
     borderRadius: "8px",
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: "600",
     cursor: "pointer",
     width: "100%",
@@ -652,120 +668,129 @@ const styles = {
     transition: "all 0.3s ease",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
+    touchAction: "manipulation",
   },
   buttonDisabled: {
     backgroundColor: "#bdc3c7",
     color: "#7f8c8d",
-    padding: "18px 32px",
+    padding: "14px 20px",
     border: "none",
     borderRadius: "8px",
-    fontSize: "18px",
+    fontSize: "16px",
     fontWeight: "600",
     cursor: "not-allowed",
     width: "100%",
-    marginTop: "10px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     textTransform: "uppercase",
     letterSpacing: "0.5px",
+    touchAction: "manipulation",
   },
   error: {
     backgroundColor: "#ffeaa7",
     color: "#d63031",
-    padding: "17px",
+    padding: "12px",
     borderRadius: "8px",
-    marginBottom: "20px",
+    marginBottom: "15px",
     border: "1px solid #fab1a0",
-    fontSize: "17px",
+    fontSize: "15px",
     position: "relative",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   recentBillsSection: {
     backgroundColor: "white",
-    padding: "25px",
+    padding: "16px",
     borderRadius: "12px",
     boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
     border: "1px solid #e1e8ed",
+    overflow: "hidden",
   },
   sectionHeader: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
+    flexDirection: "column",
+    gap: "10px",
+    marginBottom: "15px",
   },
   sectionTitle: {
-    fontSize: "24px",
+    fontSize: "20px",
     fontWeight: "600",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    margin: 0,
   },
   advancedSearchButton: {
     backgroundColor: "#3498db",
     color: "white",
     border: "none",
-    padding: "14px 22px",
+    padding: "10px 16px",
     borderRadius: "6px",
-    fontSize: "17px",
+    fontSize: "14px",
     fontWeight: "600",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
+    touchAction: "manipulation",
   },
   searchFilters: {
     backgroundColor: "#f8f9fa",
-    padding: "22px",
+    padding: "14px",
     borderRadius: "8px",
     border: "1px solid #e1e8ed",
-    marginBottom: "20px",
+    marginBottom: "15px",
   },
   filterSectionTitle: {
-    fontSize: "20px",
+    fontSize: "17px",
     fontWeight: "600",
-    marginBottom: "15px",
+    marginBottom: "12px",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   filterRow: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "15px",
-    marginBottom: "15px",
+    gridTemplateColumns: "1fr",
+    gap: "10px",
+    marginBottom: "10px",
   },
   filterGroup: {
     display: "flex",
     flexDirection: "column",
   },
   filterLabel: {
-    fontSize: "16px",
+    fontSize: "14px",
     fontWeight: "600",
-    marginBottom: "5px",
+    marginBottom: "4px",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   filterInput: {
-    padding: "12px 14px",
+    padding: "10px 12px",
     border: "1px solid #e1e8ed",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    width: "100%",
+    boxSizing: "border-box",
   },
   filterSelect: {
-    padding: "12px 14px",
+    padding: "10px 12px",
     border: "1px solid #e1e8ed",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     backgroundColor: "white",
+    width: "100%",
+    boxSizing: "border-box",
   },
   globalSearchGroup: {
     width: "100%",
   },
   globalSearchInput: {
     width: "100%",
-    padding: "14px 17px",
+    padding: "10px 12px",
     border: "1px solid #e1e8ed",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    boxSizing: "border-box",
   },
   specificItemsGroup: {
     width: "100%",
@@ -773,21 +798,23 @@ const styles = {
   filterActions: {
     display: "flex",
     justifyContent: "flex-end",
+    marginTop: "10px",
   },
   clearFiltersButton: {
     backgroundColor: "#95a5a6",
     color: "white",
     border: "none",
-    padding: "12px 18px",
+    padding: "10px 16px",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "14px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   tableContainer: {
     overflowX: "auto",
     WebkitOverflowScrolling: "touch",
-    marginBottom: "15px",
+    marginBottom: "10px",
     borderRadius: "8px",
     border: "1px solid #e1e8ed",
     maxWidth: "100%",
@@ -795,31 +822,33 @@ const styles = {
   billsTable: {
     width: "100%",
     borderCollapse: "collapse",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    minWidth: "1000px",
+    minWidth: "700px",
   },
   tableHeaderSortable: {
     backgroundColor: "#34495e",
     color: "white",
-    padding: "16px 14px",
+    padding: "12px 10px",
     textAlign: "left",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     cursor: "pointer",
     userSelect: "none",
     transition: "background-color 0.2s ease",
+    whiteSpace: "nowrap",
   },
   tableHeaderSortablee: {
     backgroundColor: "#34495e",
     color: "white",
-    padding: "16px 14px",
+    padding: "12px 10px",
     textAlign: "center",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     cursor: "pointer",
     userSelect: "none",
     transition: "background-color 0.2s ease",
+    whiteSpace: "nowrap",
   },
   tableRowEven: {
     backgroundColor: "#f8f9fa",
@@ -832,25 +861,25 @@ const styles = {
     borderLeft: "4px solid #2196f3",
   },
   tableCellCenter: {
-    padding: "16px 14px",
+    padding: "12px 10px",
     borderBottom: "1px solid #e1e8ed",
     textAlign: "center",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   tableCellCenterdatee: {
-    padding: "16px 14px",
+    padding: "12px 10px",
     borderBottom: "1px solid #e1e8ed",
     textAlign: "left",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     whiteSpace: "nowrap",
   },
   tableCellRightttt: {
-    padding: "16px 14px",
+    padding: "12px 10px",
     borderBottom: "1px solid #e1e8ed",
     textAlign: "center",
-    fontSize: "19px",
+    fontSize: "16px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     fontWeight: "600",
   },
@@ -859,15 +888,16 @@ const styles = {
     borderBottom: "1px solid #e1e8ed",
   },
   paymentBadge: {
-    padding: "8px 12px",
+    padding: "6px 10px",
     borderRadius: "12px",
-    fontSize: "15px",
+    fontSize: "13px",
     fontWeight: "600",
     color: "white",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   actionButtons: {
     display: "flex",
+    flexDirection: "column",
     gap: "5px",
     justifyContent: "center",
   },
@@ -875,29 +905,31 @@ const styles = {
     backgroundColor: "#f39c12",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   printSmallButton: {
     backgroundColor: "#27ae60",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   attachButton: {
     backgroundColor: "#9b59b6",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
@@ -906,14 +938,15 @@ const styles = {
     justifyContent: "center",
     gap: "5px",
     width: "100%",
+    touchAction: "manipulation",
   },
   uploadButton: {
     backgroundColor: "#27ae60",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
@@ -923,14 +956,15 @@ const styles = {
     gap: "5px",
     width: "100%",
     marginTop: "3px",
+    touchAction: "manipulation",
   },
   rescanButton: {
     backgroundColor: "#f39c12",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
@@ -940,70 +974,79 @@ const styles = {
     gap: "5px",
     width: "100%",
     marginTop: "3px",
+    touchAction: "manipulation",
   },
   viewAttachmentButton: {
     backgroundColor: "#27ae60",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "15px",
+    fontSize: "13px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
     width: "100%",
+    touchAction: "manipulation",
   },
   billDetails: {
     backgroundColor: "#f8f9fa",
-    padding: "22px",
+    padding: "14px",
     borderRadius: "8px",
     margin: "10px 0",
     border: "1px solid #e1e8ed",
+    overflow: "hidden",
   },
   billDetailsHeader: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "15px",
+    flexDirection: "column",
+    gap: "10px",
+    marginBottom: "12px",
   },
   billDetailsTitle: {
-    fontSize: "22px",
+    fontSize: "18px",
     fontWeight: "600",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    margin: 0,
   },
   billDetailsActions: {
     display: "flex",
-    gap: "10px",
+    gap: "8px",
     alignItems: "center",
+    flexWrap: "wrap",
   },
   closeDetailsButton: {
     backgroundColor: "#e74c3c",
     color: "white",
     border: "none",
-    padding: "10px 14px",
+    padding: "8px 12px",
     borderRadius: "4px",
-    fontSize: "16px",
+    fontSize: "14px",
     cursor: "pointer",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    touchAction: "manipulation",
   },
   billInfoGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "10px",
-    marginBottom: "20px",
+    gridTemplateColumns: "1fr",
+    gap: "8px",
+    marginBottom: "15px",
   },
   billInfoItem: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    fontSize: "17px",
+    gap: "8px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    flexWrap: "wrap",
   },
   itemsTableContainer: {
     borderRadius: "8px",
     overflow: "hidden",
     border: "1px solid #e1e8ed",
+    maxWidth: "100%",
+    overflowX: "auto",
   },
   enhancedItemsTable: {
     width: "100%",
@@ -1013,22 +1056,24 @@ const styles = {
     overflow: "hidden",
     boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-    fontSize: "17px",
+    fontSize: "14px",
+    minWidth: "500px",
   },
   enhancedTableHeader: {
     backgroundColor: "#34495e",
     color: "white",
-    padding: "18px 14px",
+    padding: "12px 10px",
     textAlign: "left",
     fontWeight: "600",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     border: "none",
+    whiteSpace: "nowrap",
   },
   enhancedTableCell: {
-    padding: "16px 14px",
+    padding: "10px 10px",
     borderBottom: "1px solid #e8ecef",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   enhancedTableRow: {
@@ -1049,27 +1094,31 @@ const styles = {
     background: "none",
     border: "none",
     cursor: "pointer",
-    fontSize: "17px",
-    marginLeft: "5px",
-    padding: "0 5px",
+    fontSize: "14px",
+    marginLeft: "4px",
+    padding: "0 4px",
+    touchAction: "manipulation",
   },
   pagination: {
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: "20px",
+    marginTop: "15px",
     gap: "5px",
+    flexWrap: "wrap",
   },
   paginationButton: {
-    padding: "12px 17px",
+    padding: "8px 12px",
     border: "1px solid #e1e8ed",
     backgroundColor: "white",
     color: "#2c3e50",
     cursor: "pointer",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
+    touchAction: "manipulation",
+    minWidth: "40px",
   },
   paginationButtonActive: {
     backgroundColor: "#3498db",
@@ -1079,8 +1128,8 @@ const styles = {
   noBills: {
     textAlign: "center",
     color: "#7f8c8d",
-    fontSize: "19px",
-    padding: "40px",
+    fontSize: "16px",
+    padding: "30px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   modalOverlay: {
@@ -1094,104 +1143,112 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1000,
-    padding: "20px",
+    padding: "10px",
   },
   modalContent: {
     backgroundColor: "white",
     borderRadius: "12px",
     width: "100%",
-    maxWidth: "1000px",
+    maxWidth: "95%",
     maxHeight: "95vh",
     overflow: "auto",
     boxShadow: "0 20px 40px rgba(0,0,0,0.3)",
   },
   modalHeader: {
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "20px",
+    flexDirection: "column",
+    gap: "10px",
+    padding: "16px",
     borderBottom: "1px solid #e1e8ed",
     backgroundColor: "#f8f9fa",
   },
   modalTitle: {
-    fontSize: "24px",
+    fontSize: "18px",
     fontWeight: "600",
     color: "#2c3e50",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    margin: 0,
   },
   modalActions: {
     display: "flex",
-    gap: "10px",
+    gap: "8px",
+    flexWrap: "wrap",
   },
   printButton: {
     backgroundColor: "#27ae60",
     color: "white",
     border: "none",
-    padding: "14px 22px",
+    padding: "10px 16px",
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
+    touchAction: "manipulation",
   },
   closeButton: {
     backgroundColor: "#95a5a6",
     color: "white",
     border: "none",
-    padding: "14px 22px",
+    padding: "10px 16px",
     borderRadius: "6px",
     cursor: "pointer",
     fontWeight: "600",
-    fontSize: "17px",
+    fontSize: "14px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     transition: "all 0.3s ease",
+    touchAction: "manipulation",
   },
   billTemplate: {
-    padding: "40px",
+    padding: "20px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     color: "#2c3e50",
     lineHeight: "1.6",
     backgroundColor: "white",
+    fontSize: "14px",
   },
   editingBillDisplay: {
     backgroundColor: "#fff3cd",
     border: "1px solid #ffeaa7",
     borderRadius: "8px",
-    padding: "17px",
-    marginBottom: "20px",
+    padding: "12px",
+    marginBottom: "15px",
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     color: "#856404",
-    fontSize: "19px",
+    fontSize: "16px",
     textAlign: "center",
   },
   dateInput: {
     flex: 1,
-    padding: "12px",
+    padding: "10px",
     border: "1px solid #e1e8ed",
     borderRadius: "4px",
-    fontSize: "17px",
+    fontSize: "15px",
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+    width: "100%",
+    boxSizing: "border-box",
   },
   rowContainer: {
     display: 'flex',
-    gap: '20px',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    marginBottom: '24px',
-    padding: '20px 24px',
+    flexDirection: 'column',
+    gap: '12px',
+    alignItems: 'stretch',
+    marginBottom: '20px',
+    padding: '16px',
     backgroundColor: '#ffffff',
-    borderRadius: '16px',
-    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06)',
+    borderRadius: '12px',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
     border: '1px solid #f0f0f0',
   },
   dateField: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
+    gap: '4px',
+    width: '100%',
   },
   fieldLabel: {
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '600',
     color: '#6b7280',
     textTransform: 'uppercase',
@@ -1201,40 +1258,42 @@ const styles = {
     padding: '8px 12px',
     fontSize: '14px',
     border: '1.5px solid #e9ecef',
-    borderRadius: '10px',
-    width: '160px',
+    borderRadius: '8px',
+    width: '100%',
     outline: 'none',
     transition: 'all 0.2s ease',
     backgroundColor: '#ffffff',
     color: '#1f2937',
     fontWeight: '500',
     fontFamily: 'inherit',
+    boxSizing: 'border-box',
   },
   selectField: {
     padding: '8px 12px',
     fontSize: '14px',
     border: '1.5px solid #e9ecef',
-    borderRadius: '10px',
-    width: '150px',
+    borderRadius: '8px',
+    width: '100%',
     backgroundColor: '#ffffff',
     outline: 'none',
     cursor: 'pointer',
     transition: 'all 0.2s ease',
     color: '#1f2937',
     fontWeight: '500',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
   },
   noteField: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '6px',
-    flex: 1,
-    minWidth: '200px',
+    gap: '4px',
+    width: '100%',
   },
   textareaField: {
     padding: '8px 12px',
     fontSize: '14px',
     border: '1.5px solid #e9ecef',
-    borderRadius: '10px',
+    borderRadius: '8px',
     width: '100%',
     height: '38px',
     resize: 'none',
@@ -1244,13 +1303,13 @@ const styles = {
     backgroundColor: '#ffffff',
     color: '#4b5563',
     overflow: 'hidden',
+    boxSizing: 'border-box',
   },
   consignmentContainer: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    paddingLeft: '8px',
-    borderLeft: '2px solid #f0f0f0',
+    paddingTop: '4px',
   },
   consignmentCheckbox: {
     width: '16px',
@@ -1260,11 +1319,40 @@ const styles = {
     accentColor: '#f59e0b',
   },
   consignmentLabel: {
-    fontSize: '11px',
+    fontSize: '13px',
     color: '#6b7280',
     cursor: 'pointer',
-    whiteSpace: 'nowrap',
     fontWeight: '500',
+  },
+  itemControls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '8px',
+    width: '100%',
+  },
+  itemControlGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  itemControlLabel: {
+    fontSize: '12px',
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  selectedItemRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+    width: '100%',
+  },
+  selectedItemControls: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '8px',
+    width: '100%',
   },
 };
 
@@ -1603,7 +1691,6 @@ const BillPreview = memo(({ bill, onClose, onPrint, paymentMethod, recentBills, 
   const displayBillNumber = bill.billNumber === "TEMP0000" ? "TEMP0000" : formatBillNumber(bill.billNumber);
   const creatorDisplayName = getDisplayName(bill.createdByName || "Unknown User");
 
-  // Build financial summary rows always showing both currencies if pharmacy uses both
   const unpaidLine   = formatFinancialLine(financialSummary.totalUnpaidBillsUSD, financialSummary.totalUnpaidBillsIQD, pharmacyHasUSD, pharmacyHasIQD);
   const returnLine   = formatFinancialLine(financialSummary.totalReturnBillsUSD, financialSummary.totalReturnBillsIQD, pharmacyHasUSD, pharmacyHasIQD);
   const remainLine   = formatFinancialLine(financialSummary.remainingUnpaidUSD, financialSummary.remainingUnpaidIQD, pharmacyHasUSD, pharmacyHasIQD);
@@ -1611,135 +1698,135 @@ const BillPreview = memo(({ bill, onClose, onPrint, paymentMethod, recentBills, 
   const htmlContent = `
     <div style="padding-top: 0px; font-size: 15px;">
       <div style="margin-bottom: 0px;">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-          <div style="flex: 1;">
-            <h1 style="margin: 0 0 2px 0; font-size: 28px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
-            <p style="margin: 0 0 3px 0; font-size: 17px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
-            <p style="margin: 0; font-size: 17px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">+964 772 533 5252 | +964 751 741 2241</p>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
+          <div style="flex: 1; min-width: 200px;">
+            <h1 style="margin: 0 0 2px 0; font-size: 24px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
+            <p style="margin: 0 0 3px 0; font-size: 15px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
+            <p style="margin: 0; font-size: 15px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">+964 772 533 5252 | +964 751 741 2241</p>
           </div>
           <div style="flex-shrink: 0; text-align: right;">
-            <img src="/Aranlogo.png" alt="Aran Logo" style="width: 250px; object-fit: contain; display: inline-block;" />
+            <img src="/Aranlogo.png" alt="Aran Logo" style="width: 200px; max-width: 100%; object-fit: contain; display: inline-block;" />
           </div>
         </div>
       </div>
 
-      <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-        <div style="flex: 1; display: flex; gap: 20px;">
-          <div style="flex: 1; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-            <h3 style="margin: 0 0 10px 0; font-family: 'NRT-Bd', sans-serif; font-size: 18px; color: #2c3e50;">Bill To: ${bill.pharmacyName}</h3>
-            <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
-              <tr>
-                <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 100px;">Payment:</td>
-                <td style="padding: 3px 0;">
-                  <div style="background-color: ${getPaymentStatusColor(billPaymentMethod)}; display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 16px; font-weight: 600; color: #fff;">
-                    ${billPaymentMethod.toUpperCase()}
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 100px;">Consignment:</td>
-                <td style="padding: 3px 0;">
-                  <div style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 16px; font-weight: 500; color: #34495E">
-                    ${bill.isConsignment ? 'تحت صرف' : 'Owned'}
-                  </div>
-                </td>
-              </tr>
-            </table>
-          </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
+        <div style="flex: 1; min-width: 200px; padding: 12px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
+          <h3 style="margin: 0 0 8px 0; font-family: 'NRT-Bd', sans-serif; font-size: 16px; color: #2c3e50;">Bill To: ${bill.pharmacyName}</h3>
+          <table style="width: 100%; font-family: 'NRT-Reg', sans-serif; font-size: 14px;">
+            <tr>
+              <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 90px;">Payment:</td>
+              <td style="padding: 3px 0;">
+                <div style="background-color: ${getPaymentStatusColor(billPaymentMethod)}; display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff;">
+                  ${billPaymentMethod.toUpperCase()}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 90px;">Consignment:</td>
+              <td style="padding: 3px 0;">
+                <div style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 14px; font-weight: 500; color: #34495E">
+                  ${bill.isConsignment ? 'تحت صرف' : 'Owned'}
+                </div>
+              </td>
+            </tr>
+          </table>
+        </div>
 
-          <div style="flex: 1; padding: 15px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-            <table style="width: 100%; font-family: 'NRT-Reg', sans-serif;">
-              <tr>
-                <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice #:</td>
-                <td style="padding: 3px 0; font-size: 16px; color: #34495e; font-weight: 500;">${displayBillNumber}</td>
-              </tr>
-              <tr>
-                <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice Date:</td>
-                <td style="padding: 3px 0; font-size: 16px; color: #34495e; font-weight: 500;">${formatDate(bill.date)}</td>
-              </tr>
-              <tr>
-                <td style="font-weight: 600; padding: 3px 10px 3px 0; font-size: 16px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Created By:</td>
-                <td style="padding: 3px 0; font-size: 16px; color: #34495e; font-weight: 500;">${creatorDisplayName}</td>
-              </tr>
-            </table>
-          </div>
+        <div style="flex: 1; min-width: 200px; padding: 12px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
+          <table style="width: 100%; font-family: 'NRT-Reg', sans-serif; font-size: 14px;">
+            <tr>
+              <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice #:</td>
+              <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${displayBillNumber}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice Date:</td>
+              <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${formatDate(bill.date)}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Created By:</td>
+              <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${creatorDisplayName}</td>
+            </tr>
+          </table>
+        </div>
 
-          <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-            <img src="/scann.png" alt="scan me" style="margin-top:10px; width: 120px;" />
-          </div>
+        <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+          <img src="/scann.png" alt="scan me" style="margin-top:10px; width: 100px; max-width: 100%;" />
         </div>
       </div>
 
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 15px;">
-        <thead>
-          <tr style="background-color: #3498db; color: white;">
-            <th style="padding: 10px; text-align: center; font-family: 'NRT-Bd', sans-serif;">#</th>
-            <th style="padding: 10px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
-            <th style="padding: 10px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
-            <th style="padding: 10px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Quantity</th>
-            <th style="padding: 10px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price</th>
-            <th style="padding: 10px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Total Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${bill.items?.map((item, index) => {
-            const price = item.originalCurrency === "IQD"
-              ? (item.outPriceIQD || item.price || 0)
-              : (item.outPriceUSD || item.price || 0);
-            const priceFormatted = item.originalCurrency === "IQD"
-              ? Math.round(price).toLocaleString() + " IQD"
-              : "$" + price.toFixed(2);
-            const totalFormatted = item.originalCurrency === "IQD"
-              ? Math.round(price * item.quantity).toLocaleString() + " IQD"
-              : "$" + (price * item.quantity).toFixed(2);
-            return `
-              <tr style="border-bottom: 1px solid #e1e8ed;">
-                <td style="padding: 8px; text-align: center; font-weight: 600;">${index + 1}</td>
-                <td style="padding: 8px;">
-                  <div style="font-weight: 600; margin-bottom: 3px; font-family: 'NRT-Bd', sans-serif;">${item.name}</div>
-                  <div style="font-size: 14px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
-                </td>
-                <td style="padding: 8px; text-align: center; font-family: monospace; font-size: 16px;">${item.barcode}</td>
-                <td style="padding: 8px; text-align: center; font-weight: 600;">${item.quantity}</td>
-                <td style="padding: 8px; text-align: right; font-weight: 600;">${priceFormatted}</td>
-                <td style="padding: 8px; text-align: right; font-weight: 600;">${totalFormatted}</td>
-              </tr>
-            `;
-          }).join("")}
-          <tr style="background-color: #34495E; font-weight: 700;">
-            <td colspan="5" style="padding: 12px; color: white; text-align: right; font-size: 18px; font-family: 'NRT-Bd', sans-serif;">CURRENT TOTAL:</td>
-            <td style="padding: 12px; text-align: right; color: white; font-family: 'NRT-Bd', sans-serif; font-size: 18px;">
-              ${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px; min-width: 500px;">
+          <thead>
+            <tr style="background-color: #3498db; color: white;">
+              <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">#</th>
+              <th style="padding: 8px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
+              <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
+              <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Qty</th>
+              <th style="padding: 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price</th>
+              <th style="padding: 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bill.items?.map((item, index) => {
+              const price = item.originalCurrency === "IQD"
+                ? (item.outPriceIQD || item.price || 0)
+                : (item.outPriceUSD || item.price || 0);
+              const priceFormatted = item.originalCurrency === "IQD"
+                ? Math.round(price).toLocaleString() + " IQD"
+                : "$" + price.toFixed(2);
+              const totalFormatted = item.originalCurrency === "IQD"
+                ? Math.round(price * item.quantity).toLocaleString() + " IQD"
+                : "$" + (price * item.quantity).toFixed(2);
+              return `
+                <tr style="border-bottom: 1px solid #e1e8ed;">
+                  <td style="padding: 6px; text-align: center; font-weight: 600;">${index + 1}</td>
+                  <td style="padding: 6px;">
+                    <div style="font-weight: 600; margin-bottom: 2px; font-family: 'NRT-Bd', sans-serif; font-size: 14px;">${item.name}</div>
+                    <div style="font-size: 13px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
+                  </td>
+                  <td style="padding: 6px; text-align: center; font-family: monospace; font-size: 14px;">${item.barcode}</td>
+                  <td style="padding: 6px; text-align: center; font-weight: 600;">${item.quantity}</td>
+                  <td style="padding: 6px; text-align: right; font-weight: 600;">${priceFormatted}</td>
+                  <td style="padding: 6px; text-align: right; font-weight: 600;">${totalFormatted}</td>
+                </tr>
+              `;
+            }).join("")}
+            <tr style="background-color: #34495E; font-weight: 700;">
+              <td colspan="5" style="padding: 10px; color: white; text-align: right; font-size: 16px; font-family: 'NRT-Bd', sans-serif;">CURRENT TOTAL:</td>
+              <td style="padding: 10px; text-align: right; color: white; font-family: 'NRT-Bd', sans-serif; font-size: 16px;">
+                ${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 20px; font-size: 16px;">
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e1e8ed;">
+      <div style="background-color: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 15px; font-size: 14px;">
+        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e1e8ed; flex-wrap: wrap;">
           <span style="font-family: 'NRT-Reg', sans-serif;">Total Unpaid Bills:</span>
           <span style="font-family: 'NRT-Bd', sans-serif; font-weight: 600;">${unpaidLine}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e1e8ed;">
+        <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e1e8ed; flex-wrap: wrap;">
           <span style="font-family: 'NRT-Reg', sans-serif;">Total Return Bills:</span>
           <span style="font-family: 'NRT-Bd', sans-serif; font-weight: 600; color: #e74c3c;">- ${returnLine}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+        <div style="display: flex; justify-content: space-between; padding: 8px 0; flex-wrap: wrap;">
           <span style="font-family: 'NRT-Bd', sans-serif; font-weight: 600; color: #e74c3c;">Remaining Unpaid Balance:</span>
           <span style="font-family: 'NRT-Bd', sans-serif; font-weight: 600; color: #e74c3c;">${remainLine}</span>
         </div>
       </div>
 
       ${bill.note ? `
-        <div style="background-color: #fff8e1; padding: 12px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 20px;">
-          <h4 style="font-weight: 600; margin: 0 0 8px 0; color: #e67e22; font-size: 16px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
-          <p style="font-size: 16px; color: #2c3e50; line-height: 1.4; margin: 0; font-family: 'NRT-Reg', sans-serif;">${bill.note}</p>
+        <div style="background-color: #fff8e1; padding: 10px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 15px;">
+          <h4 style="font-weight: 600; margin: 0 0 4px 0; color: #e67e22; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
+          <p style="font-size: 14px; color: #2c3e50; line-height: 1.4; margin: 0; font-family: 'NRT-Reg', sans-serif;">${bill.note}</p>
         </div>
       ` : ""}
 
-      <div style="margin-top: 20px; text-align: right;">
-        <div style="width: 250px; height: 1px; background-color: #3498db; margin: 15px 0 5px auto"></div>
-        <p style="font-size: 14px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif; margin: 0;">Receiver Signature (Stamp)</p>
+      <div style="margin-top: 15px; text-align: right;">
+        <div style="width: 200px; height: 1px; background-color: #3498db; margin: 10px 0 5px auto;"></div>
+        <p style="font-size: 13px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif; margin: 0;">Receiver Signature (Stamp)</p>
       </div>
     </div>
   `;
@@ -1763,7 +1850,6 @@ const BillPreview = memo(({ bill, onClose, onPrint, paymentMethod, recentBills, 
 });
 BillPreview.displayName = 'BillPreview';
 
-
 // ─── ItemHistoryModal ─────────────────────────────────────────────────────────
 const ItemHistoryModal = memo(({ item, history, onClose }) => {
   return (
@@ -1773,46 +1859,46 @@ const ItemHistoryModal = memo(({ item, history, onClose }) => {
           <h2 style={styles.modalTitle}>Sales History for {item.name}</h2>
           <button style={styles.closeButton} onClick={onClose}>Close</button>
         </div>
-        <div style={{ padding: "20px" }}>
+        <div style={{ padding: "20px", overflowX: "auto" }}>
           {history.length === 0 ? (
             <p>No sales history found for this item to the selected pharmacy.</p>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "17px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "15px", minWidth: "500px" }}>
               <thead>
                 <tr style={{ backgroundColor: "#3498db", color: "white" }}>
-                  <th style={{ padding: "14px", textAlign: "left" }}>Bill #</th>
-                  <th style={{ padding: "14px", textAlign: "left" }}>Date</th>
-                  <th style={{ padding: "14px", textAlign: "right" }}>Net Price</th>
-                  <th style={{ padding: "14px", textAlign: "right" }}>Sale Price</th>
-                  <th style={{ padding: "14px", textAlign: "right" }}>Quantity</th>
-                  <th style={{ padding: "14px", textAlign: "right" }}>Total</th>
-                  <th style={{ padding: "14px", textAlign: "left" }}>Payment</th>
+                  <th style={{ padding: "12px", textAlign: "left" }}>Bill #</th>
+                  <th style={{ padding: "12px", textAlign: "left" }}>Date</th>
+                  <th style={{ padding: "12px", textAlign: "right" }}>Net Price</th>
+                  <th style={{ padding: "12px", textAlign: "right" }}>Sale Price</th>
+                  <th style={{ padding: "12px", textAlign: "right" }}>Quantity</th>
+                  <th style={{ padding: "12px", textAlign: "right" }}>Total</th>
+                  <th style={{ padding: "12px", textAlign: "left" }}>Payment</th>
                 </tr>
               </thead>
               <tbody>
                 {history.map((entry, index) => (
                   <tr key={index} style={{ backgroundColor: index % 2 === 0 ? "#f8f9fa" : "white" }}>
-                    <td style={{ padding: "14px" }}>{formatBillNumber(entry.billNumber)}</td>
-                    <td style={{ padding: "14px" }}>{formatDate(entry.billDate)}</td>
-                    <td style={{ padding: "14px", textAlign: "right" }}>
+                    <td style={{ padding: "12px" }}>{formatBillNumber(entry.billNumber)}</td>
+                    <td style={{ padding: "12px" }}>{formatDate(entry.billDate)}</td>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
                       {entry.originalCurrency === "IQD"
                         ? Math.round(entry.netPriceIQD || entry.netPrice).toLocaleString() + " IQD"
                         : "$" + (entry.netPriceUSD || entry.netPrice).toFixed(2)}
                     </td>
-                    <td style={{ padding: "14px", textAlign: "right" }}>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
                       {entry.originalCurrency === "IQD"
                         ? Math.round(entry.outPriceIQD || entry.price).toLocaleString() + " IQD"
                         : "$" + (entry.outPriceUSD || entry.price).toFixed(2)}
                     </td>
-                    <td style={{ padding: "14px", textAlign: "right" }}>{entry.quantity}</td>
-                    <td style={{ padding: "14px", textAlign: "right" }}>
+                    <td style={{ padding: "12px", textAlign: "right" }}>{entry.quantity}</td>
+                    <td style={{ padding: "12px", textAlign: "right" }}>
                       {entry.originalCurrency === "IQD"
                         ? Math.round((entry.outPriceIQD || entry.price) * entry.quantity).toLocaleString() + " IQD"
                         : "$" + ((entry.outPriceUSD || entry.price) * entry.quantity).toFixed(2)}
                     </td>
-                    <td style={{ padding: "14px" }}>
+                    <td style={{ padding: "12px" }}>
                       <span style={{
-                        padding: "8px 12px", borderRadius: "4px", color: "white",
+                        padding: "6px 10px", borderRadius: "4px", color: "white",
                         backgroundColor: entry.paymentStatus === "Cash" ? "#27ae60" : entry.paymentStatus === "Paid" ? "#3498db" : "#e74c3c",
                       }}>
                         {entry.paymentStatus}
@@ -2110,8 +2196,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
   // ── FIX: Accept pharmacyId as explicit param to avoid stale closure ─────────
   const loadReturnedItemsForBill = useCallback(async (billNumber, resolvedPharmacyId) => {
     try {
-      // Use the explicitly passed pharmacyId — do NOT read from React state here
-      // because this is called immediately after setPharmacyId(), before re-render
       const pid = resolvedPharmacyId;
       if (!pid) return {};
 
@@ -2151,7 +2235,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       console.error("Error loading returned items:", error);
       return {};
     }
-  }, []); // no deps — uses only the passed-in arg
+  }, []);
 
   // ── Attachment helpers ──────────────────────────────────────────────────────
   const processDocumentImage = useCallback(async (billNumber, base64Image, sourceType) => {
@@ -2300,13 +2384,20 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
             body{font-family:Arial,sans-serif;background:#000;height:100vh;display:flex;flex-direction:column;}
             .header{background:#2c3e50;color:white;padding:15px 20px;display:flex;justify-content:space-between;align-items:center;position:fixed;top:0;left:0;right:0;z-index:1000;}
             .title{font-size:18px;font-weight:bold;}
-            .actions{display:flex;gap:10px;}
+            .actions{display:flex;gap:10px;flex-wrap:wrap;}
             .button{padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-weight:bold;font-size:14px;}
             .print-button{background-color:#27ae60;color:white;}
             .close-button{background-color:#e74c3c;color:white;}
             .image-container{flex:1;display:flex;align-items:center;justify-content:center;padding:80px 20px 20px 20px;overflow:auto;}
             .image-container img{max-width:100%;max-height:100%;object-fit:contain;}
             @media print{.header{display:none !important;}body{background:white;padding:0;}.image-container{padding:0;margin:0;}}
+            @media (max-width: 600px) {
+              .header{flex-direction:column;gap:10px;padding:10px;}
+              .title{font-size:16px;text-align:center;}
+              .actions{width:100%;justify-content:center;}
+              .button{padding:6px 12px;font-size:12px;}
+              .image-container{padding:70px 10px 10px 10px;}
+            }
           </style></head>
           <body>
             <div class="header">
@@ -2344,25 +2435,25 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     }
   }, [handleScanDocument, handleFileUpload]);
 
-const getBatchesForItem = useCallback((barcode) => {
-  return storeItems
-    .filter((item) => item.barcode === barcode && item.quantity > 0)
-    .map((item) => ({
-      ...item,
-      expireDate: item.expireDate,
-      batchId: item.id,
-      netPriceDisplay: item.originalCurrency === "IQD" ? item.netPriceIQD : item.netPriceUSD,
-      outPriceDisplay: item.originalCurrency === "IQD" ? item.outPriceIQD : item.outPriceUSD,
-      currency: item.originalCurrency || "USD",
-      netPriceUSD: item.netPriceUSD,
-      netPriceIQD: item.netPriceIQD,
-      outPriceUSD: item.outPriceUSD,
-      outPriceIQD: item.outPriceIQD,
-      originalCurrency: item.originalCurrency || "USD",
-      branch: item.branch || "N/A", // Add branch here
-    }))
-    .sort((a, b) => new Date(a.expireDate) - new Date(b.expireDate));
-}, [storeItems]);
+  const getBatchesForItem = useCallback((barcode) => {
+    return storeItems
+      .filter((item) => item.barcode === barcode && item.quantity > 0)
+      .map((item) => ({
+        ...item,
+        expireDate: item.expireDate,
+        batchId: item.id,
+        netPriceDisplay: item.originalCurrency === "IQD" ? item.netPriceIQD : item.netPriceUSD,
+        outPriceDisplay: item.originalCurrency === "IQD" ? item.outPriceIQD : item.outPriceUSD,
+        currency: item.originalCurrency || "USD",
+        netPriceUSD: item.netPriceUSD,
+        netPriceIQD: item.netPriceIQD,
+        outPriceUSD: item.outPriceUSD,
+        outPriceIQD: item.outPriceIQD,
+        originalCurrency: item.originalCurrency || "USD",
+        branch: item.branch || "N/A",
+      }))
+      .sort((a, b) => new Date(a.expireDate) - new Date(b.expireDate));
+  }, [storeItems]);
 
   const handleSelectBatch = useCallback((batch) => {
     const existingItemIndex = selectedItems.findIndex((item) => item.batchId === batch.batchId);
@@ -2401,7 +2492,6 @@ const getBatchesForItem = useCallback((barcode) => {
 
   const handleItemChange = useCallback((index, field, value) => {
     const updatedItems = [...selectedItems];
-    // HARD BLOCK: never allow changes to locked (returned) items
     if (updatedItems[index].isLocked) {
       const item = updatedItems[index];
       alert(
@@ -2656,7 +2746,6 @@ const getBatchesForItem = useCallback((barcode) => {
     if (selectedItems.length === 0) { setError("Please add at least one item."); return; }
     if (!editingBillNumber) { setError("No bill selected for update."); return; }
 
-    // Hard block: refuse if any locked items exist
     const lockedItems = selectedItems.filter(item => item.isLocked);
     if (lockedItems.length > 0) {
       const lockedDetails = lockedItems.map(item =>
@@ -2706,7 +2795,6 @@ const getBatchesForItem = useCallback((barcode) => {
         returnBillNumber: item.returnBillNumber || "",
       }));
 
-      // Preserve the original time component
       let dateToSave = saleDate;
       if (editingBillNumber) {
         const originalBill = recentBills.find(b => b.billNumber === editingBillNumber);
@@ -2796,8 +2884,6 @@ const getBatchesForItem = useCallback((barcode) => {
     setIsConsignment(bill.isConsignment || false);
     setNote(bill.note || "");
 
-    // FIX: pass bill.pharmacyId directly — do NOT rely on React state (setPharmacyId above
-    // hasn't flushed yet when this line runs)
     const returnedMap = await loadReturnedItemsForBill(bill.billNumber, bill.pharmacyId);
     setReturnedItemsMap(returnedMap);
 
@@ -2817,7 +2903,7 @@ const getBatchesForItem = useCallback((barcode) => {
         price: item.originalCurrency === "IQD" ? (item.outPriceIQD || item.price) : (item.outPriceUSD || item.price),
         originalCurrency: item.originalCurrency || "USD",
         hasReturn: hasReturn,
-        isLocked: hasReturn,           // TRUE lock — inputs will be disabled
+        isLocked: hasReturn,
         returnQuantity: returnQty,
         returnBillNumber: returnBillNum,
       };
@@ -2907,7 +2993,6 @@ const getBatchesForItem = useCallback((barcode) => {
     const displayBillNumber = bill.billNumber === "TEMP0000" ? "TEMP0000" : formatBillNumber(bill.billNumber);
     const creatorDisplayName = getDisplayName(bill.createdByName || "Unknown User");
 
-    // Build financial lines — always show both currencies if pharmacy uses both
     const unpaidLine  = formatFinancialLine(financialSummary.totalUnpaidBillsUSD, financialSummary.totalUnpaidBillsIQD, pharmacyHasUSD, pharmacyHasIQD);
     const returnLine  = formatFinancialLine(financialSummary.totalReturnBillsUSD, financialSummary.totalReturnBillsIQD, pharmacyHasUSD, pharmacyHasIQD);
     const remainLine  = formatFinancialLine(financialSummary.remainingUnpaidUSD, financialSummary.remainingUnpaidIQD, pharmacyHasUSD, pharmacyHasIQD);
@@ -2918,39 +3003,48 @@ const getBatchesForItem = useCallback((barcode) => {
       <head>
         <title>Bill #${displayBillNumber}</title>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           @font-face { font-family: 'NRT-Reg'; src: url('/fonts/NRT-Reg.ttf') format('truetype'); }
           @font-face { font-family: 'NRT-Bd';  src: url('/fonts/NRT-Bd.ttf')  format('truetype'); }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'NRT-Reg', 'Segoe UI', sans-serif;
-            padding: 20px; color: #2c3e50; background: white;
-            line-height: 1.4; font-size: 15px;
+            padding: 15px; color: #2c3e50; background: white;
+            line-height: 1.4; font-size: 14px;
           }
           .bill-template { max-width: 800px; margin: 0 auto; }
-          .bill-header { margin-bottom: 15px; padding-bottom: 15px; border-bottom: 3px solid #3498db; }
-          .header-content { display: flex; justify-content: space-between; align-items: flex-start; }
-          .company-name { font-size: 28px; font-weight: 700; margin: 0 0 4px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; }
-          .bill-info-grid { display: flex; gap: 15px; margin-bottom: 15px; }
-          .info-box { flex: 1; padding: 12px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed; }
-          .info-box h3 { font-size: 16px; margin: 0 0 8px 0; font-family: 'NRT-Bd', sans-serif; }
-          .info-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 14px; }
-          .info-label { font-weight: 600; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; min-width: 90px; }
-          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: 600; color: white; }
-          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px; }
-          .items-table th { background-color: #3498db; color: white; padding: 10px; font-family: 'NRT-Bd', sans-serif; }
-          .items-table td { padding: 8px 10px; border-bottom: 1px solid #e1e8ed; }
+          .bill-header { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 3px solid #3498db; }
+          .header-content { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+          .company-name { font-size: 24px; font-weight: 700; margin: 0 0 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; }
+          .bill-info-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+          .info-box { flex: 1; min-width: 180px; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed; }
+          .info-box h3 { font-size: 15px; margin: 0 0 6px 0; font-family: 'NRT-Bd', sans-serif; }
+          .info-row { display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px; flex-wrap: wrap; }
+          .info-label { font-weight: 600; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; min-width: 80px; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white; }
+          .items-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px; min-width: 450px; }
+          .items-table th { background-color: #3498db; color: white; padding: 8px; font-family: 'NRT-Bd', sans-serif; font-size: 13px; }
+          .items-table td { padding: 6px 8px; border-bottom: 1px solid #e1e8ed; font-size: 13px; }
           .items-table tr:nth-child(even) td { background-color: #f8f9fa; }
-          .total-row td { background-color: #34495e !important; color: white; font-weight: 700; font-size: 16px; font-family: 'NRT-Bd', sans-serif; }
-          .fin-summary { background: #f8f9fa; padding: 14px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 14px; }
-          .fin-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #e1e8ed; font-size: 15px; }
-          .fin-row:last-child { border-bottom: none; font-weight: 700; color: #e74c3c; font-size: 16px; }
+          .total-row td { background-color: #34495e !important; color: white; font-weight: 700; font-size: 15px; font-family: 'NRT-Bd', sans-serif; }
+          .fin-summary { background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 12px; }
+          .fin-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e1e8ed; font-size: 13px; flex-wrap: wrap; }
+          .fin-row:last-child { border-bottom: none; font-weight: 700; color: #e74c3c; font-size: 14px; }
           .fin-label { font-family: 'NRT-Reg', sans-serif; }
           .fin-value { font-family: 'NRT-Bd', sans-serif; font-weight: 600; }
-          .note-section { background: #fff8e1; padding: 12px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 14px; }
+          .note-section { background: #fff8e1; padding: 10px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 12px; }
           @media print {
             body { padding: 10px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             .bill-template { max-width: 100%; }
+          }
+          @media (max-width: 600px) {
+            body { padding: 10px; font-size: 12px; }
+            .company-name { font-size: 20px; }
+            .header-content { flex-direction: column; align-items: center; text-align: center; }
+            .info-box { min-width: 100%; }
+            .items-table { font-size: 12px; min-width: 350px; }
+            .items-table th, .items-table td { padding: 5px; }
           }
         </style>
       </head>
@@ -2960,11 +3054,11 @@ const getBatchesForItem = useCallback((barcode) => {
             <div class="header-content">
               <div>
                 <h1 class="company-name">ARAN MED STORE</h1>
-                <p style="font-size:16px;color:#34495e;margin:0 0 3px 0">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
-                <p style="font-size:15px;color:#34495e;margin:0">+964 772 533 5252 | +964 751 741 2241</p>
+                <p style="font-size:14px;color:#34495e;margin:0 0 2px 0">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
+                <p style="font-size:13px;color:#34495e;margin:0">+964 772 533 5252 | +964 751 741 2241</p>
               </div>
               <div>
-                <img src="/Aranlogo.png" alt="Aran Logo" style="width:220px;object-fit:contain;" />
+                <img src="/Aranlogo.png" alt="Aran Logo" style="width:160px;max-width:100%;object-fit:contain;" />
               </div>
             </div>
           </div>
@@ -2986,51 +3080,53 @@ const getBatchesForItem = useCallback((barcode) => {
               <div class="info-row"><span class="info-label">Date:</span><span>${formatDate(bill.date)}</span></div>
               <div class="info-row"><span class="info-label">Created By:</span><span>${creatorDisplayName}</span></div>
             </div>
-            <div style="display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <img src="/scann.png" alt="scan me" style="width:100px;" />
+            <div style="flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+              <img src="/scann.png" alt="scan me" style="width:80px;max-width:100%;" />
             </div>
           </div>
 
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th style="text-align:center">#</th>
-                <th style="text-align:left">Item Details</th>
-                <th style="text-align:center">Barcode</th>
-                <th style="text-align:center">Qty</th>
-                <th style="text-align:right">Unit Price</th>
-                <th style="text-align:right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${bill.items?.map((item, idx) => {
-                const price = item.originalCurrency === "IQD"
-                  ? (item.outPriceIQD || item.price || 0)
-                  : (item.outPriceUSD || item.price || 0);
-                const priceFormatted = item.originalCurrency === "IQD"
-                  ? Math.round(price).toLocaleString() + " IQD" : "$" + price.toFixed(2);
-                const totalFormatted = item.originalCurrency === "IQD"
-                  ? Math.round(price * item.quantity).toLocaleString() + " IQD" : "$" + (price * item.quantity).toFixed(2);
-                return `
-                  <tr>
-                    <td style="text-align:center;font-weight:600">${idx + 1}</td>
-                    <td>
-                      <div style="font-weight:600;font-family:'NRT-Bd',sans-serif">${item.name}</div>
-                      <div style="font-size:13px;color:#7f8c8d">Exp: ${formatExpireDate(item.expireDate)}</div>
-                    </td>
-                    <td style="text-align:center;font-family:monospace">${item.barcode}</td>
-                    <td style="text-align:center;font-weight:600">${item.quantity}</td>
-                    <td style="text-align:right;font-weight:600">${priceFormatted}</td>
-                    <td style="text-align:right;font-weight:600">${totalFormatted}</td>
-                  </tr>
-                `;
-              }).join("")}
-              <tr class="total-row">
-                <td colspan="5" style="text-align:right;padding:10px;">CURRENT TOTAL:</td>
-                <td style="text-align:right;padding:10px;font-size:17px">${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div style="overflow-x:auto;">
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="text-align:center">#</th>
+                  <th style="text-align:left">Item Details</th>
+                  <th style="text-align:center">Barcode</th>
+                  <th style="text-align:center">Qty</th>
+                  <th style="text-align:right">Unit Price</th>
+                  <th style="text-align:right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${bill.items?.map((item, idx) => {
+                  const price = item.originalCurrency === "IQD"
+                    ? (item.outPriceIQD || item.price || 0)
+                    : (item.outPriceUSD || item.price || 0);
+                  const priceFormatted = item.originalCurrency === "IQD"
+                    ? Math.round(price).toLocaleString() + " IQD" : "$" + price.toFixed(2);
+                  const totalFormatted = item.originalCurrency === "IQD"
+                    ? Math.round(price * item.quantity).toLocaleString() + " IQD" : "$" + (price * item.quantity).toFixed(2);
+                  return `
+                    <tr>
+                      <td style="text-align:center;font-weight:600">${idx + 1}</td>
+                      <td>
+                        <div style="font-weight:600;font-family:'NRT-Bd',sans-serif;font-size:13px;">${item.name}</div>
+                        <div style="font-size:12px;color:#7f8c8d">Exp: ${formatExpireDate(item.expireDate)}</div>
+                      </td>
+                      <td style="text-align:center;font-family:monospace;font-size:13px;">${item.barcode}</td>
+                      <td style="text-align:center;font-weight:600">${item.quantity}</td>
+                      <td style="text-align:right;font-weight:600">${priceFormatted}</td>
+                      <td style="text-align:right;font-weight:600">${totalFormatted}</td>
+                    </tr>
+                  `;
+                }).join("")}
+                <tr class="total-row">
+                  <td colspan="5" style="text-align:right;padding:8px;">CURRENT TOTAL:</td>
+                  <td style="text-align:right;padding:8px;font-size:15px">${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <div class="fin-summary">
             <div class="fin-row">
@@ -3049,14 +3145,14 @@ const getBatchesForItem = useCallback((barcode) => {
 
           ${bill.note ? `
             <div class="note-section">
-              <h4 style="font-weight:600;margin:0 0 6px 0;color:#e67e22;font-size:15px;font-family:'NRT-Bd',sans-serif">Note:</h4>
-              <p style="font-size:15px;color:#2c3e50;margin:0">${bill.note}</p>
+              <h4 style="font-weight:600;margin:0 0 4px 0;color:#e67e22;font-size:14px;font-family:'NRT-Bd',sans-serif">Note:</h4>
+              <p style="font-size:13px;color:#2c3e50;margin:0">${bill.note}</p>
             </div>
           ` : ""}
 
-          <div style="margin-top:25px;text-align:right">
-            <div style="width:250px;height:1px;background:#3498db;margin:15px 0 5px auto"></div>
-            <p style="font-size:13px;color:#7f8c8d;font-style:italic">Receiver Signature (Stamp)</p>
+          <div style="margin-top:20px;text-align:right">
+            <div style="width:200px;height:1px;background:#3498db;margin:10px 0 5px auto;"></div>
+            <p style="font-size:12px;color:#7f8c8d;font-style:italic">Receiver Signature (Stamp)</p>
           </div>
         </div>
       </body>
@@ -3253,8 +3349,8 @@ const getBatchesForItem = useCallback((barcode) => {
             <div style={styles.suggestionsDropdown}>
               {pharmacySuggestions.map((pharmacy) => (
                 <div key={pharmacy.id} style={styles.suggestionItem} onClick={() => handlePharmacySelect(pharmacy)}>
-                  <div style={{ fontWeight: "600", color: "#2c3e50", fontSize: "17px" }}>{pharmacy.name}</div>
-                  <div style={{ fontSize: "15px", color: "#7f8c8d" }}>Code: {pharmacy.code}</div>
+                  <div style={{ fontWeight: "600", color: "#2c3e50", fontSize: "15px" }}>{pharmacy.name}</div>
+                  <div style={{ fontSize: "13px", color: "#7f8c8d" }}>Code: {pharmacy.code}</div>
                 </div>
               ))}
             </div>
@@ -3327,31 +3423,27 @@ const getBatchesForItem = useCallback((barcode) => {
                       {item.batches.map((batch, batchIndex) => (
                         <tr key={`${item.id}-${batchIndex}`}>
                           <td style={styles.tableCell}>{formatExpireDate(batch.expireDate)}</td>
-                        <td style={{ 
-  ...styles.tableCell, 
-  textAlign: "center",
-  fontWeight: "600",
-  // Text Colors
-  color: batch.branch === "Slemany" ? "#16a34a" : // Green
-         batch.branch === "Erbil" ? "#dc2626" :   // Red
-         batch.branch === "Duhok" ? "#2563eb" :   // Blue (shifted)
-         batch.branch === "Kirkuk" ? "#f59e0b" :  // Amber
-         batch.branch === "Kalar" ? "#8b5cf6" :   // Purple
-         "#4b5563",
-  // Light Background Colors
-  backgroundColor: batch.branch === "Slemany" ? "#f0fdf4" : // Light Green
-                   batch.branch === "Erbil" ? "#fef2f2" :   // Light Red
-                   batch.branch === "Duhok" ? "#eff6ff" :   // Light Blue
-                   batch.branch === "Kirkuk" ? "#fffbeb" :  // Light Amber
-                   batch.branch === "Kalar" ? "#f5f3ff" :   // Light Purple
-                   "transparent",
-  // Optional: adds a bit of inner spacing and a neat rounded look inside the cell
-  padding: "6px 10px",
-  borderRadius: "0px", 
-  fontSize:"17px"
-}}>
-  {batch.branch || "N/A"}
-</td>
+                          <td style={{ 
+                            ...styles.tableCell, 
+                            textAlign: "center",
+                            fontWeight: "600",
+                            color: batch.branch === "Slemany" ? "#16a34a" :
+                                   batch.branch === "Erbil" ? "#dc2626" :
+                                   batch.branch === "Duhok" ? "#2563eb" :
+                                   batch.branch === "Kirkuk" ? "#f59e0b" :
+                                   batch.branch === "Kalar" ? "#8b5cf6" :
+                                   "#4b5563",
+                            backgroundColor: batch.branch === "Slemany" ? "#f0fdf4" :
+                                             batch.branch === "Erbil" ? "#fef2f2" :
+                                             batch.branch === "Duhok" ? "#eff6ff" :
+                                             batch.branch === "Kirkuk" ? "#fffbeb" :
+                                             batch.branch === "Kalar" ? "#f5f3ff" :
+                                             "transparent",
+                            padding: "6px 10px",
+                            fontSize:"15px"
+                          }}>
+                            {batch.branch || "N/A"}
+                          </td>
                           <td style={{ ...styles.tableCell, textAlign: "right" }}>
                             {batch.currency === "IQD"
                               ? Math.round(batch.netPriceDisplay).toLocaleString() + " IQD"
@@ -3376,21 +3468,21 @@ const getBatchesForItem = useCallback((barcode) => {
           )}
         </div>
 
-        {/* Selected items list */}
+        {/* Selected items list - IMPROVED MOBILE SUPPORT */}
         {selectedItems.length > 0 && (
           <div style={styles.selectedItems}>
-            <h3 style={{ marginBottom: "15px", fontSize: "22px", fontWeight: "600", color: "#2c3e50" }}>
+            <h3 style={{ marginBottom: "12px", fontSize: "18px", fontWeight: "600", color: "#2c3e50" }}>
               Selected Items
               {isEditMode && selectedItems.some(i => i.isLocked) && (
                 <span style={{
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: "400",
                   color: "#e74c3c",
-                  marginLeft: "10px",
+                  marginLeft: "5px",
                   display: "block",
-                  marginTop: "5px"
+                  marginTop: "4px"
                 }}>
-                  ⚠️ Items highlighted in red have active return invoices. Their quantity and price are locked and cannot be edited.
+                  ⚠️ Items with return invoices are locked
                 </span>
               )}
             </h3>
@@ -3413,61 +3505,58 @@ const getBatchesForItem = useCallback((barcode) => {
                   ...(isLocked ? styles.lockedItem : {}),
                   position: "relative",
                 }}>
-                  {/* Red bottom bar for locked items */}
                   {isLocked && (
                     <div style={{
                       position: "absolute",
                       bottom: "0", left: "0", right: "0",
-                      height: "4px",
+                      height: "3px",
                       backgroundColor: "#e74c3c",
                       borderRadius: "0 0 8px 8px",
-                      zIndex: "1",
                     }} />
                   )}
 
-                  <div style={{ ...styles.itemDetails, zIndex: "1", position: "relative" }}>
+                  <div style={{ ...styles.itemDetails, position: "relative", zIndex: "1" }}>
                     <div style={styles.itemName}>
                       {item.name}
                       {isLocked && (
                         <span style={styles.warningBadge}>
-                          🔒 Returned ({returnQty} units)
+                          🔒 Returned ({returnQty})
                         </span>
                       )}
                     </div>
                     <div style={styles.itemMeta}>
                       {item.barcode} • Exp: {formatExpireDate(item.expireDate)}
-                      {isEditMode && ` • Available in store: ${item.availableQuantity}`}
-                      <div>Net Price: {netDisplay}</div>
-                      <div>Currency: {item.originalCurrency || "USD"}</div>
+                      {isEditMode && ` • Avail: ${item.availableQuantity}`}
+                      <div>Net: {netDisplay} • Currency: {item.originalCurrency || "USD"}</div>
                       {isLocked && (
                         <div style={{
                           color: "#c0392b",
                           fontWeight: "600",
-                          marginTop: "6px",
-                          padding: "8px 12px",
+                          marginTop: "4px",
+                          padding: "6px 10px",
                           backgroundColor: "#fff0f0",
                           borderRadius: "6px",
                           border: "1px solid #e74c3c",
-                          fontSize: "14px",
-                          lineHeight: "1.6",
+                          fontSize: "13px",
                         }}>
-                          🔒 <strong>Locked</strong> — Return Invoice: <strong>{returnBillNum || "Unknown"}</strong><br />
-                          <span style={{ fontSize: "13px" }}>
-                            {returnQty} unit{returnQty !== 1 ? "s" : ""} have been returned. Edit the Return Invoice to make changes.
-                          </span>
+                          🔒 Return Invoice: {returnBillNum || "Unknown"} ({returnQty} unit{returnQty !== 1 ? "s" : ""})
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", zIndex: "1", position: "relative" }}>
-                    <div>
+                  {/* IMPROVED: Mobile-friendly controls with auto-select on focus */}
+                  <div style={styles.selectedItemControls}>
+                    {/* Quantity - with auto-select on focus */}
+                    <div style={styles.itemControlGroup}>
+                      <span style={styles.itemControlLabel}>Qty:</span>
                       <input
                         type="number"
                         min="1"
                         max={item.availableQuantity}
                         style={{
                           ...styles.quantityInput,
+                          width: "60px",
                           ...(isLocked ? {
                             backgroundColor: "#f0f0f0",
                             cursor: "not-allowed",
@@ -3478,6 +3567,8 @@ const getBatchesForItem = useCallback((barcode) => {
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
                         onFocus={(e) => {
+                          // SELECT ALL TEXT on focus for easy replacement
+                          e.target.select();
                           if (isLocked) {
                             e.target.blur();
                             alert(
@@ -3489,16 +3580,21 @@ const getBatchesForItem = useCallback((barcode) => {
                           }
                         }}
                         readOnly={isLocked}
+                        inputMode="numeric"
                       />
-                      <span style={{ fontSize: "15px", color: "#7f8c8d" }}>/ {item.availableQuantity}</span>
+                      <span style={{ fontSize: "13px", color: "#7f8c8d" }}>/ {item.availableQuantity}</span>
                     </div>
-                    <div>
+
+                    {/* Price - with auto-select on focus */}
+                    <div style={styles.itemControlGroup}>
+                      <span style={styles.itemControlLabel}>Price:</span>
                       <input
                         type="number"
                         min="0.01"
                         step="0.01"
                         style={{
                           ...styles.priceInput,
+                          width: "80px",
                           ...(isLocked ? {
                             backgroundColor: "#f0f0f0",
                             cursor: "not-allowed",
@@ -3508,12 +3604,9 @@ const getBatchesForItem = useCallback((barcode) => {
                         }}
                         value={item.price}
                         onChange={(e) => handleItemChange(index, "price", e.target.value)}
-                        onBlur={(e) => {
-                          if (!isLocked && parseFloat(e.target.value) < item.netPrice) {
-                            alert(`Warning: Selling price is below net price.`);
-                          }
-                        }}
                         onFocus={(e) => {
+                          // SELECT ALL TEXT on focus for easy replacement
+                          e.target.select();
                           if (isLocked) {
                             e.target.blur();
                             alert(
@@ -3524,16 +3617,36 @@ const getBatchesForItem = useCallback((barcode) => {
                             );
                           }
                         }}
+                        onBlur={(e) => {
+                          if (!isLocked && parseFloat(e.target.value) < item.netPrice) {
+                            alert(`Warning: Selling price is below net price.`);
+                          }
+                        }}
                         readOnly={isLocked}
+                        inputMode="decimal"
                       />
-                      <span style={{ fontSize: "15px", color: "#7f8c8d" }}>{item.originalCurrency === "IQD" ? "IQD" : "USD"}</span>
+                      <span style={{ fontSize: "13px", color: "#7f8c8d" }}>
+                        {item.originalCurrency === "IQD" ? "IQD" : "USD"}
+                      </span>
                     </div>
-                    <div style={{ fontWeight: "600", minWidth: "120px", textAlign: "right", color: "#2c3e50", fontSize: "17px" }}>
+
+                    {/* Total */}
+                    <div style={{
+                      fontWeight: "600",
+                      minWidth: "80px",
+                      textAlign: "right",
+                      color: "#2c3e50",
+                      fontSize: "15px",
+                    }}>
                       {totalDisplay}
                     </div>
+
+                    {/* Remove button */}
                     <button
                       style={{
                         ...styles.removeButton,
+                        padding: "6px 12px",
+                        fontSize: "13px",
                         ...(isLocked ? {
                           opacity: 0.45,
                           cursor: "not-allowed",
@@ -3543,7 +3656,7 @@ const getBatchesForItem = useCallback((barcode) => {
                       onClick={() => handleRemoveItem(index)}
                       title={isLocked ? `Locked — returned on ${returnBillNum}` : "Remove item"}
                     >
-                      ×
+                      ✕
                     </button>
                   </div>
                 </div>

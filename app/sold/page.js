@@ -582,7 +582,7 @@ export default function SoldPage() {
         <h1 style={{ fontSize: "1.75rem", fontWeight: "bold", marginBottom: "1.5rem", color: "#1e293b", fontFamily: "var(--font-nrt-bd)" }}>
           مێژووی فرۆشتنەکان
         </h1>
-        <div style={{ color: "#64748b" }}>بارکردنی مێژووی فرۆشتنەکان...</div>
+        <div style={{ color: "#64748b" }}>پیشاندانی سەرجەم فرۆشراوەکان..</div>
       </div>
     );
   }

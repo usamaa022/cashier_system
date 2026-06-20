@@ -30,7 +30,7 @@ function BuyingContent() {
   return (
     <div className="container py-4">
       <h1 className="text-2xl font-bold mb-6">
-        {editingBill ? `Editing Bill #${editingBill.billNumber}` : 'Purchasing'}
+        {editingBill ? `Editing Bill #${editingBill.billNumber}` : ''}
       </h1>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <BuyingForm
