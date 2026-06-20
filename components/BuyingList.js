@@ -558,6 +558,14 @@ export default function BuyingList({ refreshTrigger }) {
   return (
     <>
       <style jsx global>{`
+        /* Main Container - Full width with max-width */
+        .buying-list-wrapper {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 0.75rem;
+          width: 100%;
+        }
+
         /* Table Container Styles */
         .table-container {
           background: white;
@@ -565,6 +573,35 @@ export default function BuyingList({ refreshTrigger }) {
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
           overflow: hidden;
           margin-top: 1rem;
+          width: 100%;
+        }
+
+        /* Scrollable Table Wrapper */
+        .table-scroll-wrapper {
+          overflow-x: auto;
+          overflow-y: auto;
+          max-height: 600px;
+          -webkit-overflow-scrolling: touch;
+          width: 100%;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 4px;
+        }
+
+        .table-scroll-wrapper::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
         }
 
         /* Main Table Styles */
@@ -572,20 +609,29 @@ export default function BuyingList({ refreshTrigger }) {
           width: 100%;
           border-collapse: separate;
           border-spacing: 0;
-          font-size: 17px;
+          font-size: 14px;
+          min-width: 700px;
         }
 
         .purchase-table thead tr {
           background: #f8fafc;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
 
         .purchase-table th {
-          padding: 1rem;
+          padding: 0.75rem;
           font-weight: 600;
           color: #4b5563;
           text-align: left;
-          border-bottom: 1px solid #e5e7eb;
-          position: relative;
+          border-bottom: 2px solid #e5e7eb;
+          position: sticky;
+          top: 0;
+          background: #f8fafc;
+          z-index: 10;
+          font-size: 13px;
+          white-space: nowrap;
         }
 
         .purchase-table th:not(:last-child) {
@@ -602,10 +648,11 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .purchase-table td {
-          padding: 1rem;
+          padding: 0.75rem;
           color: #374151;
           border-bottom: 1px solid #e5e7eb;
           transition: all 0.2s ease;
+          font-size: 13px;
         }
 
         .purchase-table td:not(:last-child) {
@@ -630,7 +677,7 @@ export default function BuyingList({ refreshTrigger }) {
           display: inline-block;
           padding: 0.25rem 0.75rem;
           border-radius: 20px;
-          font-size: 0.9rem;
+          font-size: 0.85rem;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.03em;
@@ -644,9 +691,9 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .btn-icon {
-          padding: 0.375rem 0.75rem;
+          padding: 0.3rem 0.6rem;
           border-radius: 6px;
-          font-size: 0.9rem;
+          font-size: 0.85rem;
           font-weight: 600;
           transition: all 0.2s ease;
           border: 1px solid transparent;
@@ -708,19 +755,19 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .details-content {
-          padding: 1.5rem;
+          padding: 1rem;
         }
 
         /* Info Grid */
         .info-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 1rem;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 0.75rem;
           background: white;
           border-radius: 8px;
-          padding: 1.5rem;
+          padding: 1rem;
           border: 1px solid #e5e7eb;
-          margin-bottom: 1.5rem;
+          margin-bottom: 1rem;
         }
 
         .info-item {
@@ -730,7 +777,7 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .info-label {
-          font-size: 0.9rem;
+          font-size: 0.75rem;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.03em;
@@ -738,7 +785,7 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .info-value {
-          font-size: 1.1rem;
+          font-size: 0.95rem;
           font-weight: 600;
           color: #111827;
         }
@@ -749,25 +796,28 @@ export default function BuyingList({ refreshTrigger }) {
           border-radius: 8px;
           border: 1px solid #e5e7eb;
           overflow: hidden;
-          margin: 1rem 0;
+          margin: 0.75rem 0;
+          overflow-x: auto;
         }
 
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          font-size: 1rem;
+          font-size: 0.9rem;
+          min-width: 600px;
         }
 
         .items-table th {
           background: #f9fafb;
-          padding: 0.75rem 1rem;
+          padding: 0.5rem 0.75rem;
           font-weight: 600;
           color: #374151;
           text-transform: uppercase;
-          font-size: 1rem;
+          font-size: 0.8rem;
           letter-spacing: 0.03em;
           border-bottom: 1px solid #e5e7eb;
           text-align: left;
+          white-space: nowrap;
         }
 
         .items-table th:not(:last-child) {
@@ -775,9 +825,10 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .items-table td {
-          padding: 0.75rem 1rem;
+          padding: 0.5rem 0.75rem;
           border-bottom: 1px solid #e5e7eb;
           color: #111827;
+          font-size: 0.85rem;
         }
 
         .items-table td:not(:last-child) {
@@ -791,9 +842,9 @@ export default function BuyingList({ refreshTrigger }) {
         .barcode-cell {
           font-family: 'Courier New', monospace;
           background: #f3f4f6;
-          padding: 0.25rem 0.5rem;
+          padding: 0.2rem 0.4rem;
           border-radius: 4px;
-          font-size: 1rem;
+          font-size: 0.85rem;
           color: #2563eb;
         }
 
@@ -801,13 +852,13 @@ export default function BuyingList({ refreshTrigger }) {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          width: 2rem;
-          height: 2rem;
+          min-width: 1.8rem;
+          padding: 0.1rem 0.4rem;
           background: #f3f4f6;
           color: #111827;
           border-radius: 9999px;
           font-weight: 700;
-          font-size: 1rem;
+          font-size: 0.85rem;
         }
 
         .price-usd {
@@ -831,9 +882,9 @@ export default function BuyingList({ refreshTrigger }) {
 
         .expire-badge {
           display: inline-block;
-          padding: 0.25rem 0.75rem;
+          padding: 0.2rem 0.6rem;
           border-radius: 20px;
-          font-size: 1rem;
+          font-size: 0.8rem;
           font-weight: 600;
         }
 
@@ -852,19 +903,21 @@ export default function BuyingList({ refreshTrigger }) {
           background: white;
           border: 1px solid #e5e7eb;
           border-radius: 12px;
-          padding: 1.5rem;
-          margin-bottom: 1.5rem;
+          padding: 1rem;
+          margin-bottom: 1rem;
         }
 
         .filter-header {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-bottom: 1rem;
+          margin-bottom: 0.75rem;
+          flex-wrap: wrap;
+          gap: 0.5rem;
         }
 
         .filter-header h3 {
-          font-size: 1.1rem;
+          font-size: 1rem;
           font-weight: 600;
           color: #111827;
           margin: 0;
@@ -872,16 +925,28 @@ export default function BuyingList({ refreshTrigger }) {
 
         .filter-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 1rem;
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+
+        @media (min-width: 640px) {
+          .filter-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .filter-grid {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          }
         }
 
         .filter-input {
           width: 100%;
-          padding: 0.625rem;
+          padding: 0.5rem;
           border: 1px solid #e5e7eb;
           border-radius: 8px;
-          font-size: 1rem;
+          font-size: 0.9rem;
           transition: all 0.2s ease;
         }
 
@@ -893,7 +958,7 @@ export default function BuyingList({ refreshTrigger }) {
 
         .filter-label {
           display: block;
-          font-size: 1rem;
+          font-size: 0.85rem;
           font-weight: 500;
           color: #4b5563;
           margin-bottom: 0.25rem;
@@ -903,19 +968,19 @@ export default function BuyingList({ refreshTrigger }) {
         .currency-toggle {
           display: flex;
           justify-content: flex-end;
-          margin-bottom: 1rem;
+          margin-bottom: 0.75rem;
         }
 
         .currency-button {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          padding: 0.5rem 1rem;
+          padding: 0.4rem 0.8rem;
           background: #eff6ff;
           color: #2563eb;
           border: 1px solid #bfdbfe;
           border-radius: 8px;
-          font-size: 1rem;
+          font-size: 0.85rem;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -956,7 +1021,7 @@ export default function BuyingList({ refreshTrigger }) {
           top: 0;
           background: white;
           border-bottom: 1px solid #e5e7eb;
-          padding: 1rem 1.5rem;
+          padding: 0.75rem 1rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -964,7 +1029,7 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .modal-header h3 {
-          font-size: 1.1rem;
+          font-size: 1rem;
           font-weight: 600;
           color: #111827;
           margin: 0;
@@ -981,16 +1046,16 @@ export default function BuyingList({ refreshTrigger }) {
         }
 
         .modal-body {
-          padding: 1.5rem;
+          padding: 1rem;
         }
 
         .attachment-preview {
           width: 100%;
-          height: 200px;
+          height: 180px;
           object-fit: contain;
           border: 2px solid #e5e7eb;
           border-radius: 8px;
-          margin-bottom: 1rem;
+          margin-bottom: 0.75rem;
           background: #f9fafb;
           cursor: pointer;
           transition: transform 0.2s ease;
@@ -1002,25 +1067,25 @@ export default function BuyingList({ refreshTrigger }) {
 
         .attachment-placeholder {
           text-align: center;
-          padding: 2rem;
+          padding: 1.5rem;
           border: 2px dashed #e5e7eb;
           border-radius: 8px;
           color: #9ca3af;
-          margin-bottom: 1rem;
+          margin-bottom: 0.75rem;
         }
 
         .modal-actions {
           display: grid;
-          grid-template-columns: repeat(4, 1fr);
+          grid-template-columns: repeat(3, 1fr);
           gap: 0.5rem;
-          margin-top: 1rem;
+          margin-top: 0.75rem;
         }
 
         .modal-btn {
-          padding: 0.625rem;
+          padding: 0.5rem;
           border-radius: 8px;
           font-weight: 500;
-          font-size: 1rem;
+          font-size: 0.85rem;
           border: none;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -1077,12 +1142,12 @@ export default function BuyingList({ refreshTrigger }) {
 
         .file-upload-btn {
           width: 100%;
-          padding: 0.625rem;
+          padding: 0.5rem;
           background: #f3f4f6;
           color: #374151;
           border: 1px solid #d1d5db;
           border-radius: 8px;
-          font-size: 1rem;
+          font-size: 0.85rem;
           font-weight: 500;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -1119,7 +1184,7 @@ export default function BuyingList({ refreshTrigger }) {
 
         .fullscreen-image {
           max-width: 90vw;
-          max-height: 80vh;
+          max-height: 75vh;
           object-fit: contain;
           border-radius: 8px;
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
@@ -1127,15 +1192,15 @@ export default function BuyingList({ refreshTrigger }) {
 
         .fullscreen-actions {
           display: flex;
-          gap: 1rem;
-          margin-top: 1.5rem;
+          gap: 0.75rem;
+          margin-top: 1rem;
         }
 
         .fullscreen-btn {
-          padding: 0.75rem 1.5rem;
+          padding: 0.5rem 1rem;
           border: none;
           border-radius: 8px;
-          font-size: 1rem;
+          font-size: 0.85rem;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.2s ease;
@@ -1165,20 +1230,20 @@ export default function BuyingList({ refreshTrigger }) {
         /* Empty State */
         .empty-state {
           text-align: center;
-          padding: 3rem;
+          padding: 2rem;
           background: white;
           border-radius: 12px;
           border: 1px solid #e5e7eb;
         }
 
         .empty-state-icon {
-          font-size: 3rem;
+          font-size: 2.5rem;
           color: #d1d5db;
-          margin-bottom: 1rem;
+          margin-bottom: 0.75rem;
         }
 
         .empty-state-title {
-          font-size: 1.1rem;
+          font-size: 1rem;
           font-weight: 600;
           color: #6b7280;
           margin-bottom: 0.5rem;
@@ -1186,29 +1251,38 @@ export default function BuyingList({ refreshTrigger }) {
 
         .empty-state-text {
           color: #9ca3af;
+          font-size: 0.9rem;
         }
 
         /* Responsive */
         @media (max-width: 768px) {
           .purchase-table {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
+            min-width: 600px;
           }
 
           .purchase-table th,
           .purchase-table td {
-            padding: 0.75rem 0.5rem;
+            padding: 0.5rem 0.4rem;
           }
 
           .info-grid {
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr 1fr;
           }
 
           .action-buttons {
             flex-direction: column;
+            gap: 0.25rem;
           }
 
           .modal-actions {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .info-grid {
+            grid-template-columns: 1fr;
           }
         }
 
@@ -1238,7 +1312,7 @@ export default function BuyingList({ refreshTrigger }) {
           display: inline-block;
           padding: 2px 6px;
           border-radius: 12px;
-          font-size: 10px;
+          font-size: 9px;
           font-weight: 600;
           margin-left: 4px;
         }
@@ -1254,585 +1328,577 @@ export default function BuyingList({ refreshTrigger }) {
         }
       `}</style>
 
-      <Card title="Purchase History">
-        {/* Currency Toggle */}
-        {/* <div className="currency-toggle">
-          <button onClick={toggleCurrency} className="currency-button">
-            <span>Show in {displayCurrency === "USD" ? "IQD" : "USD"}</span>
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="16" height="16">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-          </button>
-        </div> */}
-
-        {/* Search Filters Section */}
-        <div className="filter-section">
-          <div className="filter-header">
-            <h3>Search Filters</h3>
-            <button
-              type="button"
-              className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded"
-              onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
-            >
-              {showAdvancedSearch ? "Hide Advanced Search" : "Advanced Search"}
-            </button>
-          </div>
-          <div className="filter-grid mb-4">
-            <div className="relative">
-              <label className="filter-label">Company</label>
-              <input
-                className="filter-input"
-                placeholder="Search company..."
-                value={filters.companySearch}
-                onChange={(e) => handleFilterChange('companySearch', e.target.value)}
-                onFocus={() => setShowCompanySuggestions(true)}
-              />
-              {showCompanySuggestions && (
-                <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
-                  {companySuggestions.map(company => (
-                    <div
-                      key={company.id}
-                      className="p-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
-                      onClick={() => handleCompanySelect(company)}
+      <div className="buying-list-wrapper">
+        <Card title="Purchase History">
+          {/* Search Filters Section */}
+          <div className="filter-section">
+            <div className="filter-header">
+              <h3>Search Filters</h3>
+              <button
+                type="button"
+                className="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded"
+                onClick={() => setShowAdvancedSearch(!showAdvancedSearch)}
+              >
+                {showAdvancedSearch ? "Hide Advanced Search" : "Advanced Search"}
+              </button>
+            </div>
+            <div className="filter-grid mb-4">
+              <div className="relative">
+                <label className="filter-label">Company</label>
+                <input
+                  className="filter-input"
+                  placeholder="Search company..."
+                  value={filters.companySearch}
+                  onChange={(e) => handleFilterChange('companySearch', e.target.value)}
+                  onFocus={() => setShowCompanySuggestions(true)}
+                />
+                {showCompanySuggestions && (
+                  <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-xl mt-1 max-h-60 overflow-y-auto">
+                    {companySuggestions.map(company => (
+                      <div
+                        key={company.id}
+                        className="p-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors duration-150"
+                        onClick={() => handleCompanySelect(company)}
+                      >
+                        <div className="font-semibold text-sm text-gray-900">{company.name}</div>
+                        <div className="text-xs text-gray-500 mt-1">Code: {company.code}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="filter-label">Filter by Items</label>
+                <Select
+                  isMulti
+                  options={itemOptions}
+                  onChange={(selected) => setItemFilters(selected.map(option => option.value))}
+                  placeholder="Select specific items..."
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  styles={{
+                    control: (base) => ({
+                      ...base,
+                      minHeight: '36px',
+                      fontSize: '13px',
+                      border: '1px solid #e5e7eb',
+                      '&:hover': {
+                        borderColor: '#3b82f6'
+                      }
+                    })
+                  }}
+                />
+              </div>
+            </div>
+            {showAdvancedSearch && (
+              <div className="border-t pt-4 space-y-4">
+                <div className="filter-grid">
+                  <div>
+                    <label className="filter-label">Bill Number</label>
+                    <input
+                      className="filter-input"
+                      placeholder="Enter bill #"
+                      value={filters.billNumber}
+                      onChange={(e) => handleFilterChange('billNumber', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="filter-label">Company Bill #</label>
+                    <input
+                      className="filter-input"
+                      placeholder="Enter company bill #"
+                      value={filters.companyBillNumber}
+                      onChange={(e) => handleFilterChange('companyBillNumber', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="filter-label">From Date</label>
+                    <input
+                      type="date"
+                      className="filter-input"
+                      value={filters.startDate}
+                      onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="filter-label">To Date</label>
+                    <input
+                      type="date"
+                      className="filter-input"
+                      value={filters.endDate}
+                      onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="filter-grid">
+                  <div>
+                    <label className="filter-label">Payment Status</label>
+                    <select
+                      className="filter-input"
+                      value={filters.paymentStatus}
+                      onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
                     >
-                      <div className="font-semibold text-sm text-gray-900">{company.name}</div>
-                      <div className="text-xs text-gray-500 mt-1">Code: {company.code}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="filter-label">Filter by Items</label>
-              <Select
-                isMulti
-                options={itemOptions}
-                onChange={(selected) => setItemFilters(selected.map(option => option.value))}
-                placeholder="Select specific items..."
-                className="react-select-container"
-                classNamePrefix="react-select"
-                styles={{
-                  control: (base) => ({
-                    ...base,
-                    minHeight: '42px',
-                    fontSize: '14px',
-                    border: '1px solid #e5e7eb',
-                    '&:hover': {
-                      borderColor: '#3b82f6'
-                    }
-                  })
-                }}
-              />
-            </div>
-          </div>
-          {showAdvancedSearch && (
-            <div className="border-t pt-4 space-y-4">
-              <div className="filter-grid">
-                <div>
-                  <label className="filter-label">Bill Number</label>
-                  <input
-                    className="filter-input"
-                    placeholder="Enter bill #"
-                    value={filters.billNumber}
-                    onChange={(e) => handleFilterChange('billNumber', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="filter-label">Company Bill #</label>
-                  <input
-                    className="filter-input"
-                    placeholder="Enter company bill #"
-                    value={filters.companyBillNumber}
-                    onChange={(e) => handleFilterChange('companyBillNumber', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="filter-label">From Date</label>
-                  <input
-                    type="date"
-                    className="filter-input"
-                    value={filters.startDate}
-                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="filter-label">To Date</label>
-                  <input
-                    type="date"
-                    className="filter-input"
-                    value={filters.endDate}
-                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                  />
+                      <option value="all">All Status</option>
+                      <option value="Unpaid">Unpaid</option>
+                      <option value="Cash">Cash</option>
+                      <option value="Paid">Paid</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="filter-label">Consignment Status</label>
+                    <select
+                      className="filter-input"
+                      value={filters.consignmentStatus}
+                      onChange={(e) => handleFilterChange('consignmentStatus', e.target.value)}
+                    >
+                      <option value="all">All</option>
+                      <option value="consignment">تحت صرف (Consignment)</option>
+                      <option value="owned">Owned</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="filter-label">Global Search</label>
+                    <input
+                      className="filter-input"
+                      placeholder="Search by item name or barcode..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="filter-grid">
-                <div>
-                  <label className="filter-label">Payment Status</label>
-                  <select
-                    className="filter-input"
-                    value={filters.paymentStatus}
-                    onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
-                  >
-                    <option value="all">All Status</option>
-                    <option value="Unpaid">Unpaid</option>
-                    <option value="Cash">Cash</option>
-                    <option value="Paid">Paid</option>
-                  </select>
+            )}
+          </div>
+
+          {/* Bills Table - Scrollable */}
+          <div className="table-container">
+            <div className="table-scroll-wrapper">
+              <table className="purchase-table">
+                <thead>
+                  <tr>
+                    <th className="sortable" onClick={() => requestSort('billNumber')}>
+                      BILL #
+                    </th>
+                    <th className="sortable" onClick={() => requestSort('company')}>
+                      COMPANY
+                    </th>
+                    <th className="sortable" onClick={() => requestSort('date')}>
+                      DATE
+                    </th>
+                    <th className="sortable" onClick={() => requestSort('paymentStatus')}>
+                      STATUS
+                    </th>
+                    <th className="sortable" onClick={() => requestSort('consignment')}>
+                      CONSIGNMENT
+                    </th>
+                    <th>ATTACHMENT</th>
+                    <th>ACTIONS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedAndFilteredBills.map(bill => (
+                    <React.Fragment key={bill.billNumber}>
+                      <tr
+                        onClick={() => toggleBillDetails(bill)}
+                        className={selectedBill?.billNumber === bill.billNumber ? 'selected-row' : ''}
+                      >
+                        <td>
+                          <span className="font-medium text-blue-600">#{bill.billNumber}</span>
+                        </td>
+                        <td>
+                          <div className="font-medium">
+                            {companies.find(c => c.id === bill.companyId)?.name || 'Unknown Company'}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Code: {companies.find(c => c.id === bill.companyId)?.code || 'N/A'}
+                          </div>
+                        </td>
+                        <td>
+                          <div className="text-sm text-gray-700">
+                            {formatDateToDDMMYYYY(bill.date)}
+                          </div>
+                        </td>
+                        <td>
+                          <PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} />
+                        </td>
+                        <td>
+                          <ConsignmentBadge isConsignment={bill.isConsignment} />
+                        </td>
+                        <td>
+                          {bill.attachment ? (
+                            <button
+                              className="btn-icon btn-view"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAttachmentModal(bill);
+                              }}
+                            >
+                              📎 View
+                            </button>
+                          ) : (
+                            <button
+                              className="btn-icon btn-attach"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openAttachmentModal(bill);
+                              }}
+                            >
+                              ＋ Attach
+                            </button>
+                          )}
+                        </td>
+                        <td>
+                          <div className="action-buttons">
+                            <button
+                              className="btn-icon btn-edit"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleUpdateBill(bill);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn-icon btn-delete"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteBill(bill.billNumber);
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {selectedBill?.billNumber === bill.billNumber && (
+                        <tr>
+                          <td colSpan="7" className="p-0">
+                            <div className="details-panel">
+                              <div className="details-content">
+                                {/* Bill Header */}
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
+                                  <h4 className="font-bold text-blue-800 text-lg">
+                                    📋 Bill #{bill.billNumber} - Complete Details
+                                  </h4>
+                                  <div className="text-sm text-gray-600">
+                                    Total Items: {bill.items.length} | Currency: {bill.currency || "USD"}
+                                  </div>
+                                </div>
+
+                                {/* Bill Information Grid */}
+                                <div className="info-grid">
+                                  <div className="info-item">
+                                    <span className="info-label">Company</span>
+                                    <span className="info-value company">
+                                      {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'} 
+                                      ({companies.find(c => c.id === bill.companyId)?.code || 'N/A'})
+                                    </span>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Bill Date</span>
+                                    <span className="info-value">{formatDateToDDMMYYYY(bill.date)}</span>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Company Bill #</span>
+                                    <span className="info-value">{bill.companyBillNumber || 'N/A'}</span>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Branch</span>
+                                    <span className="info-value">{bill.branch || 'Slemany'}</span>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Payment Status</span>
+                                    <PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} />
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Consignment</span>
+                                    <ConsignmentBadge isConsignment={bill.isConsignment} />
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Expense %</span>
+                                    <span className="info-value expense">{bill.expensePercentage || 7}%</span>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Transport Fee</span>
+                                    <div className="price-display">
+                                      {bill.currency === "USD" ? (
+                                        <div className="price-usd-display">
+                                          ${formatNumber(bill.totalTransportFeeUSD || 0)}
+                                        </div>
+                                      ) : (
+                                        <div className="price-iqd-display">
+                                          {formatNumber(bill.totalTransportFeeIQD || 0)} IQD
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="info-item">
+                                    <span className="info-label">Other Expenses</span>
+                                    <div className="price-display">
+                                      {bill.currency === "USD" ? (
+                                        <div className="price-usd-display">
+                                          ${formatNumber(bill.totalExternalExpenseUSD || 0)}
+                                        </div>
+                                      ) : (
+                                        <div className="price-iqd-display">
+                                          {formatNumber(bill.totalExternalExpenseIQD || 0)} IQD
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="info-item" style={{ gridColumn: '1/-1' }}>
+                                    <span className="info-label">Bill Notes</span>
+                                    <span className="info-value">{bill.billNote || 'No notes'}</span>
+                                  </div>
+                                </div>
+
+                                {/* Items Table */}
+                                <div className="items-table-container">
+                                  <h5 className="font-semibold text-gray-700 mb-3 text-sm px-4 pt-4">Items List</h5>
+                                  <table className="items-table">
+                                    <thead>
+                                      <tr>
+                                        <th>Barcode</th>
+                                        <th>Item Name</th>
+                                        <th className="text-center">Qty</th>
+                                        <th className="text-right">Base Price</th>
+                                        <th className="text-right">Net Price</th>
+                                        <th className="text-right">Out Price</th>
+                                        <th className="text-center">Expire Date</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {bill.items.map((item, index) => {
+                                        const expireDate = formatExpireDate(item.expireDate);
+                                        const quantity = item.quantity || 0;
+                                        const billCurrency = bill.currency || "USD";
+
+                                        const basePrice = getPurchasePrice(item, billCurrency);
+                                        const netPrice = getNetPrice(item, billCurrency);
+                                        const outPrice = getOutPrice(item, billCurrency);
+
+                                        return (
+                                          <tr key={index}>
+                                            <td>
+                                              <code className="barcode-cell">{item.barcode}</code>
+                                            </td>
+                                            <td>{item.name}</td>
+                                            <td className="text-center">
+                                              <span className="quantity-badge">{quantity}</span>
+                                            </td>
+                                            <td className="text-right">
+                                              <div className="price-display">
+                                                <div className="purchase-price">
+                                                  {billCurrency === "USD" 
+                                                    ? `$${formatNumber(basePrice)}` 
+                                                    : `${formatNumber(basePrice)} IQD`}
+                                                  <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                    {billCurrency}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </td>
+                                            <td className="text-right">
+                                              <div className="price-display">
+                                                <div className="purchase-price" style={{ color: '#4f46e5', fontWeight: 'bold' }}>
+                                                  {billCurrency === "USD" 
+                                                    ? `$${formatNumber(netPrice)}` 
+                                                    : `${formatNumber(netPrice)} IQD`}
+                                                  <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                    {billCurrency}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </td>
+                                            <td className="text-right">
+                                              <div className="price-display">
+                                                <div className="purchase-price" style={{ color: '#059669', fontWeight: 'bold' }}>
+                                                  {billCurrency === "USD" 
+                                                    ? `$${formatNumber(outPrice)}` 
+                                                    : `${formatNumber(outPrice)} IQD`}
+                                                  <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
+                                                    {billCurrency}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            </td>
+                                            <td className="text-center">
+                                              <span className={`expire-badge ${expireDate === 'N/A' ? 'expire-na' : 'expire-ok'}`}>
+                                                {expireDate}
+                                              </span>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                    <tfoot>
+                                      <tr>
+                                        <td colSpan="3" className="text-right font-bold">Total:</td>
+                                        <td className="text-right font-bold">
+                                          <div className="price-display">
+                                            {bill.currency === "USD" 
+                                              ? `$${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))}`
+                                              : `${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                          </div>
+                                        </td>
+                                        <td className="text-right font-bold">
+                                          <div className="price-display" style={{ color: '#4f46e5' }}>
+                                            {bill.currency === "USD" 
+                                              ? `$${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))}`
+                                              : `${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                          </div>
+                                        </td>
+                                        <td className="text-right font-bold">
+                                          <div className="price-display" style={{ color: '#059669' }}>
+                                            {bill.currency === "USD" 
+                                              ? `$${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))}`
+                                              : `${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))} IQD`}
+                                          </div>
+                                        </td>
+                                        <td></td>
+                                      </tr>
+                                    </tfoot>
+                                  </table>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Empty State */}
+          {sortedAndFilteredBills.length === 0 && (
+            <div className="empty-state">
+              <div className="empty-state-icon">📦</div>
+              <h3 className="empty-state-title">No bills found</h3>
+              <p className="empty-state-text">Try adjusting your search filters or create a new purchase bill.</p>
+            </div>
+          )}
+
+          {/* Attachment Modal */}
+          {attachmentModal && (
+            <div className="modal-overlay" onClick={(e) => {
+              if (e.target === e.currentTarget) closeAttachmentModal();
+            }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h3>Bill #{attachmentModal.billNumber} - Attachment</h3>
+                  <button onClick={closeAttachmentModal} className="modal-close">
+                    <FiX size={20} />
+                  </button>
                 </div>
-                <div>
-                  <label className="filter-label">Consignment Status</label>
-                  <select
-                    className="filter-input"
-                    value={filters.consignmentStatus}
-                    onChange={(e) => handleFilterChange('consignmentStatus', e.target.value)}
-                  >
-                    <option value="all">All</option>
-                    <option value="consignment">تحت صرف (Consignment)</option>
-                    <option value="owned">Owned</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="filter-label">Global Search</label>
+                <div className="modal-body">
+                  {attachmentPreview ? (
+                    <img
+                      src={attachmentPreview}
+                      alt="Bill Attachment"
+                      className="attachment-preview"
+                      style={{ filter: 'grayscale(100%)' }}
+                      onClick={() => openFullScreen(attachmentPreview)}
+                      title="Click to view full screen"
+                    />
+                  ) : (
+                    <div className="attachment-placeholder">
+                      <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📎</div>
+                      <div>No attachment yet</div>
+                      <div style={{ fontSize: '0.7rem', marginTop: '0.25rem', color: '#d1d5db' }}>
+                        Upload an image or take a photo
+                      </div>
+                    </div>
+                  )}
+
                   <input
-                    className="filter-input"
-                    placeholder="Search by item name or barcode..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept="image/*"
+                    className="file-input"
                   />
+                  <button onClick={triggerFileInput} className="file-upload-btn">
+                    <FiImage style={{ display: 'inline', marginRight: '0.5rem' }} />
+                    Choose File from Device
+                  </button>
+
+                  <button onClick={handleCameraCapture} className="file-upload-btn" style={{ background: '#10b981', color: 'white', border: 'none' }}>
+                    <FiCamera style={{ display: 'inline', marginRight: '0.5rem' }} />
+                    Take Photo with Camera
+                  </button>
+
+                  <input
+                    type="file"
+                    ref={cameraInputRef}
+                    onChange={handleFileUpload}
+                    accept="image/*"
+                    capture="environment"
+                    className="file-input"
+                  />
+
+                  <div className="modal-actions">
+                    <button
+                      onClick={removeAttachment}
+                      className="modal-btn modal-btn-remove"
+                      disabled={!attachmentModal.attachment && !attachmentPreview}
+                    >
+                      <FiX size={14} />
+                      Remove
+                    </button>
+                    <button
+                      onClick={closeAttachmentModal}
+                      className="modal-btn modal-btn-cancel"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={saveAttachment}
+                      className="modal-btn modal-btn-save"
+                      disabled={!attachmentPreview || attachmentPreview === attachmentModal.attachment}
+                    >
+                      Save
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           )}
-        </div>
 
-        {/* Bills Table */}
-        <div className="table-container">
-          <table className="purchase-table">
-            <thead>
-              <tr>
-                <th className="sortable" onClick={() => requestSort('billNumber')}>
-                  BILL #
-                </th>
-                <th className="sortable" onClick={() => requestSort('company')}>
-                  COMPANY
-                </th>
-                <th className="sortable" onClick={() => requestSort('date')}>
-                  DATE
-                </th>
-                <th className="sortable" onClick={() => requestSort('paymentStatus')}>
-                  STATUS
-                </th>
-                <th className="sortable" onClick={() => requestSort('consignment')}>
-                  CONSIGNMENT
-                </th>
-                <th>ATTACHMENT</th>
-                <th>ACTIONS</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedAndFilteredBills.map(bill => (
-                <React.Fragment key={bill.billNumber}>
-                  <tr
-                    onClick={() => toggleBillDetails(bill)}
-                    className={selectedBill?.billNumber === bill.billNumber ? 'selected-row' : ''}
-                  >
-                    <td>
-                      <span className="font-medium text-blue-600">#{bill.billNumber}</span>
-                    </td>
-                    <td>
-                      <div className="font-medium">
-                        {companies.find(c => c.id === bill.companyId)?.name || 'Unknown Company'}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Code: {companies.find(c => c.id === bill.companyId)?.code || 'N/A'}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="text-sm text-gray-700">
-                        {formatDateToDDMMYYYY(bill.date)}
-                      </div>
-                    </td>
-                    <td>
-                      <PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} />
-                    </td>
-                    <td>
-                      <ConsignmentBadge isConsignment={bill.isConsignment} />
-                    </td>
-                    <td>
-                      {bill.attachment ? (
-                        <button
-                          className="btn-icon btn-view"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAttachmentModal(bill);
-                          }}
-                        >
-                          📎 View
-                        </button>
-                      ) : (
-                        <button
-                          className="btn-icon btn-attach"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAttachmentModal(bill);
-                          }}
-                        >
-                          ＋ Attach
-                        </button>
-                      )}
-                    </td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className="btn-icon btn-edit"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleUpdateBill(bill);
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          className="btn-icon btn-delete"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteBill(bill.billNumber);
-                          }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {selectedBill?.billNumber === bill.billNumber && (
-                    <tr>
-                      <td colSpan="7" className="p-0">
-                        <div className="details-panel">
-                          <div className="details-content">
-                            {/* Bill Header */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
-                              <h4 className="font-bold text-blue-800 text-lg">
-                                📋 Bill #{bill.billNumber} - Complete Details
-                              </h4>
-                              <div className="text-sm text-gray-600">
-                                Total Items: {bill.items.length} | Currency: {bill.currency || "USD"}
-                              </div>
-                            </div>
-
-                            {/* Bill Information Grid */}
-                            <div className="info-grid">
-                              <div className="info-item">
-                                <span className="info-label">Company</span>
-                                <span className="info-value company">
-                                  {companies.find(c => c.id === bill.companyId)?.name || 'Unknown'} 
-                                  ({companies.find(c => c.id === bill.companyId)?.code || 'N/A'})
-                                </span>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Bill Date</span>
-                                <span className="info-value">{formatDateToDDMMYYYY(bill.date)}</span>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Company Bill #</span>
-                                <span className="info-value">{bill.companyBillNumber || 'N/A'}</span>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Branch</span>
-                                <span className="info-value">{bill.branch || 'Slemany'}</span>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Payment Status</span>
-                                <PaymentStatusBadge status={bill.paymentStatus || "Unpaid"} />
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Consignment</span>
-                                <ConsignmentBadge isConsignment={bill.isConsignment} />
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Expense %</span>
-                                <span className="info-value expense">{bill.expensePercentage || 7}%</span>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Transport Fee</span>
-                                <div className="price-display">
-                                  {bill.currency === "USD" ? (
-                                    <div className="price-usd-display">
-                                      ${formatNumber(bill.totalTransportFeeUSD || 0)}
-                                    </div>
-                                  ) : (
-                                    <div className="price-iqd-display">
-                                      {formatNumber(bill.totalTransportFeeIQD || 0)} IQD
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="info-item">
-                                <span className="info-label">Other Expenses</span>
-                                <div className="price-display">
-                                  {bill.currency === "USD" ? (
-                                    <div className="price-usd-display">
-                                      ${formatNumber(bill.totalExternalExpenseUSD || 0)}
-                                    </div>
-                                  ) : (
-                                    <div className="price-iqd-display">
-                                      {formatNumber(bill.totalExternalExpenseIQD || 0)} IQD
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="info-item" style={{ gridColumn: '1/-1' }}>
-                                <span className="info-label">Bill Notes</span>
-                                <span className="info-value">{bill.billNote || 'No notes'}</span>
-                              </div>
-                            </div>
-
-                            {/* Items Table - FIXED: Shows OUT PRICE based on bill currency */}
-                            <div className="items-table-container">
-                              <h5 className="font-semibold text-gray-700 mb-3 text-sm px-4 pt-4">Items List</h5>
-                              <table className="items-table">
-                                <thead>
-                                  <tr>
-                                    <th>Barcode</th>
-                                    <th>Item Name</th>
-                                    <th className="text-center">Qty</th>
-                                    <th className="text-right">Base Price</th>
-                                    <th className="text-right">Net Price</th>
-                                    <th className="text-right">Out Price</th>
-                                    <th className="text-center">Expire Date</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {bill.items.map((item, index) => {
-                                    const expireDate = formatExpireDate(item.expireDate);
-                                    const quantity = item.quantity || 0;
-                                    const billCurrency = bill.currency || "USD";
-
-                                    // FIXED: Get the correct prices based on bill currency
-                                    const basePrice = getPurchasePrice(item, billCurrency);
-                                    const netPrice = getNetPrice(item, billCurrency);
-                                    const outPrice = getOutPrice(item, billCurrency);
-
-                                    return (
-                                      <tr key={index}>
-                                        <td>
-                                          <code className="barcode-cell">{item.barcode}</code>
-                                        </td>
-                                        <td>{item.name}</td>
-                                        <td className="text-center">
-                                          <span className="quantity-badge">{quantity}</span>
-                                        </td>
-                                        <td className="text-right">
-                                          <div className="price-display">
-                                            <div className="purchase-price">
-                                              {billCurrency === "USD" 
-                                                ? `$${formatNumber(basePrice)}` 
-                                                : `${formatNumber(basePrice)} IQD`}
-                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
-                                                {billCurrency}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className="text-right">
-                                          <div className="price-display">
-                                            <div className="purchase-price" style={{ color: '#4f46e5', fontWeight: 'bold' }}>
-                                              {billCurrency === "USD" 
-                                                ? `$${formatNumber(netPrice)}` 
-                                                : `${formatNumber(netPrice)} IQD`}
-                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
-                                                {billCurrency}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        {/* FIXED: OUT PRICE column - shows the selling price in the bill's currency */}
-                                        <td className="text-right">
-                                          <div className="price-display">
-                                            <div className="purchase-price" style={{ color: '#059669', fontWeight: 'bold' }}>
-                                              {billCurrency === "USD" 
-                                                ? `$${formatNumber(outPrice)}` 
-                                                : `${formatNumber(outPrice)} IQD`}
-                                              <span className={`currency-badge currency-${billCurrency.toLowerCase()}`}>
-                                                {billCurrency}
-                                              </span>
-                                            </div>
-                                          </div>
-                                        </td>
-                                        <td className="text-center">
-                                          <span className={`expire-badge ${expireDate === 'N/A' ? 'expire-na' : 'expire-ok'}`}>
-                                            {expireDate}
-                                          </span>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                                <tfoot>
-                                  <tr>
-                                    <td colSpan="3" className="text-right font-bold">Total:</td>
-                                    <td className="text-right font-bold">
-                                      <div className="price-display">
-                                        {bill.currency === "USD" 
-                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))}`
-                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getPurchasePrice(item, bill.currency) * item.quantity), 0))} IQD`}
-                                      </div>
-                                    </td>
-                                    <td className="text-right font-bold">
-                                      <div className="price-display" style={{ color: '#4f46e5' }}>
-                                        {bill.currency === "USD" 
-                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))}`
-                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getNetPrice(item, bill.currency) * item.quantity), 0))} IQD`}
-                                      </div>
-                                    </td>
-                                    <td className="text-right font-bold">
-                                      <div className="price-display" style={{ color: '#059669' }}>
-                                        {bill.currency === "USD" 
-                                          ? `$${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))}`
-                                          : `${formatNumber(bill.items.reduce((total, item) => total + (getOutPrice(item, bill.currency) * item.quantity), 0))} IQD`}
-                                      </div>
-                                    </td>
-                                    <td></td>
-                                  </tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Empty State */}
-        {sortedAndFilteredBills.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-state-icon">📦</div>
-            <h3 className="empty-state-title">No bills found</h3>
-            <p className="empty-state-text">Try adjusting your search filters or create a new purchase bill.</p>
-          </div>
-        )}
-
-        {/* Attachment Modal with Full Screen and Camera Support */}
-        {attachmentModal && (
-          <div className="modal-overlay" onClick={(e) => {
-            if (e.target === e.currentTarget) closeAttachmentModal();
-          }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h3>Bill #{attachmentModal.billNumber} - Attachment</h3>
-                <button onClick={closeAttachmentModal} className="modal-close">
-                  <FiX size={24} />
-                </button>
-              </div>
-              <div className="modal-body">
-                {attachmentPreview ? (
-                  <img
-                    src={attachmentPreview}
-                    alt="Bill Attachment"
-                    className="attachment-preview"
-                    style={{ filter: 'grayscale(100%)' }}
-                    onClick={() => openFullScreen(attachmentPreview)}
-                    title="Click to view full screen"
-                  />
-                ) : (
-                  <div className="attachment-placeholder">
-                    <div style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>📎</div>
-                    <div>No attachment yet</div>
-                    <div style={{ fontSize: '0.8rem', marginTop: '0.5rem', color: '#d1d5db' }}>
-                      Upload an image or take a photo
-                    </div>
-                  </div>
-                )}
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*"
-                  className="file-input"
+          {/* Full Screen Image Viewer */}
+          {fullScreenImage && (
+            <div className="fullscreen-overlay" onClick={(e) => {
+              if (e.target === e.currentTarget) closeFullScreen();
+            }}>
+              <div className="fullscreen-content">
+                <img
+                  src={fullScreenImage}
+                  alt="Full screen attachment"
+                  className="fullscreen-image"
                 />
-                <button onClick={triggerFileInput} className="file-upload-btn">
-                  <FiImage style={{ display: 'inline', marginRight: '0.5rem' }} />
-                  Choose File from Device
-                </button>
-
-                <button onClick={handleCameraCapture} className="file-upload-btn" style={{ background: '#10b981', color: 'white', border: 'none' }}>
-                  <FiCamera style={{ display: 'inline', marginRight: '0.5rem' }} />
-                  Take Photo with Camera
-                </button>
-
-                <input
-                  type="file"
-                  ref={cameraInputRef}
-                  onChange={handleFileUpload}
-                  accept="image/*"
-                  capture="environment"
-                  className="file-input"
-                />
-
-                <div className="modal-actions">
+                <div className="fullscreen-actions">
                   <button
-                    onClick={removeAttachment}
-                    className="modal-btn modal-btn-remove"
-                    disabled={!attachmentModal.attachment && !attachmentPreview}
+                    onClick={closeFullScreen}
+                    className="fullscreen-btn fullscreen-btn-close"
                   >
-                    <FiX size={16} />
-                    Remove
+                    <FiX size={18} />
+                    Close
                   </button>
                   <button
-                    onClick={closeAttachmentModal}
-                    className="modal-btn modal-btn-cancel"
+                    onClick={() => downloadImage(fullScreenImage)}
+                    className="fullscreen-btn fullscreen-btn-download"
                   >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveAttachment}
-                    className="modal-btn modal-btn-save"
-                    disabled={!attachmentPreview || attachmentPreview === attachmentModal.attachment}
-                  >
-                    Save
+                    <FiDownload size={18} />
+                    Download
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Full Screen Image Viewer */}
-        {fullScreenImage && (
-          <div className="fullscreen-overlay" onClick={(e) => {
-            if (e.target === e.currentTarget) closeFullScreen();
-          }}>
-            <div className="fullscreen-content">
-              <img
-                src={fullScreenImage}
-                alt="Full screen attachment"
-                className="fullscreen-image"
-              />
-              <div className="fullscreen-actions">
-                <button
-                  onClick={closeFullScreen}
-                  className="fullscreen-btn fullscreen-btn-close"
-                >
-                  <FiX size={20} />
-                  Close
-                </button>
-                <button
-                  onClick={() => downloadImage(fullScreenImage)}
-                  className="fullscreen-btn fullscreen-btn-download"
-                >
-                  <FiDownload size={20} />
-                  Download
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
+          )}
+        </Card>
+      </div>
     </>
   );
 }

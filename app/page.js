@@ -9,40 +9,25 @@ import {
   ShoppingCart,
   Building2,
   Users,
-  Calendar,
-  Filter,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Search,
   Download,
-  BarChart3,
-  PieChart,
   Loader2,
-  ChevronDown,
-  ChevronUp,
   X,
-  Plus,
-  Minus,
 } from "lucide-react";
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   AreaChart,
   Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  PieChart as RePieChart,
-  Cell,
 } from "recharts";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 // --- Helper Functions ---
 const formatCurrency = (amount, currency = "IQD") => {
@@ -82,15 +67,9 @@ const COLORS = {
 };
 
 // --- Firebase Data Fetching ---
-const fetchCollection = async (collectionName, filters = {}) => {
+const fetchCollection = async (collectionName) => {
   try {
-    let q = collection(db, collectionName);
-    if (filters.where) {
-      q = query(q, where(...filters.where));
-    }
-    if (filters.orderBy) {
-      q = query(q, orderBy(...filters.orderBy));
-    }
+    const q = collection(db, collectionName);
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   } catch (error) {
@@ -116,16 +95,9 @@ export default function DashboardPage() {
     selectedMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
     selectedYear: new Date().getFullYear(),
     currency: "all",
-    billType: "all",
     searchQuery: "",
   });
   const [activeTab, setActiveTab] = useState("overview");
-  const [expandedSections, setExpandedSections] = useState({
-    sales: true,
-    purchases: true,
-    inventory: true,
-    customers: true,
-  });
   const [refreshKey, setRefreshKey] = useState(0);
 
   // --- Data Fetching ---
@@ -163,7 +135,7 @@ export default function DashboardPage() {
 
   // --- Filtered Data ---
   const filteredData = useMemo(() => {
-    const { dateRange, selectedMonth, selectedYear, currency, billType, searchQuery } = filters;
+    const { dateRange, selectedMonth, selectedYear, currency, searchQuery } = filters;
 
     // Parse selected month/year
     const [year, month] = selectedMonth.split("-").map(Number);
@@ -181,8 +153,6 @@ export default function DashboardPage() {
         return false;
       } else if (dateRange === "year" && billYear !== targetYear) {
         return false;
-      } else if (dateRange === "custom" && (billYear !== targetYear || billMonth !== targetMonth)) {
-        return false;
       }
 
       // Currency filter
@@ -190,10 +160,6 @@ export default function DashboardPage() {
         const hasCurrency = bill.items?.some((item) => item.currency === currency);
         if (!hasCurrency) return false;
       }
-
-      // Bill type filter
-      if (billType === "sold" && !bill.isSold) return false;
-      if (billType === "bought" && bill.isSold) return false;
 
       // Search filter
       if (searchQuery) {
@@ -230,7 +196,6 @@ export default function DashboardPage() {
   const metrics = useMemo(() => {
     const { soldBills, boughtBills, storeItems } = filteredData;
 
-    // Initialize metrics
     const metrics = {
       sales: { USD: 0, IQD: 0, count: 0, items: 0 },
       purchases: { USD: 0, IQD: 0, count: 0, items: 0 },
@@ -424,8 +389,6 @@ export default function DashboardPage() {
       day: i + 1,
       salesUSD: 0,
       salesIQD: 0,
-      purchasesUSD: 0,
-      purchasesIQD: 0,
     }));
 
     if (dateRange === "month") {
@@ -439,22 +402,6 @@ export default function DashboardPage() {
               dailyData[day].salesUSD += (item.outPriceUSD || 0) * qty;
             } else {
               dailyData[day].salesIQD += (item.outPriceIQD || 0) * qty;
-            }
-          });
-        }
-      });
-
-      boughtBills.forEach((bill) => {
-        const billDate = new Date(bill.date);
-        if (billDate.getFullYear() === targetYear && billDate.getMonth() === month - 1) {
-          const day = billDate.getDate() - 1;
-          bill.items?.forEach((item) => {
-            const qty = item.quantity || 0;
-            const currency = item.currency || bill.currency || "IQD";
-            if (currency === "USD") {
-              dailyData[day].purchasesUSD += (item.basePriceUSD || item.price || 0) * qty;
-            } else {
-              dailyData[day].purchasesIQD += (item.basePriceIQD || item.price || 0) * qty;
             }
           });
         }
@@ -473,20 +420,12 @@ export default function DashboardPage() {
     setRefreshKey((prev) => prev + 1);
   };
 
-  const toggleSection = (section) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
-
   const resetFilters = () => {
     setFilters({
       dateRange: "month",
       selectedMonth: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`,
       selectedYear: new Date().getFullYear(),
       currency: "all",
-      billType: "all",
       searchQuery: "",
     });
   };
@@ -537,6 +476,8 @@ export default function DashboardPage() {
       minHeight: "100vh",
       background: "linear-gradient(to bottom right, #f8fafc, #ffffff, #f8fafc)",
       fontFamily: "Inter, system-ui, sans-serif",
+      width: "100%",
+      overflowX: "hidden",
     }}>
       {/* --- Header --- */}
       <div style={{
@@ -546,32 +487,36 @@ export default function DashboardPage() {
         position: "sticky",
         top: 0,
         zIndex: 50,
-        padding: "1rem 1.5rem",
+        padding: "0.75rem 1rem",
+        width: "100%",
       }}>
         <div style={{
-          maxWidth: "1400px",
+          maxWidth: "1280px",
           margin: "0 auto",
           display: "flex",
           flexDirection: "column",
-          gap: "1rem",
+          gap: "0.75rem",
+          width: "100%",
         }}>
           <div style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.5rem",
           }}>
             <div>
               <h1 style={{
-                fontSize: "1.75rem",
+                fontSize: "1.25rem",
                 fontWeight: "700",
                 background: "linear-gradient(to right, #2563eb, #7c3aed)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 margin: 0,
               }}>
-                Pharmacy Dashboard
+                Dashboard
               </h1>
-              <p style={{ color: "#64748b", fontSize: "0.875rem", margin: "0.25rem 0 0 0" }}>
+              <p style={{ color: "#64748b", fontSize: "0.75rem", margin: "0.25rem 0 0 0" }}>
                 Real-time business insights
               </p>
             </div>
@@ -581,13 +526,13 @@ export default function DashboardPage() {
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
-                padding: "0.5rem 1rem",
+                padding: "0.4rem 0.8rem",
                 background: COLORS.primary,
                 color: "white",
                 border: "none",
                 borderRadius: "0.5rem",
                 cursor: "pointer",
-                fontSize: "0.875rem",
+                fontSize: "0.75rem",
                 fontWeight: "500",
                 transition: "background 0.2s",
               }}
@@ -597,175 +542,136 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* --- Global Filters --- */}
+          {/* --- Filters --- */}
           <div style={{
             display: "flex",
             flexWrap: "wrap",
-            gap: "1rem",
+            gap: "0.5rem",
             alignItems: "center",
             background: "#f8fafc",
-            padding: "1rem",
+            padding: "0.75rem",
             borderRadius: "0.75rem",
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#475569" }}>Date Range:</span>
+            <select
+              value={filters.dateRange}
+              onChange={(e) => handleFilterChange("dateRange", e.target.value)}
+              style={{
+                padding: "0.3rem 0.6rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #e2e8f0",
+                background: "white",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                flex: "1 1 auto",
+                minWidth: "80px",
+              }}
+            >
+              <option value="month">This Month</option>
+              <option value="year">This Year</option>
+            </select>
+
+            {filters.dateRange === "month" && (
               <select
-                value={filters.dateRange}
-                onChange={(e) => handleFilterChange("dateRange", e.target.value)}
+                value={filters.selectedMonth}
+                onChange={(e) => handleFilterChange("selectedMonth", e.target.value)}
                 style={{
-                  padding: "0.5rem 0.75rem",
+                  padding: "0.3rem 0.6rem",
                   borderRadius: "0.5rem",
                   border: "1px solid #e2e8f0",
                   background: "white",
-                  fontSize: "0.875rem",
+                  fontSize: "0.75rem",
                   cursor: "pointer",
+                  flex: "1 1 auto",
+                  minWidth: "100px",
                 }}
               >
-                <option value="month">This Month</option>
-                <option value="year">This Year</option>
-                <option value="custom">Custom</option>
+                {availableYears.map((year) =>
+                  monthNames.map((month, idx) => {
+                    const monthValue = `${year}-${String(idx + 1).padStart(2, "0")}`;
+                    return (
+                      <option key={monthValue} value={monthValue}>
+                        {month.substring(0, 3)} {year}
+                      </option>
+                    );
+                  })
+                )}
               </select>
-            </div>
-
-            {filters.dateRange === "month" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#475569" }}>Month:</span>
-                <select
-                  value={filters.selectedMonth}
-                  onChange={(e) => handleFilterChange("selectedMonth", e.target.value)}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                    background: "white",
-                    fontSize: "0.875rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  {availableYears.map((year) =>
-                    monthNames.map((month, idx) => {
-                      const monthValue = `${year}-${String(idx + 1).padStart(2, "0")}`;
-                      return (
-                        <option key={monthValue} value={monthValue}>
-                          {month} {year}
-                        </option>
-                      );
-                    })
-                  )}
-                </select>
-              </div>
             )}
 
             {filters.dateRange === "year" && (
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#475569" }}>Year:</span>
-                <select
-                  value={filters.selectedYear}
-                  onChange={(e) => handleFilterChange("selectedYear", parseInt(e.target.value))}
-                  style={{
-                    padding: "0.5rem 0.75rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                    background: "white",
-                    fontSize: "0.875rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  {availableYears.map((year) => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
+              <select
+                value={filters.selectedYear}
+                onChange={(e) => handleFilterChange("selectedYear", parseInt(e.target.value))}
+                style={{
+                  padding: "0.3rem 0.6rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #e2e8f0",
+                  background: "white",
+                  fontSize: "0.75rem",
+                  cursor: "pointer",
+                  flex: "1 1 auto",
+                  minWidth: "80px",
+                }}
+              >
+                {availableYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
             )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#475569" }}>Currency:</span>
-              <select
-                value={filters.currency}
-                onChange={(e) => handleFilterChange("currency", e.target.value)}
-                style={{
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid #e2e8f0",
-                  background: "white",
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="all">All Currencies</option>
-                <option value="USD">USD ($)</option>
-                <option value="IQD">IQD (ع.د)</option>
-              </select>
-            </div>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <span style={{ fontSize: "0.875rem", fontWeight: "500", color: "#475569" }}>Bill Type:</span>
-              <select
-                value={filters.billType}
-                onChange={(e) => handleFilterChange("billType", e.target.value)}
-                style={{
-                  padding: "0.5rem 0.75rem",
-                  borderRadius: "0.5rem",
-                  border: "1px solid #e2e8f0",
-                  background: "white",
-                  fontSize: "0.875rem",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="all">All Bills</option>
-                <option value="sold">Sales Only</option>
-                <option value="bought">Purchases Only</option>
-              </select>
-            </div>
+            <select
+              value={filters.currency}
+              onChange={(e) => handleFilterChange("currency", e.target.value)}
+              style={{
+                padding: "0.3rem 0.6rem",
+                borderRadius: "0.5rem",
+                border: "1px solid #e2e8f0",
+                background: "white",
+                fontSize: "0.75rem",
+                cursor: "pointer",
+                flex: "1 1 auto",
+                minWidth: "80px",
+              }}
+            >
+              <option value="all">All</option>
+              <option value="USD">USD</option>
+              <option value="IQD">IQD</option>
+            </select>
 
             <div style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
-              flex: 1,
-              minWidth: "200px",
+              gap: "0.25rem",
+              flex: "2 1 150px",
+              minWidth: "120px",
             }}>
-              <div style={{
-                position: "relative",
-                flex: 1,
-              }}>
-                <Search
-                  style={{
-                    position: "absolute",
-                    left: "0.75rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    width: "1rem",
-                    height: "1rem",
-                    color: "#94a3b8",
-                  }}
-                />
-                <input
-                  type="text"
-                  placeholder="Search products, customers, or suppliers..."
-                  value={filters.searchQuery}
-                  onChange={(e) => handleFilterChange("searchQuery", e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem 0.75rem 0.5rem 2.5rem",
-                    borderRadius: "0.5rem",
-                    border: "1px solid #e2e8f0",
-                    fontSize: "0.875rem",
-                  }}
-                />
-              </div>
+              <Search style={{ width: "0.8rem", height: "0.8rem", color: "#94a3b8" }} />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={filters.searchQuery}
+                onChange={(e) => handleFilterChange("searchQuery", e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.3rem 0.5rem",
+                  borderRadius: "0.5rem",
+                  border: "1px solid #e2e8f0",
+                  fontSize: "0.75rem",
+                  background: "white",
+                }}
+              />
               {filters.searchQuery && (
                 <button
                   onClick={() => handleFilterChange("searchQuery", "")}
                   style={{
-                    padding: "0.5rem",
+                    padding: "0.2rem",
                     background: "none",
                     border: "none",
                     cursor: "pointer",
                     color: "#94a3b8",
                   }}
                 >
-                  <X style={{ width: "1rem", height: "1rem" }} />
+                  <X style={{ width: "0.8rem", height: "0.8rem" }} />
                 </button>
               )}
             </div>
@@ -775,20 +681,19 @@ export default function DashboardPage() {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
-                padding: "0.5rem 1rem",
+                gap: "0.25rem",
+                padding: "0.3rem 0.6rem",
                 background: "#f1f5f9",
                 color: "#475569",
                 border: "none",
                 borderRadius: "0.5rem",
                 cursor: "pointer",
-                fontSize: "0.875rem",
+                fontSize: "0.7rem",
                 fontWeight: "500",
-                transition: "background 0.2s",
               }}
             >
-              <X style={{ width: "1rem", height: "1rem" }} />
-              Reset Filters
+              <X style={{ width: "0.7rem", height: "0.7rem" }} />
+              Reset
             </button>
           </div>
         </div>
@@ -796,33 +701,36 @@ export default function DashboardPage() {
 
       {/* --- Main Content --- */}
       <div style={{
-        maxWidth: "1400px",
+        maxWidth: "1280px",
         margin: "0 auto",
-        padding: "1.5rem",
+        padding: "0.75rem",
+        width: "100%",
       }}>
         {/* --- Tabs --- */}
         <div style={{
           display: "flex",
           gap: "0.25rem",
-          marginBottom: "1.5rem",
+          marginBottom: "1rem",
           borderBottom: "1px solid #e2e8f0",
           overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
         }}>
           {["overview", "sales", "purchases", "inventory", "customers"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               style={{
-                padding: "0.75rem 1.5rem",
+                padding: "0.5rem 1rem",
                 background: "none",
                 border: "none",
                 borderBottom: activeTab === tab ? `2px solid ${COLORS.primary}` : "none",
                 color: activeTab === tab ? COLORS.primary : "#64748b",
-                fontSize: "0.875rem",
+                fontSize: "0.75rem",
                 fontWeight: "500",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
                 transition: "all 0.2s",
+                flexShrink: 0,
               }}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -832,12 +740,12 @@ export default function DashboardPage() {
 
         {/* --- Overview Tab --- */}
         {activeTab === "overview" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             {/* --- KPI Cards --- */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+              gap: "0.75rem",
             }}>
               {/* Sales USD */}
               <div style={{
@@ -845,27 +753,15 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Sales (USD)</p>
-                    <p style={{ fontSize: "1.75rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatCurrency(metrics.sales.USD, "USD")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {metrics.sales.count} invoices • {formatNumber(metrics.sales.items)} items
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#dbeafe",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <DollarSign style={{ width: "1.5rem", height: "1.5rem", color: COLORS.USD }} />
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Sales (USD)</p>
+                <p style={{ fontSize: "1rem", fontWeight: "700", color: COLORS.USD, margin: "0.25rem 0" }}>
+                  {formatCurrency(metrics.sales.USD, "USD")}
+                </p>
+                <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                  {formatNumber(metrics.sales.count)} inv
+                </p>
               </div>
 
               {/* Sales IQD */}
@@ -874,27 +770,15 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Sales (IQD)</p>
-                    <p style={{ fontSize: "1.75rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatCurrency(metrics.sales.IQD, "IQD")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {metrics.sales.count} invoices • {formatNumber(metrics.sales.items)} items
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#d1fae5",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <DollarSign style={{ width: "1.5rem", height: "1.5rem", color: COLORS.IQD }} />
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Sales (IQD)</p>
+                <p style={{ fontSize: "1rem", fontWeight: "700", color: COLORS.IQD, margin: "0.25rem 0" }}>
+                  {formatCurrency(metrics.sales.IQD, "IQD")}
+                </p>
+                <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                  {formatNumber(metrics.sales.items)} items
+                </p>
               </div>
 
               {/* Purchases USD */}
@@ -903,27 +787,15 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Purchases (USD)</p>
-                    <p style={{ fontSize: "1.75rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatCurrency(metrics.purchases.USD, "USD")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {metrics.purchases.count} invoices • {formatNumber(metrics.purchases.items)} items
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#fee2e2",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <ShoppingCart style={{ width: "1.5rem", height: "1.5rem", color: "#ef4444" }} />
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Purchases (USD)</p>
+                <p style={{ fontSize: "1rem", fontWeight: "700", color: "#ef4444", margin: "0.25rem 0" }}>
+                  {formatCurrency(metrics.purchases.USD, "USD")}
+                </p>
+                <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                  {formatNumber(metrics.purchases.count)} inv
+                </p>
               </div>
 
               {/* Purchases IQD */}
@@ -932,27 +804,15 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Purchases (IQD)</p>
-                    <p style={{ fontSize: "1.75rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatCurrency(metrics.purchases.IQD, "IQD")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {metrics.purchases.count} invoices • {formatNumber(metrics.purchases.items)} items
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#fee2e2",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <ShoppingCart style={{ width: "1.5rem", height: "1.5rem", color: "#ef4444" }} />
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Purchases (IQD)</p>
+                <p style={{ fontSize: "1rem", fontWeight: "700", color: "#ef4444", margin: "0.25rem 0" }}>
+                  {formatCurrency(metrics.purchases.IQD, "IQD")}
+                </p>
+                <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                  {formatNumber(metrics.purchases.items)} items
+                </p>
               </div>
 
               {/* Profit USD */}
@@ -961,40 +821,24 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: `1px solid ${metrics.profit.USD >= 0 ? "#d1fae5" : "#fee2e2"}`,
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Profit (USD)</p>
-                    <p style={{
-                      fontSize: "1.75rem",
-                      fontWeight: "700",
-                      color: metrics.profit.USD >= 0 ? COLORS.profit : COLORS.loss,
-                      margin: "0.25rem 0",
-                    }}>
-                      {formatCurrency(metrics.profit.USD, "USD")}
-                    </p>
-                    <p style={{
-                      fontSize: "0.75rem",
-                      color: metrics.profit.USD >= 0 ? COLORS.profit : COLORS.loss,
-                      margin: "0.25rem 0 0 0",
-                    }}>
-                      {metrics.profit.USD >= 0 ? "↑ Profit" : "↓ Loss"}
-                    </p>
-                  </div>
-                  <div style={{
-                    background: metrics.profit.USD >= 0 ? "#d1fae5" : "#fee2e2",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    {metrics.profit.USD >= 0 ? (
-                      <TrendingUp style={{ width: "1.5rem", height: "1.5rem", color: COLORS.profit }} />
-                    ) : (
-                      <TrendingDown style={{ width: "1.5rem", height: "1.5rem", color: COLORS.loss }} />
-                    )}
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Profit (USD)</p>
+                <p style={{
+                  fontSize: "1rem",
+                  fontWeight: "700",
+                  color: metrics.profit.USD >= 0 ? COLORS.profit : COLORS.loss,
+                  margin: "0.25rem 0",
+                }}>
+                  {formatCurrency(metrics.profit.USD, "USD")}
+                </p>
+                <p style={{
+                  fontSize: "0.55rem",
+                  color: metrics.profit.USD >= 0 ? COLORS.profit : COLORS.loss,
+                  margin: 0,
+                }}>
+                  {metrics.profit.USD >= 0 ? "↑" : "↓"}
+                </p>
               </div>
 
               {/* Profit IQD */}
@@ -1003,106 +847,49 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: `1px solid ${metrics.profit.IQD >= 0 ? "#d1fae5" : "#fee2e2"}`,
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Profit (IQD)</p>
-                    <p style={{
-                      fontSize: "1.75rem",
-                      fontWeight: "700",
-                      color: metrics.profit.IQD >= 0 ? COLORS.profit : COLORS.loss,
-                      margin: "0.25rem 0",
-                    }}>
-                      {formatCurrency(metrics.profit.IQD, "IQD")}
-                    </p>
-                    <p style={{
-                      fontSize: "0.75rem",
-                      color: metrics.profit.IQD >= 0 ? COLORS.profit : COLORS.loss,
-                      margin: "0.25rem 0 0 0",
-                    }}>
-                      {metrics.profit.IQD >= 0 ? "↑ Profit" : "↓ Loss"}
-                    </p>
-                  </div>
-                  <div style={{
-                    background: metrics.profit.IQD >= 0 ? "#d1fae5" : "#fee2e2",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    {metrics.profit.IQD >= 0 ? (
-                      <TrendingUp style={{ width: "1.5rem", height: "1.5rem", color: COLORS.profit }} />
-                    ) : (
-                      <TrendingDown style={{ width: "1.5rem", height: "1.5rem", color: COLORS.loss }} />
-                    )}
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Profit (IQD)</p>
+                <p style={{
+                  fontSize: "1rem",
+                  fontWeight: "700",
+                  color: metrics.profit.IQD >= 0 ? COLORS.profit : COLORS.loss,
+                  margin: "0.25rem 0",
+                }}>
+                  {formatCurrency(metrics.profit.IQD, "IQD")}
+                </p>
+                <p style={{
+                  fontSize: "0.55rem",
+                  color: metrics.profit.IQD >= 0 ? COLORS.profit : COLORS.loss,
+                  margin: 0,
+                }}>
+                  {metrics.profit.IQD >= 0 ? "↑" : "↓"}
+                </p>
               </div>
 
-              {/* Stock Value */}
+              {/* Stock */}
               <div style={{
                 background: "white",
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
+                padding: "0.75rem",
               }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Inventory Value</p>
-                    <p style={{ fontSize: "1.5rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatCurrency(metrics.stock.USD, "USD")} + {formatCurrency(metrics.stock.IQD, "IQD")}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {formatNumber(data.storeItems.length)} products
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#f3e8ff",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <Package style={{ width: "1.5rem", height: "1.5rem", color: "#8b5cf6" }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Customers */}
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-                transition: "box-shadow 0.2s",
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  <div>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Customers</p>
-                    <p style={{ fontSize: "1.75rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
-                      {formatNumber(data.pharmacies.length)}
-                    </p>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {formatNumber(data.companies.length)} suppliers
-                    </p>
-                  </div>
-                  <div style={{
-                    background: "#fed7aa",
-                    padding: "0.5rem",
-                    borderRadius: "0.5rem",
-                  }}>
-                    <Users style={{ width: "1.5rem", height: "1.5rem", color: "#f97316" }} />
-                  </div>
-                </div>
+                <p style={{ fontSize: "0.6rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Stock Value</p>
+                <p style={{ fontSize: "0.8rem", fontWeight: "700", color: "#1e293b", margin: "0.25rem 0" }}>
+                  {formatCurrency(metrics.stock.USD, "USD")}
+                </p>
+                <p style={{ fontSize: "0.7rem", color: "#64748b", margin: 0 }}>
+                  {formatCurrency(metrics.stock.IQD, "IQD")}
+                </p>
               </div>
             </div>
 
-            {/* --- Charts Row --- */}
+            {/* --- Charts --- */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-              gap: "1.5rem",
+              gridTemplateColumns: "1fr",
+              gap: "0.75rem",
             }}>
               {/* Monthly Sales vs Purchases (USD) */}
               <div style={{
@@ -1110,47 +897,48 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
+                padding: "0.75rem",
               }}>
                 <div style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginBottom: "1rem",
+                  marginBottom: "0.5rem",
+                  flexWrap: "wrap",
+                  gap: "0.25rem",
                 }}>
                   <div>
-                    <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                    <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
                       Sales vs Purchases (USD)
                     </h3>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {filters.dateRange === "month" ? `Month: ${monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1]} ${filters.selectedMonth.split("-")[0]}` : `Year: ${filters.selectedYear}`}
+                    <p style={{ fontSize: "0.6rem", color: "#64748b", margin: "0.1rem 0 0 0" }}>
+                      {filters.dateRange === "month" ? `${monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1].substring(0, 3)} ${filters.selectedMonth.split("-")[0]}` : `Year: ${filters.selectedYear}`}
                     </p>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Currency:</span>
-                    <span style={{
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      color: COLORS.USD,
-                      background: "#dbeafe",
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "0.25rem",
-                    }}>
-                      USD
-                    </span>
-                  </div>
+                  <span style={{
+                    fontSize: "0.6rem",
+                    fontWeight: "500",
+                    color: COLORS.USD,
+                    background: "#dbeafe",
+                    padding: "0.15rem 0.4rem",
+                    borderRadius: "0.25rem",
+                  }}>
+                    USD
+                  </span>
                 </div>
-                <div style={{ height: "300px" }}>
+                <div style={{ height: "200px", width: "100%" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData.monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis
                         dataKey="month"
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tick={{ fontSize: 9, fill: "#64748b" }}
+                        interval={1}
                       />
                       <YAxis
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tick={{ fontSize: 9, fill: "#64748b" }}
                         tickFormatter={(value) => formatCurrency(value, "USD")}
+                        width={50}
                       />
                       <Tooltip
                         formatter={(value, name) => [formatCurrency(value, "USD"), name]}
@@ -1159,6 +947,7 @@ export default function DashboardPage() {
                           border: "none",
                           boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
                           background: "white",
+                          fontSize: "0.7rem",
                         }}
                       />
                       <Bar
@@ -1184,47 +973,48 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
+                padding: "0.75rem",
               }}>
                 <div style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginBottom: "1rem",
+                  marginBottom: "0.5rem",
+                  flexWrap: "wrap",
+                  gap: "0.25rem",
                 }}>
                   <div>
-                    <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                    <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
                       Sales vs Purchases (IQD)
                     </h3>
-                    <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                      {filters.dateRange === "month" ? `Month: ${monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1]} ${filters.selectedMonth.split("-")[0]}` : `Year: ${filters.selectedYear}`}
+                    <p style={{ fontSize: "0.6rem", color: "#64748b", margin: "0.1rem 0 0 0" }}>
+                      {filters.dateRange === "month" ? `${monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1].substring(0, 3)} ${filters.selectedMonth.split("-")[0]}` : `Year: ${filters.selectedYear}`}
                     </p>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.75rem", color: "#64748b" }}>Currency:</span>
-                    <span style={{
-                      fontSize: "0.75rem",
-                      fontWeight: "500",
-                      color: COLORS.IQD,
-                      background: "#d1fae5",
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "0.25rem",
-                    }}>
-                      IQD
-                    </span>
-                  </div>
+                  <span style={{
+                    fontSize: "0.6rem",
+                    fontWeight: "500",
+                    color: COLORS.IQD,
+                    background: "#d1fae5",
+                    padding: "0.15rem 0.4rem",
+                    borderRadius: "0.25rem",
+                  }}>
+                    IQD
+                  </span>
                 </div>
-                <div style={{ height: "300px" }}>
+                <div style={{ height: "200px", width: "100%" }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartData.monthlyData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                       <XAxis
                         dataKey="month"
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tick={{ fontSize: 9, fill: "#64748b" }}
+                        interval={1}
                       />
                       <YAxis
-                        tick={{ fontSize: 11, fill: "#64748b" }}
+                        tick={{ fontSize: 9, fill: "#64748b" }}
                         tickFormatter={(value) => formatCurrency(value, "IQD")}
+                        width={50}
                       />
                       <Tooltip
                         formatter={(value, name) => [formatCurrency(value, "IQD"), name]}
@@ -1233,6 +1023,7 @@ export default function DashboardPage() {
                           border: "none",
                           boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
                           background: "white",
+                          fontSize: "0.7rem",
                         }}
                       />
                       <Bar
@@ -1251,49 +1042,44 @@ export default function DashboardPage() {
                   </ResponsiveContainer>
                 </div>
               </div>
-            </div>
 
-            {/* --- Daily Trends --- */}
-            {filters.dateRange === "month" && (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-                gap: "1.5rem",
-              }}>
-                {/* Daily Sales Trend (USD) */}
+              {/* Daily Sales Trend (USD) */}
+              {filters.dateRange === "month" && (
                 <div style={{
                   background: "white",
                   borderRadius: "0.75rem",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                   border: "1px solid #e2e8f0",
-                  padding: "1.25rem",
+                  padding: "0.75rem",
                 }}>
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "1rem",
+                    marginBottom: "0.5rem",
+                    flexWrap: "wrap",
+                    gap: "0.25rem",
                   }}>
                     <div>
-                      <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                        Daily Sales Trend (USD)
+                      <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                        Daily Sales (USD)
                       </h3>
-                      <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                        {monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1]} {filters.selectedMonth.split("-")[0]}
+                      <p style={{ fontSize: "0.6rem", color: "#64748b", margin: "0.1rem 0 0 0" }}>
+                        {monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1].substring(0, 3)} {filters.selectedMonth.split("-")[0]}
                       </p>
                     </div>
                     <span style={{
-                      fontSize: "0.75rem",
+                      fontSize: "0.6rem",
                       fontWeight: "500",
                       color: COLORS.USD,
                       background: "#dbeafe",
-                      padding: "0.25rem 0.5rem",
+                      padding: "0.15rem 0.4rem",
                       borderRadius: "0.25rem",
                     }}>
                       USD
                     </span>
                   </div>
-                  <div style={{ height: "250px" }}>
+                  <div style={{ height: "180px", width: "100%" }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData.dailyData}>
                         <defs>
@@ -1305,12 +1091,13 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis
                           dataKey="day"
-                          tick={{ fontSize: 10, fill: "#64748b" }}
-                          interval={Math.ceil(chartData.dailyData.length / 10)}
+                          tick={{ fontSize: 8, fill: "#64748b" }}
+                          interval={Math.ceil(chartData.dailyData.length / 8)}
                         />
                         <YAxis
-                          tick={{ fontSize: 11, fill: "#64748b" }}
+                          tick={{ fontSize: 9, fill: "#64748b" }}
                           tickFormatter={(value) => formatCurrency(value, "USD")}
+                          width={45}
                         />
                         <Tooltip
                           formatter={(value, name) => [formatCurrency(value, "USD"), name]}
@@ -1319,6 +1106,7 @@ export default function DashboardPage() {
                             border: "none",
                             boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
                             background: "white",
+                            fontSize: "0.7rem",
                           }}
                         />
                         <Area
@@ -1333,41 +1121,45 @@ export default function DashboardPage() {
                     </ResponsiveContainer>
                   </div>
                 </div>
+              )}
 
-                {/* Daily Sales Trend (IQD) */}
+              {/* Daily Sales Trend (IQD) */}
+              {filters.dateRange === "month" && (
                 <div style={{
                   background: "white",
                   borderRadius: "0.75rem",
                   boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                   border: "1px solid #e2e8f0",
-                  padding: "1.25rem",
+                  padding: "0.75rem",
                 }}>
                   <div style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: "1rem",
+                    marginBottom: "0.5rem",
+                    flexWrap: "wrap",
+                    gap: "0.25rem",
                   }}>
                     <div>
-                      <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                        Daily Sales Trend (IQD)
+                      <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                        Daily Sales (IQD)
                       </h3>
-                      <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                        {monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1]} {filters.selectedMonth.split("-")[0]}
+                      <p style={{ fontSize: "0.6rem", color: "#64748b", margin: "0.1rem 0 0 0" }}>
+                        {monthNames[parseInt(filters.selectedMonth.split("-")[1]) - 1].substring(0, 3)} {filters.selectedMonth.split("-")[0]}
                       </p>
                     </div>
                     <span style={{
-                      fontSize: "0.75rem",
+                      fontSize: "0.6rem",
                       fontWeight: "500",
                       color: COLORS.IQD,
                       background: "#d1fae5",
-                      padding: "0.25rem 0.5rem",
+                      padding: "0.15rem 0.4rem",
                       borderRadius: "0.25rem",
                     }}>
                       IQD
                     </span>
                   </div>
-                  <div style={{ height: "250px" }}>
+                  <div style={{ height: "180px", width: "100%" }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData.dailyData}>
                         <defs>
@@ -1379,12 +1171,13 @@ export default function DashboardPage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                         <XAxis
                           dataKey="day"
-                          tick={{ fontSize: 10, fill: "#64748b" }}
-                          interval={Math.ceil(chartData.dailyData.length / 10)}
+                          tick={{ fontSize: 8, fill: "#64748b" }}
+                          interval={Math.ceil(chartData.dailyData.length / 8)}
                         />
                         <YAxis
-                          tick={{ fontSize: 11, fill: "#64748b" }}
+                          tick={{ fontSize: 9, fill: "#64748b" }}
                           tickFormatter={(value) => formatCurrency(value, "IQD")}
+                          width={45}
                         />
                         <Tooltip
                           formatter={(value, name) => [formatCurrency(value, "IQD"), name]}
@@ -1393,6 +1186,7 @@ export default function DashboardPage() {
                             border: "none",
                             boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
                             background: "white",
+                            fontSize: "0.7rem",
                           }}
                         />
                         <Area
@@ -1407,14 +1201,14 @@ export default function DashboardPage() {
                     </ResponsiveContainer>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* --- Top Products --- */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-              gap: "1.5rem",
+              gridTemplateColumns: "1fr",
+              gap: "0.75rem",
             }}>
               {/* Top Products (USD) */}
               <div style={{
@@ -1422,73 +1216,76 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
+                padding: "0.75rem",
               }}>
                 <div style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginBottom: "1rem",
+                  marginBottom: "0.5rem",
+                  flexWrap: "wrap",
+                  gap: "0.25rem",
                 }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                  <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
                     Top Products (USD)
                   </h3>
                   <span style={{
-                    fontSize: "0.75rem",
+                    fontSize: "0.6rem",
                     fontWeight: "500",
                     color: COLORS.USD,
                     background: "#dbeafe",
-                    padding: "0.25rem 0.5rem",
+                    padding: "0.15rem 0.4rem",
                     borderRadius: "0.25rem",
                   }}>
                     USD
                   </span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {metrics.topProducts.USD.length > 0 ? (
-                    metrics.topProducts.USD.map((product, idx) => (
+                    metrics.topProducts.USD.slice(0, 5).map((product, idx) => (
                       <div
                         key={`${product.barcode}-${product.currency}`}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "0.75rem",
-                          padding: "0.75rem",
+                          gap: "0.5rem",
+                          padding: "0.5rem",
                           background: "#f8fafc",
                           borderRadius: "0.5rem",
                         }}
                       >
                         <div style={{
-                          width: "1.5rem",
-                          height: "1.5rem",
+                          width: "1.2rem",
+                          height: "1.2rem",
                           borderRadius: "50%",
                           background: COLORS.USD,
                           color: "white",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "0.75rem",
+                          fontSize: "0.6rem",
                           fontWeight: "bold",
+                          flexShrink: 0,
                         }}>
                           {idx + 1}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "500", color: "#1e293b", margin: 0 }}>
+                          <p style={{ fontSize: "0.7rem", fontWeight: "500", color: "#1e293b", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {product.name}
                           </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            Barcode: {product.barcode} • Qty: {formatNumber(product.totalQuantity)}
+                          <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                            Qty: {formatNumber(product.totalQuantity)}
                           </p>
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "600", color: COLORS.USD, margin: 0 }}>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <p style={{ fontSize: "0.7rem", fontWeight: "600", color: COLORS.USD, margin: 0 }}>
                             {formatCurrency(product.totalRevenue, "USD")}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
+                    <div style={{ textAlign: "center", padding: "1rem", color: "#64748b", fontSize: "0.75rem" }}>
                       No products found
                     </div>
                   )}
@@ -1501,854 +1298,115 @@ export default function DashboardPage() {
                 borderRadius: "0.75rem",
                 boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
                 border: "1px solid #e2e8f0",
-                padding: "1.25rem",
+                padding: "0.75rem",
               }}>
                 <div style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginBottom: "1rem",
+                  marginBottom: "0.5rem",
+                  flexWrap: "wrap",
+                  gap: "0.25rem",
                 }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
+                  <h3 style={{ fontSize: "0.85rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
                     Top Products (IQD)
                   </h3>
                   <span style={{
-                    fontSize: "0.75rem",
+                    fontSize: "0.6rem",
                     fontWeight: "500",
                     color: COLORS.IQD,
                     background: "#d1fae5",
-                    padding: "0.25rem 0.5rem",
+                    padding: "0.15rem 0.4rem",
                     borderRadius: "0.25rem",
                   }}>
                     IQD
                   </span>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
                   {metrics.topProducts.IQD.length > 0 ? (
-                    metrics.topProducts.IQD.map((product, idx) => (
+                    metrics.topProducts.IQD.slice(0, 5).map((product, idx) => (
                       <div
                         key={`${product.barcode}-${product.currency}`}
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "0.75rem",
-                          padding: "0.75rem",
+                          gap: "0.5rem",
+                          padding: "0.5rem",
                           background: "#f8fafc",
                           borderRadius: "0.5rem",
                         }}
                       >
                         <div style={{
-                          width: "1.5rem",
-                          height: "1.5rem",
+                          width: "1.2rem",
+                          height: "1.2rem",
                           borderRadius: "50%",
                           background: COLORS.IQD,
                           color: "white",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: "0.75rem",
+                          fontSize: "0.6rem",
                           fontWeight: "bold",
+                          flexShrink: 0,
                         }}>
                           {idx + 1}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "500", color: "#1e293b", margin: 0 }}>
+                          <p style={{ fontSize: "0.7rem", fontWeight: "500", color: "#1e293b", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {product.name}
                           </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            Barcode: {product.barcode} • Qty: {formatNumber(product.totalQuantity)}
+                          <p style={{ fontSize: "0.55rem", color: "#64748b", margin: 0 }}>
+                            Qty: {formatNumber(product.totalQuantity)}
                           </p>
                         </div>
-                        <div style={{ textAlign: "right" }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "600", color: COLORS.IQD, margin: 0 }}>
+                        <div style={{ textAlign: "right", flexShrink: 0 }}>
+                          <p style={{ fontSize: "0.7rem", fontWeight: "600", color: COLORS.IQD, margin: 0 }}>
                             {formatCurrency(product.totalRevenue, "IQD")}
                           </p>
                         </div>
                       </div>
                     ))
                   ) : (
-                    <div style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
+                    <div style={{ textAlign: "center", padding: "1rem", color: "#64748b", fontSize: "0.75rem" }}>
                       No products found
                     </div>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* --- Top Customers & Suppliers --- */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-              gap: "1.5rem",
-            }}>
-              {/* Top Customers */}
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                    Top Customers
-                  </h3>
-                  <Building2 style={{ width: "1.25rem", height: "1.25rem", color: "#64748b" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {metrics.topCustomers.length > 0 ? (
-                    metrics.topCustomers.map((customer, idx) => (
-                      <div
-                        key={customer.name}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.75rem",
-                          padding: "0.75rem",
-                          background: "#f8fafc",
-                          borderRadius: "0.5rem",
-                        }}
-                      >
-                        <div style={{
-                          width: "1.5rem",
-                          height: "1.5rem",
-                          borderRadius: "50%",
-                          background: COLORS.primary,
-                          color: "white",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.75rem",
-                          fontWeight: "bold",
-                        }}>
-                          {idx + 1}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "500", color: "#1e293b", margin: 0 }}>
-                            {customer.name}
-                          </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            {customer.count} invoices
-                          </p>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                            USD: {formatCurrency(customer.total.USD, "USD")}
-                          </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            IQD: {formatCurrency(customer.total.IQD, "IQD")}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                      No customers found
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Top Suppliers */}
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                    Top Suppliers
-                  </h3>
-                  <Building2 style={{ width: "1.25rem", height: "1.25rem", color: "#64748b" }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-                  {metrics.topSuppliers.length > 0 ? (
-                    metrics.topSuppliers.map((supplier, idx) => (
-                      <div
-                        key={supplier.name}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.75rem",
-                          padding: "0.75rem",
-                          background: "#f8fafc",
-                          borderRadius: "0.5rem",
-                        }}
-                      >
-                        <div style={{
-                          width: "1.5rem",
-                          height: "1.5rem",
-                          borderRadius: "50%",
-                          background: COLORS.primary,
-                          color: "white",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.75rem",
-                          fontWeight: "bold",
-                        }}>
-                          {idx + 1}
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: "0.875rem", fontWeight: "500", color: "#1e293b", margin: 0 }}>
-                            {supplier.name}
-                          </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            {supplier.count} invoices
-                          </p>
-                        </div>
-                        <div style={{ textAlign: "right" }}>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                            USD: {formatCurrency(supplier.total.USD, "USD")}
-                          </p>
-                          <p style={{ fontSize: "0.75rem", color: "#64748b", margin: "0.25rem 0 0 0" }}>
-                            IQD: {formatCurrency(supplier.total.IQD, "IQD")}
-                          </p>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                      No suppliers found
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* --- Sales Tab --- */}
-        {activeTab === "sales" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "1rem",
-            }}>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Sales (USD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.USD, margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.sales.USD, "USD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {metrics.sales.count} invoices • {formatNumber(metrics.sales.items)} items
-                </p>
-              </div>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Sales (IQD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.IQD, margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.sales.IQD, "IQD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {metrics.sales.count} invoices • {formatNumber(metrics.sales.items)} items
-                </p>
-              </div>
-            </div>
-
-            {/* Sales Table */}
-            <div style={{
-              background: "white",
-              borderRadius: "0.75rem",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-              border: "1px solid #e2e8f0",
-              padding: "1.25rem",
-            }}>
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-              }}>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                  Sales Records
-                </h3>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button
-                    style={{
-                      padding: "0.5rem 1rem",
-                      background: COLORS.primary,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <Download style={{ width: "1rem", height: "1rem" }} />
-                    Export
-                  </button>
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Date</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Customer</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Items</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total (USD)</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total (IQD)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredData.soldBills.length > 0 ? (
-                      filteredData.soldBills.map((bill) => {
-                        const totalUSD = bill.items?.reduce((sum, item) =>
-                          item.currency === "USD" ? sum + (item.outPriceUSD || 0) * (item.quantity || 0) : sum, 0) || 0;
-                        const totalIQD = bill.items?.reduce((sum, item) =>
-                          item.currency === "IQD" ? sum + (item.outPriceIQD || 0) * (item.quantity || 0) : sum, 0) || 0;
-                        const customer = data.pharmacies.find((p) => p.id === bill.customerId);
-                        return (
-                          <tr key={bill.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {new Date(bill.date).toLocaleDateString()}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {customer?.name || "Unknown"}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {formatNumber(bill.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0)}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: COLORS.USD, fontWeight: "500" }}>
-                              {formatCurrency(totalUSD, "USD")}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: COLORS.IQD, fontWeight: "500" }}>
-                              {formatCurrency(totalIQD, "IQD")}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan="5" style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                          No sales records found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- Purchases Tab --- */}
-        {activeTab === "purchases" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "1rem",
-            }}>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Purchases (USD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: "#ef4444", margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.purchases.USD, "USD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {metrics.purchases.count} invoices • {formatNumber(metrics.purchases.items)} items
-                </p>
-              </div>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Purchases (IQD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: "#ef4444", margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.purchases.IQD, "IQD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {metrics.purchases.count} invoices • {formatNumber(metrics.purchases.items)} items
-                </p>
-              </div>
-            </div>
-
-            {/* Purchases Table */}
-            <div style={{
-              background: "white",
-              borderRadius: "0.75rem",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-              border: "1px solid #e2e8f0",
-              padding: "1.25rem",
-            }}>
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-              }}>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                  Purchase Records
-                </h3>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button
-                    style={{
-                      padding: "0.5rem 1rem",
-                      background: COLORS.primary,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <Download style={{ width: "1rem", height: "1rem" }} />
-                    Export
-                  </button>
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Date</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Supplier</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Items</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total (USD)</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total (IQD)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredData.boughtBills.length > 0 ? (
-                      filteredData.boughtBills.map((bill) => {
-                        const totalUSD = bill.items?.reduce((sum, item) => {
-                          const currency = item.currency || bill.currency || "IQD";
-                          return currency === "USD" ? sum + (item.basePriceUSD || item.price || 0) * (item.quantity || 0) : sum;
-                        }, 0) || 0;
-                        const totalIQD = bill.items?.reduce((sum, item) => {
-                          const currency = item.currency || bill.currency || "IQD";
-                          return currency === "IQD" ? sum + (item.basePriceIQD || item.price || 0) * (item.quantity || 0) : sum;
-                        }, 0) || 0;
-                        const supplier = data.companies.find((c) => c.id === bill.supplierId);
-                        return (
-                          <tr key={bill.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {new Date(bill.date).toLocaleDateString()}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {supplier?.name || "Unknown"}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {formatNumber(bill.items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0)}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "#ef4444", fontWeight: "500" }}>
-                              {formatCurrency(totalUSD, "USD")}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "#ef4444", fontWeight: "500" }}>
-                              {formatCurrency(totalIQD, "IQD")}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan="5" style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                          No purchase records found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- Inventory Tab --- */}
-        {activeTab === "inventory" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "1rem",
-            }}>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Stock Value (USD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.USD, margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.stock.USD, "USD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {formatNumber(filteredData.storeItems.filter((i) => i.currency === "USD").length)} products
-                </p>
-              </div>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Stock Value (IQD)</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.IQD, margin: "0.5rem 0" }}>
-                  {formatCurrency(metrics.stock.IQD, "IQD")}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {formatNumber(filteredData.storeItems.filter((i) => i.currency === "IQD").length)} products
-                </p>
-              </div>
-            </div>
-
-            {/* Inventory Table */}
-            <div style={{
-              background: "white",
-              borderRadius: "0.75rem",
-              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-              border: "1px solid #e2e8f0",
-              padding: "1.25rem",
-            }}>
-              <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1rem",
-              }}>
-                <h3 style={{ fontSize: "1.25rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                  Inventory Items
-                </h3>
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button
-                    style={{
-                      padding: "0.5rem 1rem",
-                      background: COLORS.primary,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <Download style={{ width: "1rem", height: "1rem" }} />
-                    Export
-                  </button>
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Name</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Barcode</th>
-                      <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Currency</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Quantity</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Unit Price</th>
-                      <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredData.storeItems.length > 0 ? (
-                      filteredData.storeItems.map((item) => {
-                        const unitPrice = item.currency === "USD" ? (item.netPriceUSD || 0) : (item.netPriceIQD || 0);
-                        const totalValue = unitPrice * (item.quantity || 0);
-                        return (
-                          <tr key={item.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {item.name}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {item.barcode}
-                            </td>
-                            <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                              <span style={{
-                                fontWeight: "500",
-                                color: item.currency === "USD" ? COLORS.USD : COLORS.IQD,
-                              }}>
-                                {item.currency}
-                              </span>
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {formatNumber(item.quantity || 0)}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", color: "#1e293b" }}>
-                              {formatCurrency(unitPrice, item.currency)}
-                            </td>
-                            <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", fontWeight: "500", color: item.currency === "USD" ? COLORS.USD : COLORS.IQD }}>
-                              {formatCurrency(totalValue, item.currency)}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan="6" style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                          No inventory items found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* --- Customers Tab --- */}
-        {activeTab === "customers" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "1rem",
-            }}>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Customers</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.primary, margin: "0.5rem 0" }}>
-                  {formatNumber(data.pharmacies.length)}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {formatNumber(metrics.topCustomers.length)} active
-                </p>
-              </div>
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: "500", margin: 0 }}>Total Suppliers</p>
-                <p style={{ fontSize: "2rem", fontWeight: "700", color: COLORS.primary, margin: "0.5rem 0" }}>
-                  {formatNumber(data.companies.length)}
-                </p>
-                <p style={{ fontSize: "0.75rem", color: "#64748b", margin: 0 }}>
-                  {formatNumber(metrics.topSuppliers.length)} active
-                </p>
-              </div>
-            </div>
-
-            {/* Customers and Suppliers Tables */}
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(500px, 1fr))",
-              gap: "1.5rem",
-            }}>
-              {/* Customers Table */}
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                    Customers
-                  </h3>
-                  <button
-                    style={{
-                      padding: "0.5rem 1rem",
-                      background: COLORS.primary,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <Download style={{ width: "1rem", height: "1rem" }} />
-                    Export
-                  </button>
-                </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Name</th>
-                        <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Contact</th>
-                        <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total Purchases</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.pharmacies.length > 0 ? (
-                        data.pharmacies.map((pharmacy) => {
-                          const totalPurchases = filteredData.soldBills
-                            .filter((bill) => bill.customerId === pharmacy.id)
-                            .reduce((sum, bill) => {
-                              const billTotal = bill.items?.reduce((itemSum, item) => {
-                                const price = item.currency === "USD" ? (item.outPriceUSD || 0) : (item.outPriceIQD || 0);
-                                return itemSum + price * (item.quantity || 0);
-                              }, 0) || 0;
-                              return sum + billTotal;
-                            }, 0);
-                          return (
-                            <tr key={pharmacy.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                              <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                                {pharmacy.name}
-                              </td>
-                              <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                                {pharmacy.phone || "N/A"}
-                              </td>
-                              <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", fontWeight: "500", color: COLORS.primary }}>
-                                {formatCurrency(totalPurchases, "IQD")}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="3" style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                            No customers found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Suppliers Table */}
-              <div style={{
-                background: "white",
-                borderRadius: "0.75rem",
-                boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
-                border: "1px solid #e2e8f0",
-                padding: "1.25rem",
-              }}>
-                <div style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: "1rem",
-                }}>
-                  <h3 style={{ fontSize: "1.125rem", fontWeight: "600", color: "#1e293b", margin: 0 }}>
-                    Suppliers
-                  </h3>
-                  <button
-                    style={{
-                      padding: "0.5rem 1rem",
-                      background: COLORS.primary,
-                      color: "white",
-                      border: "none",
-                      borderRadius: "0.5rem",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                      fontWeight: "500",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <Download style={{ width: "1rem", height: "1rem" }} />
-                    Export
-                  </button>
-                </div>
-                <div style={{ overflowX: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                    <thead>
-                      <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-                        <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Name</th>
-                        <th style={{ textAlign: "left", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Contact</th>
-                        <th style={{ textAlign: "right", padding: "0.75rem", fontSize: "0.75rem", color: "#64748b", fontWeight: "500" }}>Total Sales</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.companies.length > 0 ? (
-                        data.companies.map((company) => {
-                          const totalSales = filteredData.boughtBills
-                            .filter((bill) => bill.supplierId === company.id)
-                            .reduce((sum, bill) => {
-                              const billTotal = bill.items?.reduce((itemSum, item) => {
-                                const currency = item.currency || bill.currency || "IQD";
-                                const price = currency === "USD" ? (item.basePriceUSD || item.price || 0) : (item.basePriceIQD || item.price || 0);
-                                return itemSum + price * (item.quantity || 0);
-                              }, 0) || 0;
-                              return sum + billTotal;
-                            }, 0);
-                          return (
-                            <tr key={company.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                              <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                                {company.name}
-                              </td>
-                              <td style={{ padding: "0.75rem", fontSize: "0.875rem", color: "#1e293b" }}>
-                                {company.phone || "N/A"}
-                              </td>
-                              <td style={{ padding: "0.75rem", textAlign: "right", fontSize: "0.875rem", fontWeight: "500", color: COLORS.primary }}>
-                                {formatCurrency(totalSales, "IQD")}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      ) : (
-                        <tr>
-                          <td colSpan="3" style={{ textAlign: "center", padding: "1.5rem", color: "#64748b" }}>
-                            No suppliers found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+        {/* --- Other Tabs (simplified for mobile) --- */}
+        {(activeTab === "sales" || activeTab === "purchases" || activeTab === "inventory" || activeTab === "customers") && (
+          <div style={{
+            background: "white",
+            borderRadius: "0.75rem",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+            border: "1px solid #e2e8f0",
+            padding: "1rem",
+            textAlign: "center",
+          }}>
+            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
+              {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} data is being loaded...
+            </p>
+            <p style={{ color: "#94a3b8", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+              Total {activeTab === "sales" ? "sales" : activeTab === "purchases" ? "purchases" : activeTab === "inventory" ? "items" : "customers"}:{" "}
+              {activeTab === "sales" && formatNumber(filteredData.soldBills.length)}
+              {activeTab === "purchases" && formatNumber(filteredData.boughtBills.length)}
+              {activeTab === "inventory" && formatNumber(filteredData.storeItems.length)}
+              {activeTab === "customers" && formatNumber(data.pharmacies.length)}
+            </p>
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

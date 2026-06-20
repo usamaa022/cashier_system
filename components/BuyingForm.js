@@ -86,99 +86,110 @@ const formatDateForInput = (date) => {
 const styles = {
   container: {
     minHeight: '100vh',
-    padding: '20px',
+    padding: '12px',
+    width: '100%',
+    maxWidth: '100%',
+    overflowX: 'hidden',
   },
   mainCard: {
-    maxWidth: '95%',
+    maxWidth: '1280px',
     margin: '0 auto',
     backgroundColor: 'white',
     borderRadius: '16px',
     boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
     overflow: 'hidden',
+    width: '100%',
   },
   header: {
     background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-    padding: '24px 32px',
+    padding: '16px 20px',
     color: 'white',
   },
   headerTitle: {
-    fontSize: '28px',
+    fontSize: '20px',
     fontWeight: 'bold',
     margin: 0,
   },
   headerSubtitle: {
-    fontSize: '14px',
+    fontSize: '12px',
     opacity: 0.8,
-    marginTop: '8px',
+    marginTop: '4px',
     marginBottom: 0,
   },
   content: {
-    padding: '32px',
+    padding: '16px',
   },
   section: {
     backgroundColor: '#f8fafc',
     borderRadius: '12px',
-    padding: '20px',
-    marginBottom: '24px',
+    padding: '14px',
+    marginBottom: '16px',
     border: '1px solid #e2e8f0',
+    overflow: 'hidden',
   },
   sectionTitle: {
-    fontSize: '18px',
+    fontSize: '15px',
     fontWeight: '600',
-    marginBottom: '16px',
+    marginBottom: '12px',
     color: '#1e293b',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    paddingBottom: '12px',
+    paddingBottom: '10px',
     borderBottom: '2px solid #e2e8f0',
   },
   formRow: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '16px',
-    marginBottom: '16px',
+    gridTemplateColumns: '1fr',
+    gap: '12px',
+    marginBottom: '12px',
   },
   formGroup: {
     display: 'flex',
     flexDirection: 'column',
   },
   label: {
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: '500',
     color: '#475569',
-    marginBottom: '6px',
+    marginBottom: '4px',
   },
   input: {
-    padding: '10px 12px',
+    padding: '8px 10px',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    fontSize: '14px',
+    fontSize: '13px',
     transition: 'all 0.2s',
     outline: 'none',
     backgroundColor: 'white',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   select: {
-    padding: '10px 12px',
+    padding: '8px 10px',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    fontSize: '14px',
+    fontSize: '13px',
     backgroundColor: 'white',
     cursor: 'pointer',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   currencyButtons: {
     display: 'flex',
-    gap: '12px',
-    marginBottom: '16px',
+    flexDirection: 'column',
+    gap: '8px',
+    marginBottom: '12px',
   },
   currencyBtn: {
-    padding: '10px 24px',
+    padding: '8px 16px',
     borderRadius: '8px',
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.2s',
     border: 'none',
-    fontSize: '14px',
+    fontSize: '13px',
+    width: '100%',
   },
   currencyBtnActiveUSD: {
     background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
@@ -197,121 +208,135 @@ const styles = {
   table: {
     width: '100%',
     borderCollapse: 'collapse',
-    marginTop: '16px',
+    marginTop: '12px',
+    minWidth: '600px',
   },
   th: {
-    padding: '12px',
+    padding: '8px',
     textAlign: 'left',
     backgroundColor: '#f1f5f9',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: '600',
     color: '#475569',
     borderBottom: '2px solid #e2e8f0',
+    whiteSpace: 'nowrap',
   },
   td: {
-    padding: '10px',
+    padding: '6px',
     borderBottom: '1px solid #e2e8f0',
-    fontSize: '13px',
+    fontSize: '12px',
   },
   addButton: {
     background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
     color: 'white',
     border: 'none',
-    padding: '10px 20px',
+    padding: '8px 16px',
     borderRadius: '8px',
     cursor: 'pointer',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '500',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
-    marginBottom: '16px',
+    gap: '6px',
+    marginBottom: '12px',
+    width: '100%',
+    justifyContent: 'center',
   },
   deleteButton: {
     background: 'none',
     border: 'none',
     color: '#ef4444',
     cursor: 'pointer',
-    padding: '4px 8px',
+    padding: '4px 6px',
     borderRadius: '6px',
   },
   submitButton: {
     background: 'linear-gradient(135deg, #10b981, #059669)',
     color: 'white',
     border: 'none',
-    padding: '14px 32px',
+    padding: '12px 20px',
     borderRadius: '10px',
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: '600',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
+    width: '100%',
+    justifyContent: 'center',
   },
   resetButton: {
     background: 'white',
     color: '#64748b',
     border: '1px solid #cbd5e1',
-    padding: '12px 24px',
+    padding: '10px 16px',
     borderRadius: '10px',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '500',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
+    width: '100%',
+    justifyContent: 'center',
   },
   cancelButton: {
     background: '#ef4444',
     color: 'white',
     border: 'none',
-    padding: '12px 24px',
+    padding: '10px 16px',
     borderRadius: '10px',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '500',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '8px',
+    gap: '6px',
+    width: '100%',
+    justifyContent: 'center',
   },
   errorBox: {
     backgroundColor: '#fef2f2',
     border: '1px solid #fecaca',
     borderRadius: '10px',
-    padding: '12px 16px',
-    marginBottom: '20px',
+    padding: '10px 14px',
+    marginBottom: '16px',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     color: '#dc2626',
+    fontSize: '13px',
   },
   successBox: {
     backgroundColor: '#f0fdf4',
     border: '1px solid #bbf7d0',
     borderRadius: '10px',
-    padding: '12px 16px',
-    marginBottom: '20px',
+    padding: '10px 14px',
+    marginBottom: '16px',
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
+    gap: '8px',
     color: '#16a34a',
+    fontSize: '13px',
   },
   totalBox: {
     backgroundColor: '#eef2ff',
     borderRadius: '10px',
-    padding: '16px 20px',
-    marginTop: '16px',
+    padding: '12px 16px',
+    marginTop: '12px',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '8px',
   },
   totalLabel: {
-    fontSize: '16px',
+    fontSize: '14px',
     fontWeight: '600',
     color: '#4338ca',
   },
   totalValue: {
-    fontSize: '24px',
+    fontSize: '18px',
     fontWeight: 'bold',
     color: '#4338ca',
   },
@@ -329,78 +354,90 @@ const styles = {
     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
   },
   suggestionItem: {
-    padding: '10px 12px',
+    padding: '8px 10px',
     cursor: 'pointer',
     borderBottom: '1px solid #f1f5f9',
+    fontSize: '13px',
   },
   relative: {
     position: 'relative',
   },
   buttonGroup: {
     display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: '24px',
-    paddingTop: '24px',
+    flexDirection: 'column',
+    gap: '10px',
+    marginTop: '16px',
+    paddingTop: '16px',
     borderTop: '1px solid #e2e8f0',
   },
   rightGroup: {
     display: 'flex',
-    gap: '12px',
+    flexDirection: 'column',
+    gap: '10px',
+    width: '100%',
   },
   searchWrapper: {
     position: 'relative',
-    marginBottom: '20px',
+    marginBottom: '16px',
   },
   searchIcon: {
     position: 'absolute',
-    left: '12px',
+    left: '10px',
     top: '50%',
     transform: 'translateY(-50%)',
     color: '#94a3b8',
   },
   searchInput: {
     width: '100%',
-    padding: '10px 12px 10px 36px',
+    padding: '8px 10px 8px 34px',
     border: '1px solid #cbd5e1',
     borderRadius: '8px',
-    fontSize: '14px',
+    fontSize: '13px',
     backgroundColor: 'white',
+    boxSizing: 'border-box',
   },
   tableWrapper: {
     overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
   },
   smallInput: {
-    width: '80px',
-    padding: '8px',
+    width: '60px',
+    padding: '6px',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: '12px',
     textAlign: 'center',
+    boxSizing: 'border-box',
   },
   priceInput: {
-    width: '120px',
-    padding: '8px',
+    width: '100%',
+    minWidth: '80px',
+    padding: '6px',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: '12px',
     textAlign: 'right',
+    boxSizing: 'border-box',
   },
   outPriceInput: {
-    width: '120px',
-    padding: '8px',
+    width: '100%',
+    minWidth: '80px',
+    padding: '6px',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: '12px',
     textAlign: 'right',
     backgroundColor: '#fef3c7',
+    boxSizing: 'border-box',
   },
   textInput: {
     width: '100%',
-    padding: '8px',
+    minWidth: '80px',
+    padding: '6px',
     border: '1px solid #cbd5e1',
     borderRadius: '6px',
-    fontSize: '13px',
+    fontSize: '12px',
+    boxSizing: 'border-box',
   },
 };
 
@@ -448,7 +485,7 @@ export default function BuyingForm({ onBillCreated }) {
     name: "",
     quantity: "1",
     price: "",
-    outPrice: "", // Added out price field
+    outPrice: "",
     expireDate: ""
   });
 
@@ -603,7 +640,6 @@ export default function BuyingForm({ onBillCreated }) {
       ...createEmptyItem(),
       barcode: item.barcode,
       name: item.name,
-      // Pre-fill out price if available from the item
       outPrice: item.outPrice ? formatNumber(item.outPrice) : "",
       expireDate: item.expireDate && item.expireDate !== 'N/A' ?
         (typeof item.expireDate === 'string' ?
@@ -662,7 +698,6 @@ export default function BuyingForm({ onBillCreated }) {
     if (e.key === 'Enter') {
       e.preventDefault();
       
-      // Define navigation order
       const navigationOrder = [
         { type: 'item', field: 'barcode', index: index },
         { type: 'item', field: 'name', index: index },
@@ -677,7 +712,6 @@ export default function BuyingForm({ onBillCreated }) {
         { type: 'global', field: 'submit' },
       ];
       
-      // Find current position
       let currentPos = -1;
       for (let i = 0; i < navigationOrder.length; i++) {
         const item = navigationOrder[i];
@@ -690,19 +724,16 @@ export default function BuyingForm({ onBillCreated }) {
         }
       }
       
-      // Move to next field
       if (currentPos !== -1 && currentPos + 1 < navigationOrder.length) {
         const next = navigationOrder[currentPos + 1];
         
         if (next.type === 'item') {
-          // Focus next item field
           const nextInput = itemInputRefs.current[`${next.index}-${next.field}`];
           if (nextInput) {
             nextInput.focus();
             nextInput.select();
           }
         } else if (next.type === 'global') {
-          // Focus global field
           if (next.field === 'transportFee' && transportFeeRef.current) {
             transportFeeRef.current.focus();
             transportFeeRef.current.select();
@@ -771,7 +802,7 @@ export default function BuyingForm({ onBillCreated }) {
         );
         
         const priceValue = parseFloat(parseFormattedNumber(item.price)) || 0;
-        const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || (priceValue * 1.5); // Default 50% markup if not specified
+        const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || (priceValue * 1.5);
 
         const itemData = {
           barcode: item.barcode,
@@ -783,7 +814,7 @@ export default function BuyingForm({ onBillCreated }) {
           consignmentOwnerId: isConsignment ? companyId : null,
           netPrice: netPrice,
           price: priceValue,
-          outPrice: outPriceValue, // Add out price to item data
+          outPrice: outPriceValue,
           currency: currency,
         };
 
@@ -856,7 +887,6 @@ export default function BuyingForm({ onBillCreated }) {
 
   const addItem = useCallback(() => {
     setBillItems(prev => [...prev.filter(item => item.barcode || item.name), createEmptyItem()]);
-    // Focus on the new item's barcode field after render
     setTimeout(() => {
       const newIndex = billItems.filter(item => item.barcode || item.name).length;
       const barcodeInput = itemInputRefs.current[`${newIndex}-barcode`];
@@ -892,7 +922,7 @@ export default function BuyingForm({ onBillCreated }) {
             {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
           </h1>
           <p style={styles.headerSubtitle}>
-            Enter purchase details in your preferred currency (USD or IQD) - Press Enter to navigate between fields
+            Enter purchase details in your preferred currency - Press Enter to navigate between fields
           </p>
         </div>
 
@@ -901,7 +931,7 @@ export default function BuyingForm({ onBillCreated }) {
           {/* Success Message */}
           {successMessage && (
             <div style={styles.successBox}>
-              <FiCheckCircle size={18} />
+              <FiCheckCircle size={16} />
               <span>{successMessage}</span>
             </div>
           )}
@@ -909,7 +939,7 @@ export default function BuyingForm({ onBillCreated }) {
           {/* Error Message */}
           {error && (
             <div style={styles.errorBox}>
-              <FiAlertTriangle size={18} />
+              <FiAlertTriangle size={16} />
               <span>{error}</span>
             </div>
           )}
@@ -918,7 +948,7 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Currency Selection */}
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>
-                <FiDollarSign size={18} />
+                <FiDollarSign size={16} />
                 Currency Selection
               </h2>
               <div style={styles.currencyButtons}>
@@ -948,7 +978,7 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Company Information */}
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>
-                <FiUser size={18} />
+                <FiUser size={16} />
                 Company Information
               </h2>
               <div style={styles.formRow}>
@@ -974,7 +1004,7 @@ export default function BuyingForm({ onBillCreated }) {
                             onMouseDown={(e) => e.preventDefault()}
                           >
                             <div style={{ fontWeight: 500 }}>{company.name}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>Code: {company.code}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>Code: {company.code}</div>
                           </div>
                         ))}
                       </div>
@@ -1036,17 +1066,17 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Items Section */}
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>
-                <FiPackage size={18} />
+                <FiPackage size={16} />
                 Bill Items ({validItemsCount})
               </h2>
               
               <button type="button" onClick={addItem} style={styles.addButton}>
-                <FiPlus size={16} /> Add Item
+                <FiPlus size={14} /> Add Item
               </button>
 
               {/* Search Items */}
               <div style={styles.searchWrapper}>
-                <FiSearch style={styles.searchIcon} size={16} />
+                <FiSearch style={styles.searchIcon} size={14} />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -1065,7 +1095,7 @@ export default function BuyingForm({ onBillCreated }) {
                         onMouseDown={(e) => e.preventDefault()}
                       >
                         <div style={{ fontWeight: 500 }}>{item.name}</div>
-                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                        <div style={{ fontSize: 11, color: '#64748b' }}>
                           Barcode: {item.barcode}
                           {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${item.expireDate}`}
                         </div>
@@ -1142,7 +1172,6 @@ export default function BuyingForm({ onBillCreated }) {
                               onChange={(e) => {
                                 const formatted = formatNumber(e.target.value);
                                 handleItemChange(index, "price", formatted);
-                                // Auto-calculate out price as 50% markup if not manually set
                                 const rawPrice = parseFloat(e.target.value.replace(/,/g, ''));
                                 if (rawPrice && !isNaN(rawPrice) && (!item.outPrice || item.outPrice === '')) {
                                   const autoOutPrice = rawPrice * 1.5;
@@ -1186,7 +1215,7 @@ export default function BuyingForm({ onBillCreated }) {
                               onClick={() => removeItem(index)}
                               style={styles.deleteButton}
                             >
-                              <FiTrash2 size={16} />
+                              <FiTrash2 size={14} />
                             </button>
                           </td>
                         </tr>
@@ -1206,7 +1235,7 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Expenses Section */}
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>
-                <FiTruck size={18} />
+                <FiTruck size={16} />
                 Additional Costs
               </h2>
               <div style={styles.formRow}>
@@ -1259,12 +1288,12 @@ export default function BuyingForm({ onBillCreated }) {
             {/* Bill Notes */}
             <div style={styles.section}>
               <h2 style={styles.sectionTitle}>
-                <FiFileText size={18} />
+                <FiFileText size={16} />
                 Bill Notes
               </h2>
               <textarea
                 ref={billNoteRef}
-                style={{ ...styles.input, width: '100%', minHeight: '80px' }}
+                style={{ ...styles.input, width: '100%', minHeight: '60px' }}
                 value={billNote}
                 onChange={(e) => setBillNote(e.target.value)}
                 onKeyDown={(e) => {
@@ -1282,26 +1311,26 @@ export default function BuyingForm({ onBillCreated }) {
 
             {/* Consignment Option */}
             <div style={styles.section}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={isConsignment}
                   onChange={(e) => setIsConsignment(e.target.checked)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
-                <span style={{ fontWeight: 500 }}>Consignment (تحت صرف)</span>
+                <span style={{ fontWeight: 500, fontSize: '13px' }}>Consignment (تحت صرف)</span>
               </label>
             </div>
 
             {/* Actions */}
             <div style={styles.buttonGroup}>
               <button type="button" onClick={resetForm} style={styles.resetButton}>
-                <FiRefreshCw size={16} /> Reset Form
+                <FiRefreshCw size={14} /> Reset Form
               </button>
               <div style={styles.rightGroup}>
                 {isEditing && (
                   <button type="button" onClick={handleCancel} style={styles.cancelButton}>
-                    <FiX size={16} /> Cancel
+                    <FiX size={14} /> Cancel
                   </button>
                 )}
                 <button 
