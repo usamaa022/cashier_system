@@ -921,9 +921,7 @@ export default function BuyingForm({ onBillCreated }) {
           <h1 style={styles.headerTitle}>
             {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
           </h1>
-          <p style={styles.headerSubtitle}>
-            Enter purchase details in your preferred currency - Press Enter to navigate between fields
-          </p>
+     
         </div>
 
         {/* Content */}
@@ -1070,9 +1068,9 @@ export default function BuyingForm({ onBillCreated }) {
                 Bill Items ({validItemsCount})
               </h2>
               
-              <button type="button" onClick={addItem} style={styles.addButton}>
+              {/* <button type="button" onClick={addItem} style={styles.addButton}>
                 <FiPlus size={14} /> Add Item
-              </button>
+              </button> */}
 
               {/* Search Items */}
               <div style={styles.searchWrapper}>
