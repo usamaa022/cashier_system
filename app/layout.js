@@ -45,7 +45,7 @@ export default function RootLayout({ children }) {
       <body className="bg-gray-50" suppressHydrationWarning>
         <AuthProvider>
           <div className="app-wrapper">
-            <Navbar />
+            <Navbar    />
             <main className="content-scroll pt-16">{children}</main>
             <InstallBanner />
           </div>

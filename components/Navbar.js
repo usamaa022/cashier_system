@@ -14,18 +14,41 @@ export default function Navbar() {
   const [openDropdown, setOpenDropdown] = useState(null);
 
   const mobileMenuRef = useRef(null);
+  const menuButtonRef = useRef(null);
 
+  // Close mobile menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+      if (
+        mobileMenuRef.current && 
+        !mobileMenuRef.current.contains(event.target) &&
+        menuButtonRef.current && 
+        !menuButtonRef.current.contains(event.target)
+      ) {
         setIsMobileMenuOpen(false);
       }
     };
+    
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
     };
   }, []);
+
+  // Prevent body scroll when menu is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileMenuOpen]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -42,35 +65,49 @@ export default function Navbar() {
     setOpenDropdown(openDropdown === name ? null : name);
   };
 
+  const toggleMobileMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsMobileMenuOpen(prev => !prev);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <>
       <nav
         style={{
-          backgroundColor: "#fff",
+          backgroundColor: "#ffffff",
           boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
           position: "sticky",
           top: 0,
           zIndex: 1000,
           width: "100%",
-          padding: "0.5rem 0",
+          padding: "0",
+          // REMOVED: overflow: "hidden" - this was clipping the dropdowns
         }}
       >
         <div
           style={{
-            maxWidth: "1280px",
+            maxWidth: "100%",
             margin: "0 auto",
-            padding: "0 1rem",
+            padding: "0 12px",
             width: "100%",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            height: "56px",
+            boxSizing: "border-box",
+            position: "relative",
           }}
         >
           {/* Logo */}
           <Link
             href="/"
             style={{
-              fontSize: "1.1rem",
+              fontSize: "1rem",
               fontWeight: "bold",
               color: "#3b82f6",
               textDecoration: "none",
@@ -139,7 +176,7 @@ export default function Navbar() {
                       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                       padding: "0.5rem 0",
                       border: "1px solid #e5e7eb",
-                      zIndex: 50,
+                      zIndex: 9999,
                     }}
                   >
                     <Link
@@ -189,7 +226,7 @@ export default function Navbar() {
               </div>
             )}
 
-            {/* Sales Dropdown with Statements inside */}
+            {/* Sales Dropdown */}
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => toggleDropdown('sales')}
@@ -236,7 +273,7 @@ export default function Navbar() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
                     border: "1px solid #e5e7eb",
-                    zIndex: 50,
+                    zIndex: 9999,
                   }}
                 >
                   <Link
@@ -347,7 +384,7 @@ export default function Navbar() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
                     border: "1px solid #e5e7eb",
-                    zIndex: 50,
+                    zIndex: 9999,
                   }}
                 >
                   {user?.role !== "employee" && (
@@ -431,7 +468,7 @@ export default function Navbar() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
                     border: "1px solid #e5e7eb",
-                    zIndex: 50,
+                    zIndex: 9999,
                   }}
                 >
                   <Link
@@ -515,7 +552,7 @@ export default function Navbar() {
                     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                     padding: "0.5rem 0",
                     border: "1px solid #e5e7eb",
-                    zIndex: 50,
+                    zIndex: 9999,
                   }}
                 >
                   <Link
@@ -612,7 +649,7 @@ export default function Navbar() {
                       boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
                       padding: "0.5rem 0",
                       border: "1px solid #e5e7eb",
-                      zIndex: 50,
+                      zIndex: 9999,
                     }}
                   >
                     <Link
@@ -669,56 +706,43 @@ export default function Navbar() {
               {user?.email}
             </div>
 
-            {/* Logout Button - Desktop only (hidden on mobile) */}
-            {/* <button
-              onClick={handleLogout}
-              style={{
-                backgroundColor: "#ef4444",
-                color: "white",
-                border: "none",
-                padding: "0.35rem 0.8rem",
-                borderRadius: "6px",
-                cursor: "pointer",
-                fontWeight: "600",
-                fontSize: "0.8rem",
-                boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
-                transition: "all 0.2s ease",
-                whiteSpace: "nowrap",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                flexShrink: 0,
-              }}
-              className="desktop-logout"
-              onMouseEnter={(e) => {
-                e.target.style.backgroundColor = "#dc2626";
-                e.target.style.transform = "scale(1.05)";
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.backgroundColor = "#ef4444";
-                e.target.style.transform = "scale(1)";
-              }}
-            >
-              <span style={{ fontSize: "0.9rem" }}>🚪</span>
-              <span className="logout-text">Logout</span>
-            </button> */}
-
             {/* Mobile Menu Toggle */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              ref={menuButtonRef}
+              onClick={toggleMobileMenu}
               style={{
                 display: "flex",
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                padding: "0.25rem",
+                padding: "8px",
                 alignItems: "center",
                 justifyContent: "center",
                 color: "#6b7280",
+                borderRadius: "8px",
+                transition: "background-color 0.2s ease",
+                width: "44px",
+                height: "44px",
+                touchAction: "manipulation",
+                WebkitTapHighlightColor: "transparent",
+                zIndex: 1001,
+                position: "relative",
               }}
               className="mobile-toggle"
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg 
+                width="28" 
+                height="28" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2"
+                style={{
+                  pointerEvents: "none",
+                  display: "block",
+                }}
+              >
                 {isMobileMenuOpen ? (
                   <>
                     <line x1="18" y1="6" x2="6" y2="18" />
@@ -746,16 +770,52 @@ export default function Navbar() {
             top: "56px",
             left: 0,
             right: 0,
+            bottom: 0,
             backgroundColor: "#fff",
             boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-            padding: "1rem",
+            padding: "16px",
             zIndex: 999,
-            maxHeight: "calc(100vh - 56px)",
             overflowY: "auto",
+            overflowX: "hidden",
             borderTop: "1px solid #e5e7eb",
+            width: "100%",
+            maxWidth: "100%",
+            boxSizing: "border-box",
+            animation: "slideDown 0.3s ease",
           }}
         >
-          {/* Buying - FIRST in mobile menu (only for superAdmin) */}
+          {/* Close button at top of menu */}
+          <div style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            marginBottom: "12px",
+            paddingBottom: "12px",
+            borderBottom: "1px solid #f3f4f6",
+          }}>
+            <button
+              onClick={closeMobileMenu}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "8px",
+                color: "#6b7280",
+                fontSize: "24px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "44px",
+                height: "44px",
+                borderRadius: "8px",
+                transition: "background-color 0.2s ease",
+              }}
+              aria-label="Close menu"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Mobile Menu Items */}
           {user?.role === "superAdmin" && (
             <div style={{ marginBottom: "0.5rem" }}>
               <button
@@ -792,9 +852,9 @@ export default function Navbar() {
               </button>
               {openDropdown === 'mobile-buying' && (
                 <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
-                  <Link href="/buying" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Buying Form</Link>
-                  <Link href="/bought_returns" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Bought Returns</Link>
-                  <Link href="/Bought_Statement" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Bought Statement</Link>
+                  <Link href="/buying" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Buying Form</Link>
+                  <Link href="/bought_returns" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Bought Returns</Link>
+                  <Link href="/Bought_Statement" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Bought Statement</Link>
                 </div>
               )}
             </div>
@@ -836,10 +896,10 @@ export default function Navbar() {
             </button>
             {openDropdown === 'mobile-sales' && (
               <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
-                <Link href="/selling" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Create Sale</Link>
-                <Link href="/sold" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Sales History</Link>
-                <Link href="/return" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Returns</Link>
-                <Link href="/statements" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Statements</Link>
+                <Link href="/selling" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Create Sale</Link>
+                <Link href="/sold" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Sales History</Link>
+                <Link href="/return" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Returns</Link>
+                <Link href="/statements" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Statements</Link>
               </div>
             )}
           </div>
@@ -881,9 +941,9 @@ export default function Navbar() {
             {openDropdown === 'mobile-inventory' && (
               <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
                 {user?.role !== "employee" && (
-                  <Link href="/items" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Items</Link>
+                  <Link href="/items" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Items</Link>
                 )}
-                <Link href="/store" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Store</Link>
+                <Link href="/store" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Store</Link>
               </div>
             )}
           </div>
@@ -924,9 +984,9 @@ export default function Navbar() {
             </button>
             {openDropdown === 'mobile-payments' && (
               <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
-                <Link href="/payments/create" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Sales Payment</Link>
+                <Link href="/payments/create" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Sales Payment</Link>
                 {user?.role === "superAdmin" && (
-                  <Link href="/bought_payments/" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Buy Payment</Link>
+                  <Link href="/bought_payments/" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Buy Payment</Link>
                 )}
               </div>
             )}
@@ -968,9 +1028,9 @@ export default function Navbar() {
             </button>
             {openDropdown === 'mobile-transport' && (
               <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
-                <Link href="/transport/send" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Send Transport</Link>
-                <Link href="/transport/receive" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Receive Transport</Link>
-                <Link href="/transport/transportHistory" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Transport History</Link>
+                <Link href="/transport/send" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Send Transport</Link>
+                <Link href="/transport/receive" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Receive Transport</Link>
+                <Link href="/transport/transportHistory" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Transport History</Link>
               </div>
             )}
           </div>
@@ -1012,14 +1072,14 @@ export default function Navbar() {
               </button>
               {openDropdown === 'mobile-accounts' && (
                 <div style={{ paddingLeft: "1rem", marginTop: "0.25rem" }}>
-                  <Link href="/pharmacies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Pharmacies</Link>
-                  <Link href="/companies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none" }} onClick={() => setIsMobileMenuOpen(false)}>Companies</Link>
+                  <Link href="/pharmacies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Pharmacies</Link>
+                  <Link href="/companies" style={{ display: "block", padding: "0.4rem 0", color: "#374151", textDecoration: "none", fontSize: "0.9rem" }} onClick={closeMobileMenu}>Companies</Link>
                 </div>
               )}
             </div>
           )}
 
-          {/* Logout Button - ONLY AT THE BOTTOM of mobile menu (not in header) */}
+          {/* Logout Button */}
           <div style={{
             borderTop: "1px solid #e5e7eb",
             paddingTop: "0.75rem",
@@ -1027,8 +1087,10 @@ export default function Navbar() {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: "8px",
           }}>
-            <span style={{ color: "#6b7280", fontSize: "0.85rem" }}>{user?.email}</span>
+            <span style={{ color: "#6b7280", fontSize: "0.8rem", wordBreak: "break-all" }}>{user?.email}</span>
             <button
               onClick={handleLogout}
               style={{
@@ -1042,6 +1104,7 @@ export default function Navbar() {
                 fontSize: "0.9rem",
                 boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
                 transition: "all 0.2s ease",
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 e.target.style.backgroundColor = "#dc2626";
@@ -1057,15 +1120,23 @@ export default function Navbar() {
       )}
 
       <style jsx>{`
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        
         @media (min-width: 768px) {
           .desktop-nav {
             display: flex !important;
           }
           .mobile-toggle {
             display: none !important;
-          }
-          .desktop-logout {
-            display: flex !important;
           }
         }
         @media (max-width: 767px) {
@@ -1078,24 +1149,15 @@ export default function Navbar() {
           .user-badge {
             display: none !important;
           }
-          .desktop-logout {
-            display: none !important;
-          }
         }
         @media (min-width: 1024px) {
           .user-badge {
             display: block !important;
           }
         }
-        @media (min-width: 640px) {
-          .logout-text {
-            display: inline !important;
-          }
-        }
-        @media (max-width: 639px) {
-          .logout-text {
-            display: none !important;
-          }
+        body {
+          overflow-x: hidden !important;
+          width: 100% !important;
         }
       `}</style>
     </>

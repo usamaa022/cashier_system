@@ -86,13 +86,13 @@ const formatDateForInput = (date) => {
 const styles = {
   container: {
     minHeight: '100vh',
-    padding: '12px',
+    padding: '00px',
     width: '100%',
     maxWidth: '100%',
     overflowX: 'hidden',
   },
   mainCard: {
-    maxWidth: '1280px',
+    maxWidth: '100%',
     margin: '0 auto',
     backgroundColor: 'white',
     borderRadius: '16px',

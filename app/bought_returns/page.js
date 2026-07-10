@@ -1165,9 +1165,7 @@ export default function BoughtReturnHistory() {
       `}</style>
 
       <div style={styles.wrapper}>
-        <div style={styles.header}>
-          <p style={styles.subtitle}>ARAN Return Items for Company</p>
-        </div>
+        
 
         <div style={styles.mainCard}>
           <div style={styles.cardHeader}>
