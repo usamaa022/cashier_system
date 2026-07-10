@@ -189,20 +189,19 @@ export default function StorePage() {
           q = query(
             collection(db, "storeItems"),
             where("branch", "==", branchFilter),
-            where("quantity", ">", 0),
             orderBy("createdAt", "desc")
           );
         } else if (user.role !== "superAdmin") {
           q = query(
             collection(db, "storeItems"),
             where("branch", "==", user.branch),
-            where("quantity", ">", 0),
+  
             orderBy("createdAt", "desc")
           );
         } else {
           q = query(
             collection(db, "storeItems"),
-            where("quantity", ">", 0),
+
             orderBy("createdAt", "desc")
           );
         }
@@ -744,272 +743,279 @@ export default function StorePage() {
         </div>
 
         {/* Table */}
-        {filteredItems.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', borderRadius: '8px', ...nrtFontStyle }}>
-            <div style={{ margin: '0 auto 16px', height: '48px', width: '48px', borderRadius: '9999px', backgroundColor: '#f3f4f6' }}>
-              <svg style={{ height: '24px', width: '24px', color: '#9ca3af' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-              </svg>
-            </div>
-            <h3 style={{ marginBottom: '8px', fontSize: '18px', fontWeight: '600', ...nrtFontBoldStyle }}>
-              {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore ? "No items found" : "No items in inventory"}
-            </h3>
-            <p style={{ color: '#6b7280', ...nrtFontStyle }}>
-              {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore
-                ? "Try adjusting your search filters"
-                : "Items will appear here once added to the store"}
-            </p>
-          </div>
-        ) : (
-          <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1600px' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f9fafb' }}>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('barcode')}>
-                    Barcode {getSortIcon('barcode')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', minWidth: '250px', ...nrtFontBoldStyle }} onClick={() => handleSort('name')}>
-                    Item Name {getSortIcon('name')}
-                  </th>
-                  {user?.role === "superAdmin" && (
-                    <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('branch')}>
-                      Branch {getSortIcon('branch')}
-                    </th>
-                  )}
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('boughtBill')}>
-                    Bought Bill # {getSortIcon('boughtBill')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('createdAt')}>
-                    Added Date {getSortIcon('createdAt')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', ...nrtFontBoldStyle }}>Currency</th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('basePriceUSD')}>
-                    Base Price (USD) {getSortIcon('basePriceUSD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('netPriceUSD')}>
-                    Net Price (USD) {getSortIcon('netPriceUSD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('outPriceUSD')}>
-                    Out Price (USD) {getSortIcon('outPriceUSD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('basePriceIQD')}>
-                    Base Price (IQD) {getSortIcon('basePriceIQD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('netPriceIQD')}>
-                    Net Price (IQD) {getSortIcon('netPriceIQD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('outPriceIQD')}>
-                    Out Price (IQD) {getSortIcon('outPriceIQD')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('quantity')}>
-                    Quantity {getSortIcon('quantity')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('expireDate')}>
-                    Expiry Date {getSortIcon('expireDate')}
-                  </th>
-                  <th style={{ padding: '12px', textAlign: 'left', ...nrtFontBoldStyle }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredItems.map((item, index) => {
-                  const expiryStyle = getExpiryStyle(item.expireDate);
-                  const isUSD = item.priceType === 'USD';
-                  
-                  return (
-                    <tr key={index} style={{ borderBottom: '1px solid #e5e7eb', ...nrtFontStyle }}>
-                      <td style={{ padding: '12px', fontFamily: 'monospace', ...nrtFontStyle }}>{item.barcode}</td>
-                      <td style={{ padding: '12px', fontWeight: '500', ...nrtFontStyle }}>{item.name}</td>
-                      {user?.role === "superAdmin" && (
-                        <td style={{ padding: '12px' }}>
-                          <span style={getBranchStyle(item.branch)}>{item.branch}</span>
-                        </td>
-                      )}
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          backgroundColor: '#dbeafe',
-                          color: '#1e40af',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          ...nrtFontStyle
-                        }}>
-                          {item.boughtBillNumber || 'N/A'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px', ...nrtFontStyle }}>{formatDateTime(item.createdAt)}</td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          backgroundColor: isUSD ? '#dbeafe' : '#fef3c7',
-                          color: isUSD ? '#1e40af' : '#92400e',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          ...nrtFontStyle
-                        }}>
-                          {item.priceType}
-                        </span>
-                      </td>
-                      {/* USD Columns */}
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
-                        color: isUSD ? '#065f46' : '#9ca3af',
+        // Table rendering
+{filteredItems.length === 0 ? (
+  <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'white', borderRadius: '8px', ...nrtFontStyle }}>
+    <div style={{ margin: '0 auto 16px', height: '48px', width: '48px', borderRadius: '9999px', backgroundColor: '#f3f4f6' }}>
+      <svg style={{ height: '24px', width: '24px', color: '#9ca3af' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+      </svg>
+    </div>
+    <h3 style={{ marginBottom: '8px', fontSize: '18px', fontWeight: '600', ...nrtFontBoldStyle }}>
+      {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore ? "No items found" : "No items in inventory"}
+    </h3>
+    <p style={{ color: '#6b7280', ...nrtFontStyle }}>
+      {searchQuery || barcodeSearch || billSearch || fromDate || toDate || expireBefore
+        ? "Try adjusting your search filters"
+        : "Items will appear here once added to the store"}
+    </p>
+  </div>
+) : (
+  <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '1600px' }}>
+      <thead>
+        <tr style={{ backgroundColor: '#f9fafb' }}>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('barcode')}>
+            Barcode {getSortIcon('barcode')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', minWidth: '250px', ...nrtFontBoldStyle }} onClick={() => handleSort('name')}>
+            Item Name {getSortIcon('name')}
+          </th>
+          {user?.role === "superAdmin" && (
+            <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('branch')}>
+              Branch {getSortIcon('branch')}
+            </th>
+          )}
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('boughtBill')}>
+            Bought Bill # {getSortIcon('boughtBill')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('createdAt')}>
+            Added Date {getSortIcon('createdAt')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', ...nrtFontBoldStyle }}>Currency</th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('basePriceUSD')}>
+            Base Price (USD) {getSortIcon('basePriceUSD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('netPriceUSD')}>
+            Net Price (USD) {getSortIcon('netPriceUSD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('outPriceUSD')}>
+            Out Price (USD) {getSortIcon('outPriceUSD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('basePriceIQD')}>
+            Base Price (IQD) {getSortIcon('basePriceIQD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('netPriceIQD')}>
+            Net Price (IQD) {getSortIcon('netPriceIQD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('outPriceIQD')}>
+            Out Price (IQD) {getSortIcon('outPriceIQD')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('quantity')}>
+            Quantity {getSortIcon('quantity')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', cursor: 'pointer', ...nrtFontBoldStyle }} onClick={() => handleSort('expireDate')}>
+            Expiry Date {getSortIcon('expireDate')}
+          </th>
+          <th style={{ padding: '12px', textAlign: 'left', ...nrtFontBoldStyle }}>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {filteredItems.map((item, index) => {
+          const expiryStyle = getExpiryStyle(item.expireDate);
+          const isUSD = item.priceType === 'USD';
+          const isZeroQuantity = item.totalQuantity === 0;
+          
+          return (
+            <tr key={index} style={{ 
+              borderBottom: '1px solid #e5e7eb', 
+              ...nrtFontStyle,
+              opacity: isZeroQuantity ? '0.6' : '1',
+              backgroundColor: isZeroQuantity ? '#f9fafb' : 'transparent'
+            }}>
+              <td style={{ padding: '12px', fontFamily: 'monospace', ...nrtFontStyle }}>{item.barcode}</td>
+              <td style={{ padding: '12px', fontWeight: '500', ...nrtFontStyle }}>{item.name}</td>
+              {user?.role === "superAdmin" && (
+                <td style={{ padding: '12px' }}>
+                  <span style={getBranchStyle(item.branch)}>{item.branch}</span>
+                </td>
+              )}
+              <td style={{ padding: '12px' }}>
+                <span style={{
+                  backgroundColor: '#dbeafe',
+                  color: '#1e40af',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  ...nrtFontStyle
+                }}>
+                  {item.boughtBillNumber || 'N/A'}
+                </span>
+              </td>
+              <td style={{ padding: '12px', ...nrtFontStyle }}>{formatDateTime(item.createdAt)}</td>
+              <td style={{ padding: '12px' }}>
+                <span style={{
+                  backgroundColor: isUSD ? '#dbeafe' : '#fef3c7',
+                  color: isUSD ? '#1e40af' : '#92400e',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  ...nrtFontStyle
+                }}>
+                  {item.priceType}
+                </span>
+              </td>
+              {/* USD Columns */}
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
+                color: isUSD ? '#065f46' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {isUSD ? formatUSD(item.basePriceUSD) : '-'}
+              </td>
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
+                color: isUSD ? '#065f46' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {isUSD ? formatUSD(item.netPriceUSD) : '-'}
+              </td>
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
+                color: isUSD ? '#065f46' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {isUSD ? formatUSD(item.outPriceUSD) : '-'}
+              </td>
+              {/* IQD Columns */}
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
+                color: !isUSD ? '#92400e' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {!isUSD ? formatIQD(item.basePriceIQD) : '-'}
+              </td>
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
+                color: !isUSD ? '#92400e' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {!isUSD ? formatIQD(item.netPriceIQD) : '-'}
+              </td>
+              <td style={{ 
+                padding: '12px', 
+                backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
+                color: !isUSD ? '#92400e' : '#9ca3af',
+                ...nrtFontStyle
+              }}>
+                {!isUSD ? formatIQD(item.outPriceIQD) : '-'}
+              </td>
+              <td style={{ padding: '12px' }}>
+                <span style={{
+                  backgroundColor: isZeroQuantity ? '#f3f4f6' : (item.totalQuantity > 10 ? '#d1fae5' : '#fee2e2'),
+                  color: isZeroQuantity ? '#6b7280' : (item.totalQuantity > 10 ? '#065f46' : '#991b1b'),
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  ...nrtFontStyle
+                }}>
+                  {item.totalQuantity} {isZeroQuantity && '(Out of Stock)'}
+                </span>
+              </td>
+              <td style={{ padding: '12px' }}>
+                {item.expireDate ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{
+                      backgroundColor: expiryStyle.backgroundColor,
+                      color: expiryStyle.color,
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      ...nrtFontStyle
+                    }}>
+                      {formatDate(item.expireDate)}
+                    </span>
+                    {expiryStyle.status !== 'Safe' && (
+                      <span style={{
+                        backgroundColor: expiryStyle.backgroundColor,
+                        color: expiryStyle.color,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        fontSize: '10px',
+                        fontWeight: '600',
                         ...nrtFontStyle
                       }}>
-                        {isUSD ? formatUSD(item.basePriceUSD) : '-'}
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
-                        color: isUSD ? '#065f46' : '#9ca3af',
-                        ...nrtFontStyle
-                      }}>
-                        {isUSD ? formatUSD(item.netPriceUSD) : '-'}
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: isUSD ? '#f0fdf4' : '#f9fafb',
-                        color: isUSD ? '#065f46' : '#9ca3af',
-                        ...nrtFontStyle
-                      }}>
-                        {isUSD ? formatUSD(item.outPriceUSD) : '-'}
-                      </td>
-                      {/* IQD Columns */}
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
-                        color: !isUSD ? '#92400e' : '#9ca3af',
-                        ...nrtFontStyle
-                      }}>
-                        {!isUSD ? formatIQD(item.basePriceIQD) : '-'}
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
-                        color: !isUSD ? '#92400e' : '#9ca3af',
-                        ...nrtFontStyle
-                      }}>
-                        {!isUSD ? formatIQD(item.netPriceIQD) : '-'}
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        backgroundColor: !isUSD ? '#fef3c7' : '#f9fafb',
-                        color: !isUSD ? '#92400e' : '#9ca3af',
-                        ...nrtFontStyle
-                      }}>
-                        {!isUSD ? formatIQD(item.outPriceIQD) : '-'}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <span style={{
-                          backgroundColor: item.totalQuantity > 10 ? '#d1fae5' : '#fee2e2',
-                          color: item.totalQuantity > 10 ? '#065f46' : '#991b1b',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          ...nrtFontStyle
-                        }}>
-                          {item.totalQuantity}
-                        </span>
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        {item.expireDate ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{
-                              backgroundColor: expiryStyle.backgroundColor,
-                              color: expiryStyle.color,
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              fontSize: '12px',
-                              fontWeight: '500',
-                              ...nrtFontStyle
-                            }}>
-                              {formatDate(item.expireDate)}
-                            </span>
-                            {expiryStyle.status !== 'Safe' && (
-                              <span style={{
-                                backgroundColor: expiryStyle.backgroundColor,
-                                color: expiryStyle.color,
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '10px',
-                                fontWeight: '600',
-                                ...nrtFontStyle
-                              }}>
-                                {expiryStyle.status}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          <span style={{
-                            backgroundColor: '#f3f4f6',
-                            color: '#6b7280',
-                            padding: '4px 8px',
-                            borderRadius: '4px',
-                            fontSize: '12px',
-                            ...nrtFontStyle
-                          }}>
-                            N/A
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '12px' }}>
-                        <button
-                          onClick={() => {
-                            setEditingItem(item);
-                            setEditForm({
-                              quantity: item.totalQuantity,
-                              priceType: item.priceType,
-                              basePriceUSD: item.basePriceUSD || '',
-                              netPriceUSD: item.netPriceUSD || '',
-                              outPriceUSD: item.outPriceUSD || '',
-                              basePriceIQD: item.basePriceIQD || '',
-                              netPriceIQD: item.netPriceIQD || '',
-                              outPriceIQD: item.outPriceIQD || ''
-                            });
-                          }}
-                          style={{
-                            padding: '6px 12px',
-                            backgroundColor: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            fontSize: '12px',
-                            ...nrtFontStyle
-                          }}
-                        >
-                          Edit
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr style={{ backgroundColor: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
-                  <td colSpan={user.role === "superAdmin" ? 6 : 5} style={{ padding: '12px', textAlign: 'right', fontWeight: '600', ...nrtFontBoldStyle }}>
-                    Totals:
-                  </td>
-                  <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937', ...nrtFontBoldStyle }}>
-                    {totalQuantity}
-                  </td>
-                  <td colSpan="2" style={{ padding: '12px', fontWeight: '600', color: '#065f46', ...nrtFontBoldStyle }}>
-                    USD Base: {formatUSD(totalBaseValueUSD)}<br/>
-                    USD Net: {formatUSD(totalNetValueUSD)}
-                  </td>
-                  <td colSpan="2" style={{ padding: '12px', fontWeight: '600', color: '#92400e', ...nrtFontBoldStyle }}>
-                    IQD Base: {formatIQD(totalBaseValueIQD)}<br/>
-                    IQD Net: {formatIQD(totalNetValueIQD)}
-                  </td>
-                  <td style={{ padding: '12px' }}></td>
-                  <td style={{ padding: '12px' }}></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        )}
+                        {expiryStyle.status}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{
+                    backgroundColor: '#f3f4f6',
+                    color: '#6b7280',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    ...nrtFontStyle
+                  }}>
+                    N/A
+                  </span>
+                )}
+              </td>
+              <td style={{ padding: '12px' }}>
+                <button
+                  onClick={() => {
+                    setEditingItem(item);
+                    setEditForm({
+                      quantity: item.totalQuantity,
+                      priceType: item.priceType,
+                      basePriceUSD: item.basePriceUSD || '',
+                      netPriceUSD: item.netPriceUSD || '',
+                      outPriceUSD: item.outPriceUSD || '',
+                      basePriceIQD: item.basePriceIQD || '',
+                      netPriceIQD: item.netPriceIQD || '',
+                      outPriceIQD: item.outPriceIQD || ''
+                    });
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    ...nrtFontStyle
+                  }}
+                >
+                  Edit
+                </button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+      <tfoot>
+        <tr style={{ backgroundColor: '#f9fafb', borderTop: '2px solid #e5e7eb' }}>
+          <td colSpan={user.role === "superAdmin" ? 6 : 5} style={{ padding: '12px', textAlign: 'right', fontWeight: '600', ...nrtFontBoldStyle }}>
+            Totals:
+          </td>
+          <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937', ...nrtFontBoldStyle }}>
+            {totalQuantity}
+          </td>
+          <td colSpan="2" style={{ padding: '12px', fontWeight: '600', color: '#065f46', ...nrtFontBoldStyle }}>
+            USD Base: {formatUSD(totalBaseValueUSD)}<br/>
+            USD Net: {formatUSD(totalNetValueUSD)}
+          </td>
+          <td colSpan="2" style={{ padding: '12px', fontWeight: '600', color: '#92400e', ...nrtFontBoldStyle }}>
+            IQD Base: {formatIQD(totalBaseValueIQD)}<br/>
+            IQD Net: {formatIQD(totalNetValueIQD)}
+          </td>
+          <td style={{ padding: '12px' }}></td>
+          <td style={{ padding: '12px' }}></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+)}
       </div>
 
       {/* Edit Modal */}
