@@ -2,19 +2,23 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getCompanies, searchInitializedItems, createBoughtBill, updateBoughtBill } from "@/lib/data";
 import { useSearchParams, useRouter } from "next/navigation";
-import { 
-  FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText, 
-  FiPackage, FiUser, FiCalendar, FiCreditCard, FiTruck, 
+import {
+  FiPlus, FiTrash2, FiSearch, FiPercent, FiDollarSign, FiFileText,
+  FiPackage, FiUser, FiCalendar, FiCreditCard, FiTruck,
   FiAlertTriangle, FiX, FiRefreshCw, FiShoppingCart, FiCheckCircle,
   FiArrowRight
 } from "react-icons/fi";
+
+// ============================================================
+// Helpers
+// ============================================================
 
 // Format number with commas (e.g., 3,000 or 3,000.50)
 const formatNumber = (number) => {
   if (!number && number !== 0) return '0';
   const num = typeof number === 'string' ? parseFloat(number.replace(/,/g, '')) : number;
   if (isNaN(num)) return '0';
-  
+
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: num % 1 === 0 ? 0 : 2,
     maximumFractionDigits: 2
@@ -56,16 +60,18 @@ const parseDDMMYYYYToInput = (dateString) => {
   return dateString;
 };
 
+// Robustly converts ANY date-ish value into an <input type="date"> compatible string
 const formatDateForInput = (date) => {
   if (!date) return '';
   let dateObj;
-  if (date?.toDate) {
+  if (date?.toDate && typeof date.toDate === 'function') {
     dateObj = date.toDate();
   } else if (date?.seconds) {
     dateObj = new Date(date.seconds * 1000);
   } else if (date instanceof Date) {
     dateObj = date;
   } else if (typeof date === 'string') {
+    if (date === 'N/A') return '';
     if (date.includes('/')) {
       const [day, month, year] = date.split('/');
       dateObj = new Date(year, month - 1, day);
@@ -82,11 +88,22 @@ const formatDateForInput = (date) => {
   return `${year}-${month}-${day}`;
 };
 
-// Inline styles
+// Select all text in an input when it receives focus
+const selectOnFocus = (e) => {
+  const target = e.target;
+  requestAnimationFrame(() => {
+    try { target.select(); } catch (_) {}
+  });
+};
+
+// ============================================================
+// Styles
+// ============================================================
+
 const styles = {
   container: {
     minHeight: '100vh',
-    padding: '00px',
+    padding: '0px',
     width: '100%',
     maxWidth: '100%',
     overflowX: 'hidden',
@@ -95,41 +112,62 @@ const styles = {
     maxWidth: '100%',
     margin: '0 auto',
     backgroundColor: 'white',
-    borderRadius: '16px',
-    boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+    borderRadius: '18px',
+    boxShadow: '0 20px 60px rgba(15,23,42,0.18)',
     overflow: 'hidden',
     width: '100%',
   },
   header: {
-    background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-    padding: '16px 20px',
+    background: 'linear-gradient(135deg, #4338ca 0%, #1e293b 100%)',
+    padding: '18px 20px',
     color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap',
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  headerIconWrap: {
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    background: 'rgba(255,255,255,0.15)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   headerTitle: {
-    fontSize: '20px',
-    fontWeight: 'bold',
+    fontSize: '19px',
+    fontWeight: '700',
     margin: 0,
+    letterSpacing: '-0.01em',
   },
   headerSubtitle: {
     fontSize: '12px',
-    opacity: 0.8,
-    marginTop: '4px',
+    opacity: 0.75,
+    marginTop: '2px',
     marginBottom: 0,
   },
   content: {
-    padding: '16px',
+    padding: '14px',
   },
   section: {
     backgroundColor: '#f8fafc',
-    borderRadius: '12px',
+    borderRadius: '14px',
     padding: '14px',
-    marginBottom: '16px',
+    marginBottom: '14px',
     border: '1px solid #e2e8f0',
     overflow: 'hidden',
   },
   sectionTitle: {
-    fontSize: '15px',
-    fontWeight: '600',
+    fontSize: '14px',
+    fontWeight: '700',
     marginBottom: '12px',
     color: '#1e293b',
     display: 'flex',
@@ -137,6 +175,19 @@ const styles = {
     gap: '8px',
     paddingBottom: '10px',
     borderBottom: '2px solid #e2e8f0',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+  },
+  sectionTitleBadge: {
+    marginLeft: 'auto',
+    fontSize: '11px',
+    fontWeight: '700',
+    color: '#4338ca',
+    background: '#e0e7ff',
+    borderRadius: '999px',
+    padding: '2px 10px',
+    textTransform: 'none',
+    letterSpacing: 0,
   },
   formRow: {
     display: 'grid',
@@ -150,26 +201,26 @@ const styles = {
   },
   label: {
     fontSize: '12px',
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#475569',
-    marginBottom: '4px',
+    marginBottom: '5px',
   },
   input: {
-    padding: '8px 10px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '8px',
-    fontSize: '13px',
-    transition: 'all 0.2s',
+    padding: '10px 12px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '10px',
+    fontSize: '15px',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
     outline: 'none',
     backgroundColor: 'white',
     width: '100%',
     boxSizing: 'border-box',
   },
   select: {
-    padding: '8px 10px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '8px',
-    fontSize: '13px',
+    padding: '10px 12px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '10px',
+    fontSize: '15px',
     backgroundColor: 'white',
     cursor: 'pointer',
     width: '100%',
@@ -177,64 +228,72 @@ const styles = {
   },
   currencyButtons: {
     display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '12px',
+    flexDirection: 'row',
+    gap: '10px',
+    marginBottom: '4px',
   },
   currencyBtn: {
-    padding: '8px 16px',
-    borderRadius: '8px',
-    fontWeight: '600',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    fontWeight: '700',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    border: 'none',
-    fontSize: '13px',
-    width: '100%',
+    transition: 'all 0.15s',
+    border: '2px solid transparent',
+    fontSize: '14px',
+    flex: 1,
   },
   currencyBtnActiveUSD: {
     background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
     color: 'white',
-    boxShadow: '0 4px 12px rgba(59,130,246,0.3)',
+    boxShadow: '0 6px 16px rgba(59,130,246,0.35)',
+    transform: 'translateY(-1px)',
   },
   currencyBtnActiveIQD: {
     background: 'linear-gradient(135deg, #10b981, #059669)',
     color: 'white',
-    boxShadow: '0 4px 12px rgba(16,185,129,0.3)',
+    boxShadow: '0 6px 16px rgba(16,185,129,0.35)',
+    transform: 'translateY(-1px)',
   },
   currencyBtnInactive: {
-    backgroundColor: '#e2e8f0',
+    backgroundColor: 'white',
     color: '#475569',
+    border: '2px solid #e2e8f0',
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse',
+    borderCollapse: 'separate',
+    borderSpacing: 0,
     marginTop: '12px',
-    minWidth: '600px',
+    minWidth: '680px',
   },
   th: {
-    padding: '8px',
+    padding: '10px 8px',
     textAlign: 'left',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#eef2ff',
     fontSize: '11px',
-    fontWeight: '600',
-    color: '#475569',
-    borderBottom: '2px solid #e2e8f0',
+    fontWeight: '700',
+    color: '#4338ca',
+    borderBottom: '2px solid #e0e7ff',
     whiteSpace: 'nowrap',
+    position: 'sticky',
+    top: 0,
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
   },
   td: {
     padding: '6px',
-    borderBottom: '1px solid #e2e8f0',
-    fontSize: '12px',
+    borderBottom: '1px solid #eef2f7',
+    fontSize: '13px',
   },
   addButton: {
     background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
     color: 'white',
     border: 'none',
-    padding: '8px 16px',
-    borderRadius: '8px',
+    padding: '10px 16px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontSize: '13px',
-    fontWeight: '500',
+    fontWeight: '600',
     display: 'inline-flex',
     alignItems: 'center',
     gap: '6px',
@@ -243,36 +302,40 @@ const styles = {
     justifyContent: 'center',
   },
   deleteButton: {
-    background: 'none',
+    background: '#fef2f2',
     border: 'none',
     color: '#ef4444',
     cursor: 'pointer',
-    padding: '4px 6px',
-    borderRadius: '6px',
+    padding: '8px',
+    borderRadius: '8px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   submitButton: {
     background: 'linear-gradient(135deg, #10b981, #059669)',
     color: 'white',
     border: 'none',
-    padding: '12px 20px',
-    borderRadius: '10px',
-    fontSize: '14px',
-    fontWeight: '600',
+    padding: '14px 20px',
+    borderRadius: '12px',
+    fontSize: '15px',
+    fontWeight: '700',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
-    gap: '6px',
+    gap: '8px',
     width: '100%',
     justifyContent: 'center',
+    boxShadow: '0 8px 20px rgba(16,185,129,0.3)',
   },
   resetButton: {
     background: 'white',
     color: '#64748b',
-    border: '1px solid #cbd5e1',
-    padding: '10px 16px',
-    borderRadius: '10px',
-    fontSize: '13px',
-    fontWeight: '500',
+    border: '1.5px solid #cbd5e1',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
@@ -284,10 +347,10 @@ const styles = {
     background: '#ef4444',
     color: 'white',
     border: 'none',
-    padding: '10px 16px',
-    borderRadius: '10px',
-    fontSize: '13px',
-    fontWeight: '500',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
@@ -298,31 +361,33 @@ const styles = {
   errorBox: {
     backgroundColor: '#fef2f2',
     border: '1px solid #fecaca',
-    borderRadius: '10px',
-    padding: '10px 14px',
+    borderRadius: '12px',
+    padding: '12px 14px',
     marginBottom: '16px',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
     color: '#dc2626',
     fontSize: '13px',
+    fontWeight: 500,
   },
   successBox: {
     backgroundColor: '#f0fdf4',
     border: '1px solid #bbf7d0',
-    borderRadius: '10px',
-    padding: '10px 14px',
+    borderRadius: '12px',
+    padding: '12px 14px',
     marginBottom: '16px',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
     color: '#16a34a',
     fontSize: '13px',
+    fontWeight: 500,
   },
   totalBox: {
-    backgroundColor: '#eef2ff',
-    borderRadius: '10px',
-    padding: '12px 16px',
+    background: 'linear-gradient(135deg, #eef2ff, #e0e7ff)',
+    borderRadius: '12px',
+    padding: '14px 16px',
     marginTop: '12px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -331,36 +396,39 @@ const styles = {
     gap: '8px',
   },
   totalLabel: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: '600',
     color: '#4338ca',
   },
   totalValue: {
-    fontSize: '18px',
-    fontWeight: 'bold',
+    fontSize: '20px',
+    fontWeight: '800',
     color: '#4338ca',
   },
   suggestionBox: {
     position: 'absolute',
-    top: '100%',
+    top: 'calc(100% + 4px)',
     left: 0,
     right: 0,
     backgroundColor: 'white',
     border: '1px solid #e2e8f0',
-    borderRadius: '8px',
-    maxHeight: '200px',
+    borderRadius: '12px',
+    maxHeight: '260px',
     overflowY: 'auto',
-    zIndex: 10,
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    zIndex: 9999,
+    boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+    padding: '4px 0',
   },
   suggestionItem: {
-    padding: '8px 10px',
+    padding: '10px 14px',
     cursor: 'pointer',
     borderBottom: '1px solid #f1f5f9',
     fontSize: '13px',
+    transition: 'background 0.15s ease',
   },
   relative: {
     position: 'relative',
+    width: '100%',
   },
   buttonGroup: {
     display: 'flex',
@@ -382,61 +450,64 @@ const styles = {
   },
   searchIcon: {
     position: 'absolute',
-    left: '10px',
+    left: '12px',
     top: '50%',
     transform: 'translateY(-50%)',
     color: '#94a3b8',
+    pointerEvents: 'none',
   },
   searchInput: {
     width: '100%',
-    padding: '8px 10px 8px 34px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '8px',
-    fontSize: '13px',
+    padding: '12px 12px 12px 36px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '10px',
+    fontSize: '15px',
     backgroundColor: 'white',
     boxSizing: 'border-box',
   },
   tableWrapper: {
     overflowX: 'auto',
     WebkitOverflowScrolling: 'touch',
+    borderRadius: '10px',
+    border: '1px solid #eef2f7',
   },
   smallInput: {
-    width: '60px',
-    padding: '6px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '6px',
-    fontSize: '12px',
+    width: '64px',
+    padding: '8px 6px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
     textAlign: 'center',
     boxSizing: 'border-box',
   },
   priceInput: {
     width: '100%',
-    minWidth: '80px',
-    padding: '6px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '6px',
-    fontSize: '12px',
+    minWidth: '90px',
+    padding: '8px 6px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
     textAlign: 'right',
     boxSizing: 'border-box',
   },
   outPriceInput: {
     width: '100%',
-    minWidth: '80px',
-    padding: '6px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '6px',
-    fontSize: '12px',
+    minWidth: '90px',
+    padding: '8px 6px',
+    border: '1.5px solid #fbbf24',
+    borderRadius: '8px',
+    fontSize: '14px',
     textAlign: 'right',
-    backgroundColor: '#fef3c7',
+    backgroundColor: '#fffbeb',
     boxSizing: 'border-box',
   },
   textInput: {
     width: '100%',
-    minWidth: '80px',
-    padding: '6px',
-    border: '1px solid #cbd5e1',
-    borderRadius: '6px',
-    fontSize: '12px',
+    minWidth: '90px',
+    padding: '8px 6px',
+    border: '1.5px solid #cbd5e1',
+    borderRadius: '8px',
+    fontSize: '14px',
     boxSizing: 'border-box',
   },
 };
@@ -458,6 +529,7 @@ export default function BuyingForm({ onBillCreated }) {
   const [currency, setCurrency] = useState("USD");
   const [suggestions, setSuggestions] = useState([]);
   const [companySuggestions, setCompanySuggestions] = useState([]);
+  const [allCompanies, setAllCompanies] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -471,7 +543,7 @@ export default function BuyingForm({ onBillCreated }) {
   const companySearchRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  
+
   // Refs for keyboard navigation
   const itemInputRefs = useRef({});
   const transportFeeRef = useRef(null);
@@ -493,13 +565,57 @@ export default function BuyingForm({ onBillCreated }) {
     const basePrice = parseFloat(parseFormattedNumber(item.price)) || 0;
     const quantity = parseFloat(item.quantity) || 1;
     if (totalQuantity === 0) return basePrice;
-    
+
     const itemShare = quantity / totalQuantity;
     const transportPerItem = (transportFeeVal * itemShare) / quantity;
     const expensePerItem = (externalExpenseVal * itemShare) / quantity;
     const expenseAmount = basePrice * (expensePercentageVal / 100);
     const netPrice = basePrice + transportPerItem + expensePerItem + expenseAmount;
     return parseFloat(netPrice.toFixed(2));
+  };
+
+  // Load all companies on mount for suggestions
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const companiesData = await getCompanies();
+        setAllCompanies(companiesData);
+      } catch (error) {
+        console.error('Error loading companies:', error);
+      }
+    };
+    loadCompanies();
+  }, []);
+
+  // Company search with debounce - shows all companies on focus
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (companySearch.trim() === '') {
+        setCompanySuggestions(allCompanies);
+      } else {
+        const searchLower = companySearch.toLowerCase().trim();
+        const filtered = allCompanies.filter(company => 
+          company.name.toLowerCase().includes(searchLower) ||
+          (company.code && company.code.toString().toLowerCase().includes(searchLower))
+        );
+        setCompanySuggestions(filtered);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [companySearch, allCompanies]);
+
+  // Handle company focus - show all companies
+  const handleCompanyFocus = () => {
+    setShowCompanySuggestions(true);
+    setCompanySuggestions(allCompanies);
+  };
+
+  // Handle company blur - hide suggestions after delay
+  const handleCompanyBlur = () => {
+    setTimeout(() => {
+      setShowCompanySuggestions(false);
+    }, 200);
   };
 
   const initializeFormWithBillData = (billData) => {
@@ -519,22 +635,7 @@ export default function BuyingForm({ onBillCreated }) {
 
     if (billData.items && billData.items.length > 0) {
       const initializedItems = billData.items.map(item => {
-        let expireDate = "";
-        if (item.expireDate && item.expireDate !== 'N/A') {
-          if (typeof item.expireDate === 'string') {
-            if (item.expireDate.includes('/')) {
-              expireDate = parseDDMMYYYYToInput(item.expireDate);
-            } else if (item.expireDate.includes('-')) {
-              expireDate = item.expireDate;
-            }
-          } else if (item.expireDate?.toDate) {
-            const d = item.expireDate.toDate();
-            expireDate = formatDateForInput(d);
-          } else if (item.expireDate?.seconds) {
-            const d = new Date(item.expireDate.seconds * 1000);
-            expireDate = formatDateForInput(d);
-          }
-        }
+        const expireDate = formatDateForInput(item.expireDate);
 
         let price = 0;
         let outPrice = 0;
@@ -581,31 +682,8 @@ export default function BuyingForm({ onBillCreated }) {
         setBillItems([createEmptyItem()]);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
-
-  // Company search
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      if (companySearch.length > 0) {
-        try {
-          const companies = await getCompanies();
-          const results = companies.filter(company =>
-            company.name.toLowerCase().includes(companySearch.toLowerCase()) ||
-            company.code.toString().includes(companySearch)
-          );
-          setCompanySuggestions(results);
-          setShowCompanySuggestions(results.length > 0);
-        } catch (error) {
-          console.error("Error fetching companies:", error);
-        }
-      } else {
-        setCompanySuggestions([]);
-        setShowCompanySuggestions(false);
-      }
-    };
-    const timer = setTimeout(fetchCompanies, 300);
-    return () => clearTimeout(timer);
-  }, [companySearch]);
 
   // Item search
   useEffect(() => {
@@ -641,21 +719,32 @@ export default function BuyingForm({ onBillCreated }) {
       barcode: item.barcode,
       name: item.name,
       outPrice: item.outPrice ? formatNumber(item.outPrice) : "",
-      expireDate: item.expireDate && item.expireDate !== 'N/A' ?
-        (typeof item.expireDate === 'string' ?
-          (item.expireDate.includes('/') ?
-            parseDDMMYYYYToInput(item.expireDate) :
-            item.expireDate) :
-          formatDateForInput(item.expireDate.toDate())) : ""
+      expireDate: formatDateForInput(item.expireDate),
     };
-    setBillItems(prev => [...prev.filter(item => item.barcode || item.name), newItem]);
+
+    setBillItems(prev => {
+      const filtered = prev.filter(i => i.barcode || i.name);
+      const newIndex = filtered.length;
+      const updated = [...filtered, newItem];
+
+      setTimeout(() => {
+        const qtyInput = itemInputRefs.current[`${newIndex}-quantity`];
+        if (qtyInput) {
+          qtyInput.focus();
+          qtyInput.select();
+        }
+      }, 80);
+
+      return updated;
+    });
+
     setShowSuggestions(false);
     setSearchQuery("");
     setTimeout(() => {
       if (searchInputRef.current) {
-        searchInputRef.current.focus();
+        searchInputRef.current.blur();
       }
-    }, 100);
+    }, 80);
   }, []);
 
   const handleItemChange = useCallback((index, field, value) => {
@@ -697,7 +786,7 @@ export default function BuyingForm({ onBillCreated }) {
   const handleKeyDown = (e, index, field) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      
+
       const navigationOrder = [
         { type: 'item', field: 'barcode', index: index },
         { type: 'item', field: 'name', index: index },
@@ -711,7 +800,7 @@ export default function BuyingForm({ onBillCreated }) {
         { type: 'global', field: 'billNote' },
         { type: 'global', field: 'submit' },
       ];
-      
+
       let currentPos = -1;
       for (let i = 0; i < navigationOrder.length; i++) {
         const item = navigationOrder[i];
@@ -723,10 +812,10 @@ export default function BuyingForm({ onBillCreated }) {
           break;
         }
       }
-      
+
       if (currentPos !== -1 && currentPos + 1 < navigationOrder.length) {
         const next = navigationOrder[currentPos + 1];
-        
+
         if (next.type === 'item') {
           const nextInput = itemInputRefs.current[`${next.index}-${next.field}`];
           if (nextInput) {
@@ -800,7 +889,7 @@ export default function BuyingForm({ onBillCreated }) {
         const netPrice = calculateNetPrice(
           item, totalQuantity, transportFeeValue, externalExpenseValue, expensePercentageValue
         );
-        
+
         const priceValue = parseFloat(parseFormattedNumber(item.price)) || 0;
         const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || (priceValue * 1.5);
 
@@ -820,18 +909,18 @@ export default function BuyingForm({ onBillCreated }) {
 
         if (currency === "USD") {
           itemData.basePriceUSD = priceValue;
-          itemData.basePriceIQD = priceValue;
+          itemData.basePriceIQD = 0;
           itemData.netPriceUSD = netPrice;
-          itemData.netPriceIQD = netPrice;
+          itemData.netPriceIQD = 0;
           itemData.outPriceUSD = outPriceValue;
-          itemData.outPriceIQD = outPriceValue;
+          itemData.outPriceIQD = 0;
         } else {
           itemData.basePriceIQD = priceValue;
-          itemData.basePriceUSD = priceValue;
+          itemData.basePriceUSD = 0;
           itemData.netPriceIQD = netPrice;
-          itemData.netPriceUSD = netPrice;
+          itemData.netPriceUSD = 0;
           itemData.outPriceIQD = outPriceValue;
-          itemData.outPriceUSD = outPriceValue;
+          itemData.outPriceUSD = 0;
         }
 
         return itemData;
@@ -843,10 +932,10 @@ export default function BuyingForm({ onBillCreated }) {
         currency: currency,
         transportFee: transportFeeValue,
         externalExpense: externalExpenseValue,
-        totalTransportFeeUSD: transportFeeValue,
-        totalTransportFeeIQD: transportFeeValue,
-        totalExternalExpenseUSD: externalExpenseValue,
-        totalExternalExpenseIQD: externalExpenseValue,
+        totalTransportFeeUSD: currency === "USD" ? transportFeeValue : 0,
+        totalTransportFeeIQD: currency === "IQD" ? transportFeeValue : 0,
+        totalExternalExpenseUSD: currency === "USD" ? externalExpenseValue : 0,
+        totalExternalExpenseIQD: currency === "IQD" ? externalExpenseValue : 0,
         billDate: billDate,
         exchangeRate: 1,
       };
@@ -914,18 +1003,83 @@ export default function BuyingForm({ onBillCreated }) {
   const validItemsCount = billItems.filter(item => item.barcode || item.name).length;
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="bf-root">
+      <style>{`
+        .bf-root * { box-sizing: border-box; }
+        .bf-root input:focus,
+        .bf-root select:focus,
+        .bf-root textarea:focus {
+          border-color: #6366f1 !important;
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+        }
+        .bf-root button {
+          transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease, background 0.15s ease;
+        }
+        .bf-root button:active:not(:disabled) { transform: scale(0.97); }
+        .bf-row-hover:hover { background: #f8fafc; }
+        .bf-suggestion:hover { background: #eef2ff !important; }
+        .bf-delete-btn:hover { background: #fee2e2 !important; }
+        .bf-reset-btn:hover { background: #f1f5f9 !important; border-color: #94a3b8 !important; }
+        .bf-submit-btn:hover:not(:disabled) { filter: brightness(1.05); box-shadow: 0 10px 24px rgba(16,185,129,0.4) !important; }
+        .bf-cancel-btn:hover { filter: brightness(1.05); }
+
+        /* Prevent iOS Safari from auto-zooming when focusing inputs */
+        @media (max-width: 767px) {
+          .bf-root input,
+          .bf-root select,
+          .bf-root textarea {
+            font-size: 16px !important;
+          }
+          .bf-root .bf-header-title { font-size: 17px !important; }
+          .bf-root .bf-content { padding: 10px !important; }
+          .bf-root .bf-section { padding: 12px !important; border-radius: 12px !important; }
+          .bf-root .bf-currency-btn { padding: 12px 10px !important; font-size: 13px !important; }
+        }
+
+        /* Wider screens: allow multi-column form rows and side-by-side buttons */
+        @media (min-width: 768px) {
+          .bf-root .bf-form-row {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) !important;
+          }
+          .bf-root .bf-currency-buttons { max-width: 420px; }
+          .bf-root .bf-button-group {
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+          }
+          .bf-root .bf-reset-btn { width: auto !important; min-width: 160px; }
+          .bf-root .bf-right-group {
+            flex-direction: row !important;
+            width: auto !important;
+          }
+          .bf-root .bf-right-group button { width: auto !important; min-width: 160px; }
+        }
+
+        .bf-root ::-webkit-scrollbar { height: 8px; width: 8px; }
+        .bf-root ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+        .bf-root ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      `}</style>
+
       <div style={styles.mainCard}>
         {/* Header */}
         <div style={styles.header}>
-          <h1 style={styles.headerTitle}>
-            {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
-          </h1>
-     
+          <div style={styles.headerLeft}>
+            <div style={styles.headerIconWrap}>
+              <FiShoppingCart size={18} />
+            </div>
+            <div>
+              <h1 style={styles.headerTitle} className="bf-header-title">
+                {isEditing ? `Edit Bill #${editingBill?.billNumber}` : "Create Purchase Bill"}
+              </h1>
+              <p style={styles.headerSubtitle}>
+                {isEditing ? "Changes sync to store stock automatically" : "Add items, set costs, and save"}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Content */}
-        <div style={styles.content}>
+        <div style={styles.content} className="bf-content">
           {/* Success Message */}
           {successMessage && (
             <div style={styles.successBox}>
@@ -944,51 +1098,62 @@ export default function BuyingForm({ onBillCreated }) {
 
           <form onSubmit={handleSubmit}>
             {/* Currency Selection */}
-            <div style={styles.section}>
+            <div style={styles.section} className="bf-section">
               <h2 style={styles.sectionTitle}>
                 <FiDollarSign size={16} />
                 Currency Selection
               </h2>
-              <div style={styles.currencyButtons}>
+              <div style={styles.currencyButtons} className="bf-currency-buttons">
                 <button
                   type="button"
                   onClick={() => setCurrency("USD")}
+                  className="bf-currency-btn"
                   style={{
                     ...styles.currencyBtn,
                     ...(currency === "USD" ? styles.currencyBtnActiveUSD : styles.currencyBtnInactive)
                   }}
                 >
-                  🇺🇸 USD - US Dollar
+                  🇺🇸 USD
                 </button>
                 <button
                   type="button"
                   onClick={() => setCurrency("IQD")}
+                  className="bf-currency-btn"
                   style={{
                     ...styles.currencyBtn,
                     ...(currency === "IQD" ? styles.currencyBtnActiveIQD : styles.currencyBtnInactive)
                   }}
                 >
-                  🇮🇶 IQD - Iraqi Dinar
+                  🇮🇶 IQD
                 </button>
               </div>
+              <p style={{ fontSize: '11px', color: '#94a3b8', margin: '8px 0 0' }}>
+                USD and IQD are independent — prices are not converted between them.
+              </p>
             </div>
 
             {/* Company Information */}
-            <div style={styles.section}>
+            <div style={styles.section} className="bf-section">
               <h2 style={styles.sectionTitle}>
                 <FiUser size={16} />
                 Company Information
               </h2>
-              <div style={styles.formRow}>
+              <div style={styles.formRow} className="bf-form-row">
                 <div style={{ ...styles.formGroup, ...styles.relative }}>
                   <label style={styles.label}>Company Search</label>
                   <div style={styles.relative}>
                     <input
                       ref={companySearchRef}
                       type="text"
-                      style={styles.input}
+                      style={{
+                        ...styles.input,
+                        borderColor: showCompanySuggestions ? '#3b82f6' : '#cbd5e1',
+                        boxShadow: showCompanySuggestions ? '0 0 0 3px rgba(59, 130, 246, 0.2)' : 'none',
+                      }}
                       value={companySearch}
                       onChange={(e) => setCompanySearch(e.target.value)}
+                      onFocus={handleCompanyFocus}
+                      onBlur={handleCompanyBlur}
                       placeholder="Search by code or name..."
                       required
                     />
@@ -997,12 +1162,22 @@ export default function BuyingForm({ onBillCreated }) {
                         {companySuggestions.map((company) => (
                           <div
                             key={company.id}
+                            className="bf-suggestion"
                             style={styles.suggestionItem}
                             onClick={() => handleCompanySelect(company)}
                             onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#eef2ff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
                           >
-                            <div style={{ fontWeight: 500 }}>{company.name}</div>
-                            <div style={{ fontSize: 11, color: '#64748b' }}>Code: {company.code}</div>
+                            <div style={{ fontWeight: 600, color: '#1e293b' }}>{company.name}</div>
+                            <div style={{ fontSize: 11, color: '#64748b' }}>
+                              Code: {company.code}
+                              {company.currency && ` • Currency: ${company.currency}`}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1028,6 +1203,7 @@ export default function BuyingForm({ onBillCreated }) {
                     style={styles.input}
                     value={companyBillNumber}
                     onChange={(e) => setCompanyBillNumber(e.target.value)}
+                    onFocus={selectOnFocus}
                     placeholder="Enter company bill #"
                   />
                 </div>
@@ -1062,19 +1238,16 @@ export default function BuyingForm({ onBillCreated }) {
             </div>
 
             {/* Items Section */}
-            <div style={styles.section}>
+            <div style={styles.section} className="bf-section">
               <h2 style={styles.sectionTitle}>
                 <FiPackage size={16} />
-                Bill Items ({validItemsCount})
+                Bill Items
+                <span style={styles.sectionTitleBadge}>{validItemsCount}</span>
               </h2>
-              
-              {/* <button type="button" onClick={addItem} style={styles.addButton}>
-                <FiPlus size={14} /> Add Item
-              </button> */}
 
               {/* Search Items */}
               <div style={styles.searchWrapper}>
-                <FiSearch style={styles.searchIcon} size={14} />
+                <FiSearch style={styles.searchIcon} size={15} />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -1088,14 +1261,21 @@ export default function BuyingForm({ onBillCreated }) {
                     {suggestions.map((item) => (
                       <div
                         key={item.id}
+                        className="bf-suggestion"
                         style={styles.suggestionItem}
                         onClick={() => handleItemSelect(item)}
                         onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#eef2ff';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
                       >
-                        <div style={{ fontWeight: 500 }}>{item.name}</div>
+                        <div style={{ fontWeight: 600, color: '#1e293b' }}>{item.name}</div>
                         <div style={{ fontSize: 11, color: '#64748b' }}>
                           Barcode: {item.barcode}
-                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${item.expireDate}`}
+                          {item.expireDate && item.expireDate !== 'N/A' && ` | Expires: ${formatDateToDDMMYYYY(item.expireDate)}`}
                         </div>
                       </div>
                     ))}
@@ -1128,7 +1308,7 @@ export default function BuyingForm({ onBillCreated }) {
                         parseFloat(parseFormattedNumber(expensePercentage)) || 0
                       );
                       return (
-                        <tr key={index}>
+                        <tr key={index} className="bf-row-hover">
                           <td style={styles.td}>
                             <input
                               ref={(el) => itemInputRefs.current[`${index}-barcode`] = el}
@@ -1136,6 +1316,7 @@ export default function BuyingForm({ onBillCreated }) {
                               value={item.barcode || ''}
                               onChange={(e) => handleItemChange(index, "barcode", e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, index, 'barcode')}
+                              onFocus={selectOnFocus}
                               placeholder="Barcode"
                             />
                           </td>
@@ -1146,6 +1327,7 @@ export default function BuyingForm({ onBillCreated }) {
                               value={item.name || ''}
                               onChange={(e) => handleItemChange(index, "name", e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, index, 'name')}
+                              onFocus={selectOnFocus}
                               placeholder="Item name"
                             />
                           </td>
@@ -1159,12 +1341,14 @@ export default function BuyingForm({ onBillCreated }) {
                               value={item.quantity || 1}
                               onChange={(e) => handleItemChange(index, "quantity", e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, index, 'quantity')}
+                              onFocus={selectOnFocus}
                             />
                           </td>
                           <td style={{ ...styles.td, textAlign: 'right' }}>
                             <input
                               ref={(el) => itemInputRefs.current[`${index}-price`] = el}
                               type="text"
+                              inputMode="decimal"
                               style={styles.priceInput}
                               value={item.price}
                               onChange={(e) => {
@@ -1177,6 +1361,7 @@ export default function BuyingForm({ onBillCreated }) {
                                 }
                               }}
                               onKeyDown={(e) => handleKeyDown(e, index, 'price')}
+                              onFocus={selectOnFocus}
                               placeholder="0.00"
                             />
                           </td>
@@ -1184,6 +1369,7 @@ export default function BuyingForm({ onBillCreated }) {
                             <input
                               ref={(el) => itemInputRefs.current[`${index}-outPrice`] = el}
                               type="text"
+                              inputMode="decimal"
                               style={styles.outPriceInput}
                               value={item.outPrice || ''}
                               onChange={(e) => {
@@ -1191,10 +1377,11 @@ export default function BuyingForm({ onBillCreated }) {
                                 handleItemChange(index, "outPrice", formatted);
                               }}
                               onKeyDown={(e) => handleKeyDown(e, index, 'outPrice')}
+                              onFocus={selectOnFocus}
                               placeholder="Selling price"
                             />
                           </td>
-                          <td style={{ ...styles.td, textAlign: 'right', fontWeight: 'bold', color: '#4f46e5' }}>
+                          <td style={{ ...styles.td, textAlign: 'right', fontWeight: '700', color: '#4f46e5' }}>
                             {formatNumber(netPrice)}
                           </td>
                           <td style={styles.td}>
@@ -1211,9 +1398,11 @@ export default function BuyingForm({ onBillCreated }) {
                             <button
                               type="button"
                               onClick={() => removeItem(index)}
+                              className="bf-delete-btn"
                               style={styles.deleteButton}
+                              aria-label="Remove item"
                             >
-                              <FiTrash2 size={14} />
+                              <FiTrash2 size={15} />
                             </button>
                           </td>
                         </tr>
@@ -1223,6 +1412,16 @@ export default function BuyingForm({ onBillCreated }) {
                 </table>
               </div>
 
+              {/* Add Item Button */}
+              {/* <button
+                type="button"
+                onClick={addItem}
+                style={styles.addButton}
+                className="bf-add-btn"
+              >
+                <FiPlus size={16} /> Add Itemmm
+              </button> */}
+
               {/* Total Base Price */}
               <div style={styles.totalBox}>
                 <span style={styles.totalLabel}>Total Base Price:</span>
@@ -1231,22 +1430,22 @@ export default function BuyingForm({ onBillCreated }) {
             </div>
 
             {/* Expenses Section */}
-            <div style={styles.section}>
+            <div style={styles.section} className="bf-section">
               <h2 style={styles.sectionTitle}>
                 <FiTruck size={16} />
                 Additional Costs
               </h2>
-              <div style={styles.formRow}>
+              <div style={styles.formRow} className="bf-form-row">
                 <div style={styles.formGroup}>
                   <label style={styles.label}>Transport Fee ({currency})</label>
                   <input
                     ref={transportFeeRef}
                     type="text"
-                    step="0.01"
-                    min="0"
+                    inputMode="decimal"
                     value={transportFee}
                     onChange={(e) => handleNumberInput(e.target.value, setTransportFee)}
                     onKeyDown={(e) => handleKeyDown(e, null, 'transportFee')}
+                    onFocus={selectOnFocus}
                     style={styles.input}
                     placeholder="0.00"
                   />
@@ -1256,11 +1455,11 @@ export default function BuyingForm({ onBillCreated }) {
                   <input
                     ref={externalExpenseRef}
                     type="text"
-                    step="0.01"
-                    min="0"
+                    inputMode="decimal"
                     value={externalExpense}
                     onChange={(e) => handleNumberInput(e.target.value, setExternalExpense)}
                     onKeyDown={(e) => handleKeyDown(e, null, 'externalExpense')}
+                    onFocus={selectOnFocus}
                     style={styles.input}
                     placeholder="0.00"
                   />
@@ -1270,12 +1469,11 @@ export default function BuyingForm({ onBillCreated }) {
                   <input
                     ref={expensePercentageRef}
                     type="text"
-                    min="0"
-                    max="100"
-                    step="0.1"
+                    inputMode="decimal"
                     value={expensePercentage}
                     onChange={(e) => handleNumberInput(e.target.value, setExpensePercentage)}
                     onKeyDown={(e) => handleKeyDown(e, null, 'expensePercentage')}
+                    onFocus={selectOnFocus}
                     style={styles.input}
                     placeholder="7"
                   />
@@ -1284,14 +1482,14 @@ export default function BuyingForm({ onBillCreated }) {
             </div>
 
             {/* Bill Notes */}
-            <div style={styles.section}>
+            <div style={styles.section} className="bf-section">
               <h2 style={styles.sectionTitle}>
                 <FiFileText size={16} />
                 Bill Notes
               </h2>
               <textarea
                 ref={billNoteRef}
-                style={{ ...styles.input, width: '100%', minHeight: '60px' }}
+                style={{ ...styles.input, width: '100%', minHeight: '64px', resize: 'vertical' }}
                 value={billNote}
                 onChange={(e) => setBillNote(e.target.value)}
                 onKeyDown={(e) => {
@@ -1308,33 +1506,34 @@ export default function BuyingForm({ onBillCreated }) {
             </div>
 
             {/* Consignment Option */}
-            <div style={styles.section}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <div style={styles.section} className="bf-section">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={isConsignment}
                   onChange={(e) => setIsConsignment(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                 />
-                <span style={{ fontWeight: 500, fontSize: '13px' }}>Consignment (تحت صرف)</span>
+                <span style={{ fontWeight: 600, fontSize: '13px' }}>Consignment (تحت صرف)</span>
               </label>
             </div>
 
             {/* Actions */}
-            <div style={styles.buttonGroup}>
-              <button type="button" onClick={resetForm} style={styles.resetButton}>
+            <div style={styles.buttonGroup} className="bf-button-group">
+              <button type="button" onClick={resetForm} className="bf-reset-btn" style={styles.resetButton}>
                 <FiRefreshCw size={14} /> Reset Form
               </button>
-              <div style={styles.rightGroup}>
+              <div style={styles.rightGroup} className="bf-right-group">
                 {isEditing && (
-                  <button type="button" onClick={handleCancel} style={styles.cancelButton}>
+                  <button type="button" onClick={handleCancel} className="bf-cancel-btn" style={styles.cancelButton}>
                     <FiX size={14} /> Cancel
                   </button>
                 )}
-                <button 
+                <button
                   ref={submitButtonRef}
-                  type="submit" 
-                  disabled={isLoading} 
+                  type="submit"
+                  disabled={isLoading}
+                  className="bf-submit-btn"
                   style={{
                     ...styles.submitButton,
                     opacity: isLoading ? 0.6 : 1,

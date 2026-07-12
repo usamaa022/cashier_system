@@ -560,7 +560,7 @@ export default function BuyingList({ refreshTrigger }) {
       <style jsx global>{`
         /* Main Container - Full width with max-width */
         .buying-list-wrapper {
-          max-width: 1280px;
+          max-width: 100%;
           margin: 0 auto;
           padding: 0.75rem;
           width: 100%;

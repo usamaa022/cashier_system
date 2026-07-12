@@ -115,7 +115,7 @@ export default function Navbar() {
               flexShrink: 0,
             }}
           >
-            Aran Med Store
+            <img src="/Aranlogo.png"  width={'150px'} /> 
           </Link>
 
           {/* Desktop Navigation */}
@@ -792,27 +792,7 @@ export default function Navbar() {
             paddingBottom: "12px",
             borderBottom: "1px solid #f3f4f6",
           }}>
-            <button
-              onClick={closeMobileMenu}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                padding: "8px",
-                color: "#6b7280",
-                fontSize: "24px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "44px",
-                height: "44px",
-                borderRadius: "8px",
-                transition: "background-color 0.2s ease",
-              }}
-              aria-label="Close menu"
-            >
-              ✕
-            </button>
+          
           </div>
 
           {/* Mobile Menu Items */}
