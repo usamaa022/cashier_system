@@ -245,7 +245,6 @@ const calculatePharmacyFinancialSummary = (
   allReturnBills.forEach((ret) => {
     if (ret.pharmacyId !== pharmacyId) return;
 
-    // 🔥 FIX: Ignore return bills that have already been Paid or Processed!
     const returnStatus = String(ret.paymentStatus || ret.status || "").toLowerCase();
     const isPaidOrProcessed = ret.isPaid === true || returnStatus === "paid" || returnStatus === "processed" || returnStatus === "completed";
     if (isPaidOrProcessed) return;
@@ -1650,22 +1649,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     setSelectedItems(updatedItems);
   }, [selectedItems]);
 
-  // ─── LOAD BILL FOR EDITING (LOCKED FOR PAID BILLS & BILLS WITH RETURNS) ──────
+  // ─── LOAD BILL FOR EDITING (LOCKED FOR BILLS WITH RETURNS) ──────
   const loadBillForEditing = useCallback(async (bill) => {
-    // 1. Check if the bill is Paid
-    const status = String(bill.paymentStatus || "").toLowerCase();
-    const isPaid = bill.isPaid === true || status === "paid" || status === "completed" || status === "processed";
-
-    if (isPaid) {
-      alert(
-        `❌ Cannot edit Bill #${formatBillNumber(bill.billNumber)}!\n\n` +
-        `This bill has already been marked as PAID.\n` +
-        `Paid bills are locked to prevent ledger and payment mismatches.`
-      );
-      return;
-    }
-
-    // 2. Check if the bill has any return invoice attached
+    // 1. Check if the bill has any return invoice attached
     const returnedMap = await loadReturnedItemsForBill(bill.billNumber, bill.pharmacyId);
     const hasAnyReturns = Object.values(returnedMap).some(item => item.hasReturn);
 
@@ -1677,7 +1663,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       alert(
         `❌ Cannot edit Bill #${formatBillNumber(bill.billNumber)}!\n` +
         `ببورە! ئەم وەسڵی فرۆشە استرجاعی تیا کراوە بە ژمارە وەسڵی استرجاع: ${returnInvoices || "Return Invoices"} ` 
-
       );
       return;
     }
@@ -1923,6 +1908,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         totalAmount: billCurrency === "IQD" ? calculatedTotalIQD : calculatedTotalUSD,
       });
 
+      // Mark the bill to be considered in financial summary during preview
+      updatedBill.isNew = true;
+
       if (onBillCreated) onBillCreated(updatedBill);
       setCurrentBill(updatedBill);
 
@@ -1930,6 +1918,10 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setShowBillPreview(true);
 
       alert(`✅ Bill #${formatBillNumber(editingBillNumber)} updated successfully!`);
+
+      setTimeout(() => {
+        printBill(updatedBill);
+      }, 300);
 
       getStoreItems(true).then(setStoreItems);
       searchSoldBills("").then((bills) => {
@@ -1950,6 +1942,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setIsLoading(false);
     }
   }, [pharmacyId, selectedItems, validateBillBeforeSubmit, editingBillNumber, user, onBillCreated, pharmacyName, saleDate, paymentMethod, isConsignment, note, selectedBill, loadAllAttachments, recentBills, resetForm, billCurrency]);
+
   const generateSellingBillNumber = useCallback(async () => {
     try {
       const billsRef = collection(db, "soldBills");
@@ -2028,6 +2021,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         billNumber,
       });
 
+      // Mark the bill as new so it's counted in the preview total
+      bill.isNew = true;
+
       if (onBillCreated) onBillCreated(bill);
       setCurrentBill(bill);
 
@@ -2037,6 +2033,11 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setSelectedItems([]);
       setNote("");
       alert(`Bill #${billNumber} created successfully by ${creatorName}!`);
+
+      // Trigger auto-print
+      setTimeout(() => {
+        printBill(bill);
+      }, 300);
 
       getStoreItems(true).then(setStoreItems);
       searchSoldBills("").then((bills) => {
@@ -2424,7 +2425,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     if (currentBill && currentBill.billNumber !== "TEMP0000") resetForm();
   }, [currentBill, resetForm]);
 
-  const buildBillHTML = useCallback((bill) => {
+const buildBillHTML = useCallback((bill) => {
     const billPaymentMethod = bill.paymentStatus || paymentMethod;
 
     const financialSummary = calculatePharmacyFinancialSummary(
@@ -2432,7 +2433,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       recentBills,
       returnBills,
       bill.items,
-      false
+      bill.isPreview || bill.isNew // Add items if previewing OR if bill was just created and passed here
     );
 
     const { pharmacyHasUSD, pharmacyHasIQD } = financialSummary;
@@ -2459,13 +2460,13 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     const remainLine  = formatFinancialLine(financialSummary.remainingUnpaidUSD, financialSummary.remainingUnpaidIQD, pharmacyHasUSD, pharmacyHasIQD);
 
     const singleBillHTML = `
-        <div class="bill-template">
-          <div class="bill-header" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 3px solid #3498db;">
+        <div class="bill-template" style="color: #1a365d;">
+          <div class="bill-header" style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0;">
             <div class="header-content" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: nowrap; width: 100%;">
               <div style="flex: 1; min-width: 0;">
-                <h1 class="company-name" style="margin: 0; font-size: 28px; font-weight: bold; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
-                <p style="font-size:14px;color:#34495e;margin:2px 0 0 0">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
-                <p style="font-size:13px;color:#34495e;margin:0">+964 772 533 5252 | +964 751 741 2241</p>
+                <h1 class="company-name" style="margin: 0; font-size: 28px; font-weight: bold; color: #1a365d; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
+                <p style="font-size:14px;color:#3b4c6b;margin:2px 0 0 0; font-family: 'NRT-Reg', sans-serif;">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
+                <p style="font-size:13px;color:#3b4c6b;margin:0; font-family: 'NRT-Reg', sans-serif;">+964 772 533 5252 | +964 751 741 2241</p>
               </div>
               <div style="flex-shrink: 0; margin-left: 15px;">
                 <img src="/Aranlogo.png" alt="Aran Logo" style="height: 70px; object-fit: contain;" />
@@ -2473,91 +2474,103 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
             </div>
           </div>
 
-          <div class="bill-info-grid" style="display: flex; flex-wrap: nowrap; gap: 12px; margin-bottom: 12px; justify-content: space-between;">
-            <div class="info-box" style="flex: 1; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-              <h3 style="font-size: 15px; margin: 0 0 6px 0;">Bill To: ${bill.pharmacyName}</h3>
-              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px;">
-                <span class="info-label" style="font-weight: 600; min-width: 80px;">Payment:</span>
+          <div class="bill-info-grid" style="display: flex; flex-wrap: nowrap; gap: 12px; margin-bottom: 15px; justify-content: space-between;">
+            <div class="info-box" style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <h3 style="font-size: 15px; margin: 0 0 8px 0; color: #1a365d;">Bill To: ${bill.pharmacyName}</h3>
+              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px;">
+                <span class="info-label" style="font-weight: 600; min-width: 80px; color: #1a365d;">Payment:</span>
                 <span class="badge" style="background-color:${getPaymentStatusColor(billPaymentMethod)}; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; color: white;">${billPaymentMethod.toUpperCase()}</span>
               </div>
-              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px;">
-                <span class="info-label" style="font-weight: 600; min-width: 80px;">Consignment:</span>
-                <span>${bill.isConsignment ? 'تحت صرف' : 'Owned'}</span>
+              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 0; font-size: 13px;">
+                <span class="info-label" style="font-weight: 600; min-width: 80px; color: #1a365d;">Consignment:</span>
+                <span style="color: #3b4c6b; font-weight: 500;">${bill.isConsignment ? 'تحت صرف' : 'Owned'}</span>
               </div>
             </div>
-            <div class="info-box" style="flex: 1; padding: 10px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px;"><span class="info-label" style="font-weight: 600; min-width: 80px;">Invoice #:</span><span>${displayBillNumber}</span></div>
-              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px;"><span class="info-label" style="font-weight: 600; min-width: 80px;">Date:</span><span>${formatDate(bill.date)}</span></div>
-              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px; font-size: 13px;"><span class="info-label" style="font-weight: 600; min-width: 80px;">Created By:</span><span>${creatorDisplayName}</span></div>
+            <div class="info-box" style="flex: 1; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px;">
+                <span class="info-label" style="font-weight: 600; min-width: 80px; color: #1a365d;">Invoice #:</span>
+                <span style="color: #3b4c6b; font-weight: 500;">${displayBillNumber}</span>
+              </div>
+              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 13px;">
+                <span class="info-label" style="font-weight: 600; min-width: 80px; color: #1a365d;">Date:</span>
+                <span style="color: #3b4c6b; font-weight: 500;">${formatDate(bill.date)}</span>
+              </div>
+              <div class="info-row" style="display: flex; align-items: center; gap: 4px; margin-bottom: 0; font-size: 13px;">
+                <span class="info-label" style="font-weight: 600; min-width: 80px; color: #1a365d;">Created By:</span>
+                <span style="color: #3b4c6b; font-weight: 500;">${creatorDisplayName}</span>
+              </div>
             </div>
-            <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 15px;">
-               <img src="/scann.png" alt="QR Code" style="width: 105px; height: 125px; object-fit: contain;" />
+            <div style="flex-shrink: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 10px;">
+               <img src="/scann.png" alt="QR Code" style="width: 90px; height: 110px; object-fit: contain;" />
             </div>
           </div>
 
           <div style="overflow-x:auto;">
-            <table class="items-table" style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 13px;">
+            <table class="items-table" style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 12px; font-size: 13px;">
               <thead>
                 <tr>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: center;">#</th>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: left;">Item Details</th>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: center;">Barcode</th>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: center;">Qty</th>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: right;">Unit Price</th>
-                  <th style="background-color: #3498db; color: white; padding: 8px; text-align: right;">Total</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: center; border-radius: 8px 0 0 8px; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">#</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: left; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">Item Details</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">Barcode</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">Qty</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: right; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">Unit Price</th>
+                  <th style="background-color: #1F2B5B; color: #e2e8f0; padding: 12px 8px; text-align: right; border-radius: 0 8px 8px 0; font-family: 'NRT-Bd', sans-serif; border-bottom: 2px solid #e2e8f0;">Total</th>
                 </tr>
               </thead>
               <tbody>
           ${bill.items?.map((item, idx) => {
-                  const price = billCurr === "IQD" ? (item.outPriceIQD || item.price || 0) : (item.outPriceUSD || item.price || 0);
-                  const priceFormatted = billCurr === "IQD" ? Math.round(price).toLocaleString() + " IQD" : "$" + price.toFixed(2);
-                  const totalFormatted = billCurr === "IQD" ? Math.round(price * item.quantity).toLocaleString() + " IQD" : "$" + (price * item.quantity).toFixed(2);
-                  return `
+                const price = billCurr === "IQD" ? (item.outPriceIQD || item.price || 0) : (item.outPriceUSD || item.price || 0);
+                const priceFormatted = billCurr === "IQD" ? Math.round(price).toLocaleString() + " IQD" : "$" + price.toFixed(2);
+                const totalFormatted = billCurr === "IQD" ? Math.round(price * item.quantity).toLocaleString() + " IQD" : "$" + (price * item.quantity).toFixed(2);
+                return `
                     <tr>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${idx + 1}</td>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed;">
-                        <div style="font-weight: 600; font-family: 'NRT-Bd', sans-serif; font-size: 13px;">${item.name}</div>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${idx + 1}</td>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0;">
+                        <div style="font-weight: 600; font-family: 'NRT-Bd', sans-serif; font-size: 13px; color: #1a365d;">${item.name}</div>
                       </td>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-family: monospace; font-size: 13px;">${item.barcode}</td>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${item.quantity}</td>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${priceFormatted}</td>
-                      <td style="padding: 6px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${totalFormatted}</td>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-size: 13px; color: #3b4c6b;">${item.barcode}</td>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${item.quantity}</td>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600; color: #1a365d;">${priceFormatted}</td>
+                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600; color: #1a365d;">${totalFormatted}</td>
                     </tr>
                   `;
                 }).join("")}
+                <tr><td colspan="6" style="padding: 4px;"></td></tr>
                 <tr class="total-row">
-                  <td colspan="5" style="background-color: #3498db !important; color: white; text-align: right; padding: 8px; font-weight: 700; font-size: 15px;">CURRENT TOTAL:</td>
-                  <td style="background-color: #3498db !important; color: white; text-align: right; padding: 8px; font-size: 15px; font-weight: 700;">${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}</td>
+                  <td colspan="5" style="background-color: #f1f5f9 !important; color: #1a365d; text-align: right; padding: 12px 12px; font-size: 14px; font-family: 'NRT-Bd', sans-serif; border-radius: 8px 0 0 8px; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-left: 1px solid #e2e8f0;">CURRENT TOTAL:</td>
+                  <td style="background-color: #f1f5f9 !important; color: #1a365d; text-align: right; padding: 12px 12px; font-family: 'NRT-Bd', sans-serif; font-size: 15px; border-radius: 0 8px 8px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;">
+                    ${formatTotalLine(currentBillTotalUSD, currentBillTotalIQD)}
+                  </td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          <div class="fin-summary" style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #e1e8ed; margin-bottom: 12px;">
-            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e1e8ed; font-size: 13px;">
-              <span class="fin-label">Total Unpaid Bills:</span>
-              <span class="fin-value">${unpaidLine}</span>
+          <div class="fin-summary" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px;">
+            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+              <span class="fin-label" style="font-weight: 600; color: #1a365d;">Total Unpaid Bills:</span>
+              <span class="fin-value" style="color: #3b4c6b; font-weight: 500;">${unpaidLine}</span>
             </div>
-            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #e1e8ed; font-size: 13px;">
-              <span class="fin-label">Total Return Bills:</span>
-              <span class="fin-value" style="color:#e74c3c">- ${returnLine}</span>
+            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+              <span class="fin-label" style="font-weight: 600; color: #1a365d;">Total Return Bills:</span>
+              <span class="fin-value" style="color:#e74c3c; font-weight: 500;">- ${returnLine}</span>
             </div>
-            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; font-weight: 700; color: #e74c3c;">
+            <div class="fin-row" style="display: flex; justify-content: space-between; padding: 8px 0 2px 0; font-size: 14px; font-weight: 700; color: #e74c3c;">
               <span class="fin-label">Remaining Unpaid Balance:</span>
               <span class="fin-value">${remainLine}</span>
             </div>
           </div>
 
           ${bill.note ? `
-            <div class="note-section" style="background: #fff8e1; padding: 10px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 12px;">
-              <h4 style="font-weight: 600; margin: 0 0 4px 0; color: #e67e22; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
-              <p style="font-size: 13px; color: #2c3e50; margin: 0;">${bill.note}</p>
+            <div class="note-section" style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 15px;">
+              <h4 style="font-weight: 600; margin: 0 0 4px 0; color: #1a365d; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
+              <p style="font-size: 13px; color: #3b4c6b; margin: 0;">${bill.note}</p>
             </div>
           ` : ""}
 
-          <div style="margin-top: 20px; text-align: right;">
-            <div style="width: 200px; height: 1px; background: #3498db; margin: 10px 0 5px auto;"></div>
-            <p style="font-size: 12px; color: #7f8c8d; font-style: italic;">Receiver Signature (Stamp)</p>
+          <div style="margin-top: 10px; text-align: right; page-break-inside: avoid;">
+            <div style="width: 250px; height: 1.5px; background-color: #1a365d; margin: 10px 0 8px auto;"></div>
+            <p style="font-size: 14px; color: #1a365d; font-style: italic; font-weight: 100; font-family: 'NRT-Reg', sans-serif; margin: 0; padding-right: 15px;">Receiver Signature (Stamp)</p>
           </div>
         </div>
     `;
@@ -2707,7 +2720,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     const { singleBillHTML, displayBillNumber } = buildBillHTML(bill);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const numCopies = isMobile ? 1 : 2;
+    const numCopies = 1; // Print only 1 copy
 
     if (isMobile) {
       const loadHtml2Pdf = () => {
@@ -2793,15 +2806,16 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         <style>
           @font-face { font-family: 'NRT-Reg'; src: url('/fonts/NRT-Reg.ttf') format('truetype'); }
           @font-face { font-family: 'NRT-Bd';  src: url('/fonts/NRT-Bd.ttf')  format('truetype'); }
+          @page { margin: 0; } /* Removes default header/footer from browser print */
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'NRT-Reg', 'Segoe UI', sans-serif;
-            padding: 15px; color: #2c3e50; background: white;
+            padding: 15mm; color: #2c3e50; background: white;
             line-height: 1.4; font-size: 14px;
           }
           .bill-template { max-width: 800px; margin: 0 auto; page-break-inside: avoid; }
           @media print {
-            body { padding: 10px; }
+            body { padding: 15mm; }
             .bill-template { max-width: 100%; }
             * {
               -webkit-print-color-adjust: exact !important;
@@ -3713,10 +3727,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                       const branchStr = getBillBranchDisplay(bill);
 
                       // Determine if bill is locked
-                      const isPaid = (bill.paymentStatus || "").toLowerCase() === "paid" || (bill.paymentStatus || "").toLowerCase() === "completed";
                       const hasReturn = returnBills.some(r => String(r.billNumber) === String(bill.billNumber));
-                      const isLocked = isPaid || hasReturn;
-                      const lockReason = isPaid ? "Paid bill cannot be edited" : (hasReturn ? "Bill has return invoices attached" : "Edit Bill");
+                      const isLocked = hasReturn;
+                      const lockReason = hasReturn ? "Bill has return invoices attached" : "Edit Bill";
 
                       return (
                         <React.Fragment key={bill.id || `${bill.billNumber}-${index}`}>
@@ -4150,15 +4163,15 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                   </div>
 
                   <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 14px; min-width: 500px;">
+                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 15px; font-size: 14px; min-width: 500px;">
                       <thead>
-                        <tr style="background-color: #3498db; color: white;">
-                          <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">#</th>
-                          <th style="padding: 8px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
-                          <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
-                          <th style="padding: 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Qty</th>
-                          <th style="padding: 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price</th>
-                          <th style="padding: 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Total</th>
+                        <tr style="background-color: #1e3a8a; color: white;">
+                          <th style="padding: 12px 8px; text-align: center; border-radius: 8px 0 0 8px; font-family: 'NRT-Bd', sans-serif;">#</th>
+                          <th style="padding: 12px 8px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
+                          <th style="padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
+                          <th style="padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Qty</th>
+                          <th style="padding: 12px 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price</th>
+                          <th style="padding: 12px 8px; text-align: right; border-radius: 0 8px 8px 0; font-family: 'NRT-Bd', sans-serif;">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -4174,22 +4187,22 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                             ? Math.round(price * item.quantity).toLocaleString() + " IQD"
                             : "$" + (price * item.quantity).toFixed(2);
                           return `
-                            <tr style="border-bottom: 1px solid #e1e8ed;">
-                              <td style="padding: 6px; text-align: center; font-weight: 600;">${idx + 1}</td>
-                              <td style="padding: 6px;">
+                            <tr>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${idx + 1}</td>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed;">
                                 <div style="font-weight: 600; margin-bottom: 2px; font-family: 'NRT-Bd', sans-serif; font-size: 14px;">${item.name}</div>
                                 <div style="font-size: 13px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
                               </td>
-                              <td style="padding: 6px; text-align: center; font-family: monospace; font-size: 14px;">${item.barcode}</td>
-                              <td style="padding: 6px; text-align: center; font-weight: 600;">${item.quantity}</td>
-                              <td style="padding: 6px; text-align: right; font-weight: 600;">${priceFormatted}</td>
-                              <td style="padding: 6px; text-align: right; font-weight: 600;">${totalFormatted}</td>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-family: monospace; font-size: 14px;">${item.barcode}</td>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${item.quantity}</td>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${priceFormatted}</td>
+                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${totalFormatted}</td>
                             </tr>
                           `;
                         }).join("")}
-                        <tr style="background-color: #34495E; font-weight: 700;">
-                          <td colspan="5" style="padding: 10px; color: white; text-align: right; font-size: 16px; font-family: 'NRT-Bd', sans-serif;">CURRENT TOTAL:</td>
-                          <td style="padding: 10px; text-align: right; color: white; font-family: 'NRT-Bd', sans-serif; font-size: 16px;">
+                        <tr class="total-row">
+                          <td colspan="5" style="background-color: #20c38f !important; color: white; text-align: right; padding: 12px 8px; font-size: 15px; font-family: 'NRT-Bd', sans-serif; border-radius: 8px 0 0 8px;">CURRENT TOTAL:</td>
+                          <td style="background-color: #1e3a8a !important; color: white; text-align: right; padding: 12px 8px; font-family: 'NRT-Bd', sans-serif; font-size: 15px; border-radius: 0 8px 8px 0;">
                             ${formatTotalLine(
                               currentBill.items?.reduce((sum, item) => {
                                 if (currentBill.currency === "USD") return sum + ((item.outPriceUSD || item.price || 0) * item.quantity);
@@ -4213,9 +4226,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                     </div>
                   ` : ""}
 
-                  <div style="margin-top: 15px; text-align: right;">
-                    <div style="width: 200px; height: 1px; background-color: #3498db; margin: 10px 0 5px auto;"></div>
-                    <p style="font-size: 13px; color: #7f8c8d; font-style: italic; font-family: 'NRT-Reg', sans-serif; margin: 0;">Receiver Signature (Stamp)</p>
+                  <div style="margin-top: 80px; text-align: right; page-break-inside: avoid;">
+                    <div style="width: 250px; height: 1.5px; background-color: #2c3e50; margin: 10px 0 8px auto;"></div>
+                    <p style="font-size: 14px; color: #34495e; font-style: italic; font-weight: 600; font-family: 'NRT-Reg', sans-serif; margin: 0; padding-right: 15px;">Receiver Signature (Stamp)</p>
                   </div>
                 </div>
               `}} />

@@ -690,9 +690,10 @@ export default function SoldPage() {
       <style>{`
         .page-container {
           font-family: system-ui, sans-serif;
-          max-width: 98%;
-          margin: 0 auto;
-          padding: 1.5rem;
+          max-width: 100%;
+          width: 100%;
+          margin: 0;
+          padding: 0;
           box-sizing: border-box;
         }
         .header-section {
@@ -700,6 +701,7 @@ export default function SoldPage() {
           justify-content: space-between;
           align-items: center;
           margin-bottom: 1.5rem;
+          padding: 1.5rem 1.5rem 0 1.5rem;
         }
         .filter-section {
           display: flex;
@@ -707,31 +709,29 @@ export default function SoldPage() {
           background-color: #fff;
           border-radius: 0.75rem;
           padding: 1.25rem;
-          margin-bottom: 1.5rem;
+          margin: 0 1.5rem 1.5rem 1.5rem;
           border: 1px solid #e2e8f0;
           box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
         }
         .table-responsive-wrapper {
           background-color: #fff;
-          border-radius: 0.75rem;
-          border: 1px solid #e2e8f0;
+          border-top: 1px solid #e2e8f0;
+          border-bottom: 1px solid #e2e8f0;
+          border-left: none;
+          border-right: none;
+          border-radius: 0;
           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
           overflow-x: auto;
           -webkit-overflow-scrolling: touch;
           min-height: 700px;
           padding-bottom: 8rem;
           box-sizing: border-box;
+          width: 100%;
         }
         
         @media (max-width: 1024px) {
-          .page-container {
-            max-width: 100%;
-            width: 100%;
-            padding: 0 !important;
-            margin: 0 !important;
-          }
           .header-section {
-            padding: 1rem;
+            padding: 1rem 1rem 0 1rem;
             margin-bottom: 0.5rem;
             flex-direction: column;
             gap: 1rem;
@@ -739,17 +739,8 @@ export default function SoldPage() {
           }
           .filter-section {
             flex-direction: column;
-            margin: 0 0 0.5rem 0;
+            margin: 0 1rem 1rem 1rem;
             padding: 1rem;
-            border-radius: 0;
-            border-left: none;
-            border-right: none;
-          }
-          .table-responsive-wrapper {
-            border-radius: 0;
-            border-left: none;
-            border-right: none;
-            width: 100%;
           }
         }
         @keyframes spin { 
@@ -758,7 +749,20 @@ export default function SoldPage() {
 
         /* OVERLAY LOADER CSS */
         .bf-global-loader-overlay {
-          position: fixed; inset: 0; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 999999;
+          position: fixed; 
+          top: 0;
+          left: 0;
+          width: 100vw;
+          height: 100vh;
+          background: rgba(255, 255, 255, 0.85); 
+          backdrop-filter: blur(8px); 
+          display: flex; 
+          flex-direction: column; 
+          align-items: center; 
+          justify-content: center; 
+          z-index: 999999;
+          margin: 0;
+          padding: 0;
         }
         .bf-wifi-loader { --background: #62abff; --front-color: #ef4d86; --front-color-in: #fbb216; --back-color: #c3c8de; --text-color: #414856; width: 64px; height: 64px; border-radius: 50px; position: relative; display: flex; justify-content: center; align-items: center; }
         .bf-wifi-loader svg { position: absolute; display: flex; justify-content: center; align-items: center; }
@@ -964,7 +968,7 @@ export default function SoldPage() {
                         <td style={{ padding: "0.875rem 0.75rem", fontSize: "0.875rem", color: "#d97706", borderRight: "1px solid #e2e8f0" }}>{item.basePriceIQD ? formatNumberIQD(item.basePriceIQD) : "0"}</td>
                         <td style={{ padding: "0.875rem 0.75rem", fontSize: "0.875rem", color: "#ea580c", borderRight: "1px solid #e2e8f0" }}>{item.netPriceIQD ? formatNumberIQD(item.netPriceIQD) : "0"}</td>
                         <td style={{ padding: "0.875rem 0.75rem", fontSize: "0.875rem", color: "#d97706", borderRight: "1px solid #e2e8f0" }}>{item.basePriceUSD ? formatNumberUSD(item.basePriceUSD) : "0"}</td>
-                        <td style={{ padding: "0.875rem 0.75rem", fontSize: "0.875rem", color: "#ea580c" }}>{item.netPriceUSD ? formatNumberUSD(item.netPriceUSD) : "0"}</td>
+                        <td style={{ padding: "0.875rem 0.75rem", fontSize: "0.875rem", color: "#ea580c", borderRight: "1px solid #e2e8f0" }}>{item.netPriceUSD ? formatNumberUSD(item.netPriceUSD) : "0"}</td>
                       </>
                     )}
                   </tr>
