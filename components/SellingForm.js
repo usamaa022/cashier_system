@@ -894,8 +894,8 @@ const styles = {
     fontFamily: "'NRT-Bd', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
     touchAction: "manipulation",
   },
-  whatsappButton: {
-    backgroundColor: "#25D366",
+  downloadPdfButton: {
+    backgroundColor: "#3498db",
     color: "white",
     border: "none",
     padding: "8px 12px",
@@ -911,8 +911,8 @@ const styles = {
     transition: "all 0.3s ease",
     width: "100%",
   },
-  whatsappButtonDisabled: {
-    backgroundColor: "#a8e6c1",
+  downloadPdfButtonDisabled: {
+    backgroundColor: "#85c1e9",
     color: "white",
     border: "none",
     padding: "8px 12px",
@@ -1399,17 +1399,6 @@ const styles = {
   },
 };
 
-// WhatsApp Icon SVG Component
-const WhatsAppIcon = ({ size = 14, color = "white" }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 448 512" 
-    style={{ width: size, height: size, fill: color, flexShrink: 0 }}
-  >
-    <path d="M380.9 97.1C339 55.1 283.2 32 223.9 32c-122.4 0-222 99.6-222 222 0 39.1 10.2 77.7 29.6 111L0 480l117.7-30.9c32.4 17.7 68.9 27 106.1 27h.1c122.3 0 224.1-99.6 224.1-222 0-59.3-25.2-115-67.1-157zm-157 341.6c-33.2 0-65.7-8.9-94-25.7l-6.7-4-69.8 18.3L72 359.2l-4.4-7c-18.5-29.4-28.2-63.3-28.2-98.2 0-101.7 82.8-184.5 184.6-184.5 49.3 0 95.6 19.2 130.4 54.1 34.8 34.9 56.2 81.2 56.1 130.5 0 101.8-84.9 184.6-186.6 184.6zm101.2-138.2c-5.5-2.8-32.8-16.2-37.9-18-5.1-1.9-8.8-2.8-12.5 2.8-3.7 5.6-14.3 18-17.6 21.8-3.2 3.7-6.5 4.2-12 1.4-32.6-16.3-54-29.1-75.5-66-5.7-9.8 5.7-9.1 16.3-30.3 1.8-3.7.9-6.9-.5-9.7-1.4-2.8-12.5-30.1-17.1-41.2-4.5-10.8-9.1-9.3-12.5-9.5-3.2-.2-6.9-.2-10.6-.2-3.7 0-9.7 1.4-14.8 6.9-5.1 5.6-19.4 19-19.4 46.3 0 27.3 19.9 53.7 22.6 57.4 2.8 3.7 39.1 59.7 94.8 83.8 35.2 15.2 49 16.5 66.6 13.9 10.7-1.6 32.8-13.4 37.4-26.4 4.6-13 4.6-24.1 3.2-26.4-1.3-2.5-5-3.9-10.5-6.6z"/>
-  </svg>
-);
-
 export default function SellingForm({ onBillCreated, userRole, user }) {
   const [allPharmacies, setAllPharmacies] = useState([]);
   const [showPharmacyList, setShowPharmacyList] = useState(false);
@@ -1449,7 +1438,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
   const [isScanning, setIsScanning] = useState(false);
   const [returnedItemsMap, setReturnedItemsMap] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: 'billNumber', direction: 'desc' });
-  const [sharingWhatsApp, setSharingWhatsApp] = useState({});
+  const [downloadingPdf, setDownloadingPdf] = useState({});
   const [filters, setFilters] = useState({
     billNumber: "",
     itemName: "",
@@ -2578,139 +2567,79 @@ const buildBillHTML = useCallback((bill) => {
     return { singleBillHTML, displayBillNumber };
   }, [paymentMethod, recentBills, returnBills]);
 
-  const shareViaWhatsApp = useCallback(async (bill) => {
+  const downloadPdf = useCallback(async (bill) => {
     if (!bill) {
       alert("No bill selected");
       return;
     }
 
     const billKey = bill.billNumber;
-    setSharingWhatsApp((prev) => ({ ...prev, [billKey]: true }));
+    setDownloadingPdf((prev) => ({ ...prev, [billKey]: true }));
 
     try {
       const displayBillNumber = formatBillNumber(bill.billNumber);
-      const shareText = `Invoice #${displayBillNumber}`;
-
-      const container = document.createElement("div");
-      container.style.position = "absolute";
-      container.style.top = "0";
-      container.style.left = "0";
-      container.style.width = "794px";
-      container.style.height = "1123px";
-      container.style.zIndex = "99999";
-      container.style.background = "white";
-      container.style.display = "flex";
-      container.style.justifyContent = "center";
-      container.style.alignItems = "center";
-      container.style.overflow = "visible";
-      container.style.opacity = "1";
-      container.style.visibility = "visible";
-      container.style.pointerEvents = "none";
-
       const { singleBillHTML } = buildBillHTML(bill);
 
-      container.innerHTML = `
-        <div id="bill-image-wrap" style="
-          width: 794px;
-          height: 1123px;
-          background: white;
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-          padding: 50px 60px;
-          margin: 0;
-          overflow: visible;
-        ">
-          ${singleBillHTML}
-        </div>
-      `;
-
-      document.body.appendChild(container);
-      container.offsetHeight;
-
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      const delay = isMobile ? 1500 : 500;
-      await new Promise((resolve) => {
-        requestAnimationFrame(() => {
-          setTimeout(resolve, delay);
-        });
-      });
-
-      if (typeof window.html2canvas !== 'function') {
+      if (typeof window.html2pdf !== 'function') {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
           script.onload = () => {
             setTimeout(resolve, 300);
           };
-          script.onerror = () => reject(new Error('Failed to load html2canvas'));
+          script.onerror = () => reject(new Error('Failed to load html2pdf'));
           document.head.appendChild(script);
         });
       }
 
-      const element = document.getElementById('bill-image-wrap');
-      if (!element) {
-        throw new Error('Bill element not found');
-      }
+      const container = document.createElement("div");
+      container.style.position = "fixed";
+      container.style.top = "50%";
+      container.style.left = "50%";
+      container.style.transform = "translate(-50%, -50%)";
+      container.style.zIndex = "-9999";
+      container.style.visibility = "hidden";
+      container.style.width = "800px";
+      container.style.background = "white";
+      container.style.padding = "20px";
+      container.style.boxSizing = "border-box";
 
-      const canvas = await window.html2canvas(element, {
-        scale: isMobile ? 3 : 2.5,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: true,
-        width: 794,
-        height: 1123,
-        x: 0,
-        y: 0,
-        scrollX: 0,
-        scrollY: 0,
-        allowTaint: true,
-        windowWidth: 794,
-        windowHeight: 1123,
-        onclone: (clonedDoc) => {
-          const clonedEl = clonedDoc.getElementById('bill-image-wrap');
-          if (clonedEl) {
-            clonedEl.style.width = '794px';
-            clonedEl.style.height = '1123px';
-            clonedEl.style.margin = '0';
-            clonedEl.style.opacity = '1';
-            clonedEl.style.visibility = 'visible';
-            clonedEl.style.overflow = 'visible';
-          }
-        }
-      });
+      container.innerHTML = `
+        <div id="pdf-wrap-download" style="width: 100%; max-width: 800px; margin: 0 auto; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: white; color: #2c3e50; box-sizing: border-box;">
+          <style>
+            #pdf-wrap-download * { overflow: visible !important; overflow-x: visible !important; box-sizing: border-box; }
+            #pdf-wrap-download .bill-template { max-width: 100%; margin: 0 auto; }
+          </style>
+          ${singleBillHTML}
+        </div>
+      `;
+      document.body.appendChild(container);
 
-      const ctx = canvas.getContext('2d');
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const isBlank = !imageData.data.some(channel => channel !== 0);
+      const opt = {
+        margin: [5, 5, 5, 5],
+        filename: `Bill_${displayBillNumber}.pdf`,
+        image: { type: 'jpeg', quality: 1 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          windowWidth: 800,
+          width: 800,
+          x: 0,
+          y: 0,
+          scrollX: 0,
+          scrollY: 0
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
 
-      if (isBlank) {
-        throw new Error('Captured canvas is blank');
-      }
-
+      await window.html2pdf().set(opt).from(container.querySelector('#pdf-wrap-download')).save();
       document.body.removeChild(container);
 
-      const fileName = `Bill_${displayBillNumber}.jpg`;
-      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-
-      const link = document.createElement('a');
-      link.download = fileName;
-      link.href = imageDataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => {
-        const encodedText = encodeURIComponent(shareText);
-        window.open(`https://wa.me/?text=${encodedText}`, '_blank');
-      }, 500);
-
     } catch (err) {
-      console.error('Error sharing bill:', err);
-      alert('⚠️ Failed to share the bill. Please try again.');
+      console.error('Error downloading PDF:', err);
+      alert('⚠️ Failed to download the PDF. Please try again.');
     } finally {
-      setSharingWhatsApp((prev) => ({ ...prev, [billKey]: false }));
+      setDownloadingPdf((prev) => ({ ...prev, [billKey]: false }));
     }
   }, [buildBillHTML]);
 
@@ -3856,30 +3785,29 @@ const buildBillHTML = useCallback((bill) => {
                                   Print
                                 </button>
                                 <button
-                                  style={sharingWhatsApp[bill.billNumber] ? styles.whatsappButtonDisabled : styles.whatsappButton}
-                                  disabled={!!sharingWhatsApp[bill.billNumber]}
+                                  style={downloadingPdf[bill.billNumber] ? styles.downloadPdfButtonDisabled : styles.downloadPdfButton}
+                                  disabled={!!downloadingPdf[bill.billNumber]}
                                   onClick={(e) => { 
                                     e.stopPropagation(); 
-                                    shareViaWhatsApp(bill); 
+                                    downloadPdf(bill); 
                                   }}
-                                  title="Send via WhatsApp"
+                                  title="Download PDF"
                                   onMouseEnter={(e) => {
-                                    if (!sharingWhatsApp[bill.billNumber]) {
-                                      e.currentTarget.style.backgroundColor = "#128C7E";
+                                    if (!downloadingPdf[bill.billNumber]) {
+                                      e.currentTarget.style.backgroundColor = "#2980b9";
                                     }
                                   }}
                                   onMouseLeave={(e) => {
-                                    if (!sharingWhatsApp[bill.billNumber]) {
-                                      e.currentTarget.style.backgroundColor = "#25D366";
+                                    if (!downloadingPdf[bill.billNumber]) {
+                                      e.currentTarget.style.backgroundColor = "#3498db";
                                     }
                                   }}
                                 >
-                                  {sharingWhatsApp[bill.billNumber] ? (
+                                  {downloadingPdf[bill.billNumber] ? (
                                     "⏳..."
                                   ) : (
                                     <>
-                                      <WhatsAppIcon size={14} color="white" />
-                                      WhatsApp
+                                      📥 Download PDF
                                     </>
                                   )}
                                 </button>
@@ -3897,31 +3825,30 @@ const buildBillHTML = useCallback((bill) => {
                                       <button
                                         style={{
                                           ...styles.printButton,
-                                          backgroundColor: sharingWhatsApp[bill.billNumber] ? "#a8e6c1" : "#25D366",
-                                          cursor: sharingWhatsApp[bill.billNumber] ? "not-allowed" : "pointer",
+                                          backgroundColor: downloadingPdf[bill.billNumber] ? "#85c1e9" : "#3498db",
+                                          cursor: downloadingPdf[bill.billNumber] ? "not-allowed" : "pointer",
                                           display: "flex",
                                           alignItems: "center",
                                           gap: "8px",
                                         }}
-                                        disabled={!!sharingWhatsApp[bill.billNumber]}
-                                        onClick={() => shareViaWhatsApp(bill)}
+                                        disabled={!!downloadingPdf[bill.billNumber]}
+                                        onClick={() => downloadPdf(bill)}
                                         onMouseEnter={(e) => {
-                                          if (!sharingWhatsApp[bill.billNumber]) {
-                                            e.currentTarget.style.backgroundColor = "#128C7E";
+                                          if (!downloadingPdf[bill.billNumber]) {
+                                            e.currentTarget.style.backgroundColor = "#2980b9";
                                           }
                                         }}
                                         onMouseLeave={(e) => {
-                                          if (!sharingWhatsApp[bill.billNumber]) {
-                                            e.currentTarget.style.backgroundColor = "#25D366";
+                                          if (!downloadingPdf[bill.billNumber]) {
+                                            e.currentTarget.style.backgroundColor = "#3498db";
                                           }
                                         }}
                                       >
-                                        {sharingWhatsApp[bill.billNumber] ? (
+                                        {downloadingPdf[bill.billNumber] ? (
                                           "⏳ Preparing..."
                                         ) : (
                                           <>
-                                            <WhatsAppIcon size={16} color="white" />
-                                            Send via WhatsApp
+                                            📥 Download PDF
                                           </>
                                         )}
                                       </button>
@@ -4071,31 +3998,30 @@ const buildBillHTML = useCallback((bill) => {
                   <button
                     style={{
                       ...styles.printButton,
-                      backgroundColor: sharingWhatsApp[currentBill.billNumber] ? "#a8e6c1" : "#25D366",
-                      cursor: sharingWhatsApp[currentBill.billNumber] ? "not-allowed" : "pointer",
+                      backgroundColor: downloadingPdf[currentBill.billNumber] ? "#85c1e9" : "#3498db",
+                      cursor: downloadingPdf[currentBill.billNumber] ? "not-allowed" : "pointer",
                       display: "flex",
                       alignItems: "center",
                       gap: "8px",
                     }}
-                    disabled={!!sharingWhatsApp[currentBill.billNumber]}
-                    onClick={() => shareViaWhatsApp(currentBill)}
+                    disabled={!!downloadingPdf[currentBill.billNumber]}
+                    onClick={() => downloadPdf(currentBill)}
                     onMouseEnter={(e) => {
-                      if (!sharingWhatsApp[currentBill.billNumber]) {
-                        e.currentTarget.style.backgroundColor = "#128C7E";
+                      if (!downloadingPdf[currentBill.billNumber]) {
+                        e.currentTarget.style.backgroundColor = "#2980b9";
                       }
                     }}
                     onMouseLeave={(e) => {
-                      if (!sharingWhatsApp[currentBill.billNumber]) {
-                        e.currentTarget.style.backgroundColor = "#25D366";
+                      if (!downloadingPdf[currentBill.billNumber]) {
+                        e.currentTarget.style.backgroundColor = "#3498db";
                       }
                     }}
                   >
-                    {sharingWhatsApp[currentBill.billNumber] ? (
+                    {downloadingPdf[currentBill.billNumber] ? (
                       "⏳ Preparing..."
                     ) : (
                       <>
-                        <WhatsAppIcon size={16} color="white" />
-                        Send via WhatsApp
+                        📥 Download PDF
                       </>
                     )}
                   </button>
