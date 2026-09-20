@@ -113,8 +113,8 @@ export default function BuyingForm({ onBillCreated }) {
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
   
   // Loading States
-  const [isPageLoading, setIsPageLoading] = useState(true); // <-- INITIAL PAGE LOADER
-  const [isLoading, setIsLoading] = useState(false);        // <-- SUBMIT LOADER
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [isEditing, setIsEditing] = useState(false);
@@ -164,8 +164,8 @@ export default function BuyingForm({ onBillCreated }) {
 
   const calculateNetPrice = (item, totalQuantity, transportFeeVal, externalExpenseVal, expensePercentageVal) => {
     const basePrice = parseFloat(parseFormattedNumber(item.price)) || 0;
-    const quantity = parseFloat(item.quantity) || 1;
-    if (totalQuantity === 0) return basePrice;
+    const quantity = parseFloat(item.quantity) || 0;
+    if (totalQuantity === 0 || quantity === 0) return basePrice;
     const itemShare = quantity / totalQuantity;
     return parseFloat((basePrice + ((transportFeeVal * itemShare) / quantity) + ((externalExpenseVal * itemShare) / quantity) + (basePrice * (expensePercentageVal / 100))).toFixed(2));
   };
@@ -178,7 +178,7 @@ export default function BuyingForm({ onBillCreated }) {
       } catch (err) {
         notify("error", "Failed to load supplier list.");
       } finally {
-        setIsPageLoading(false); // <--- TURNS OFF PAGE LOADER WHEN DATA ARRIVES
+        setIsPageLoading(false);
       }
     };
     loadCompanies();
@@ -199,12 +199,47 @@ export default function BuyingForm({ onBillCreated }) {
   const handleCompanyBlur = () => { setTimeout(() => { setShowCompanySuggestions(false); }, 200); };
 
   const initializeFormWithBillData = (billData) => {
-    setCompanyId(billData.companyId); setCompanySearch(billData.companyName || billData.companySearch || ""); setCompanyCode(billData.companyCode || ""); setCompanyBillNumber(billData.companyBillNumber || ""); setBillDate(formatDateToDDMMYYYY(billData.billDate || billData.date)); setBranch(billData.branch || "Slemany"); setPaymentStatus(billData.paymentStatus || "Unpaid"); setIsConsignment(billData.isConsignment || false); setExpensePercentage(String(billData.expensePercentage || 7)); setBillNote(billData.billNote || ""); setCurrency(billData.currency || "USD"); setTransportFee(String(billData.totalTransportFeeUSD || 0)); setExternalExpense(String(billData.totalExternalExpenseUSD || 0));
+    setCompanyId(billData.companyId); 
+    setCompanySearch(billData.companyName || billData.companySearch || ""); 
+    setCompanyCode(billData.companyCode || ""); 
+    setCompanyBillNumber(billData.companyBillNumber || ""); 
+    setBillDate(formatDateToDDMMYYYY(billData.billDate || billData.date)); 
+    setBranch(billData.branch || "Slemany"); 
+    setPaymentStatus(billData.paymentStatus || "Unpaid"); 
+    setIsConsignment(billData.isConsignment || false); 
+    setExpensePercentage(String(billData.expensePercentage ?? 7)); 
+    setBillNote(billData.billNote || ""); 
+    setCurrency(billData.currency || "USD"); 
+    setTransportFee(String(billData.totalTransportFeeUSD || billData.totalTransportFeeIQD || billData.transportFee || 0)); 
+    setExternalExpense(String(billData.totalExternalExpenseUSD || billData.totalExternalExpenseIQD || billData.externalExpense || 0));
+    
     if (billData.items && billData.items.length > 0) {
       setBillItems(billData.items.map(item => {
-        let price = billData.currency === "USD" ? (item.basePriceUSD || item.basePrice || 0) : (item.basePriceIQD || item.basePrice || 0);
-        let outPrice = billData.currency === "USD" ? (item.outPriceUSD || item.outPrice || 0) : (item.outPriceIQD || item.outPrice || 0);
-        return { barcode: item.barcode || "", name: item.name || "", quantity: String(item.quantity || 1), price: String(price), outPrice: String(outPrice), expireDate: formatDateToDDMMYYYY(item.expireDate), netPrice: item.netPrice || 0 };
+        let resolvedPrice = 0;
+        if (billData.currency === "USD") {
+          resolvedPrice = item.basePriceUSD || item.price || item.basePrice || 0;
+        } else {
+          resolvedPrice = item.basePriceIQD || item.price || item.basePrice || 0;
+        }
+        if (!resolvedPrice) resolvedPrice = item.price || item.basePrice || 0;
+
+        let resolvedOutPrice = 0;
+        if (billData.currency === "USD") {
+          resolvedOutPrice = item.outPriceUSD || item.outPrice || 0;
+        } else {
+          resolvedOutPrice = item.outPriceIQD || item.outPrice || 0;
+        }
+        if (!resolvedOutPrice) resolvedOutPrice = item.outPrice || 0;
+
+        return { 
+          barcode: item.barcode || "", 
+          name: item.name || "", 
+      quantity: String(item.quantity !== undefined && item.quantity !== null ? item.quantity : 0),
+          price: resolvedPrice > 0 ? String(resolvedPrice) : "", 
+          outPrice: resolvedOutPrice > 0 ? String(resolvedOutPrice) : "", 
+          expireDate: formatDateToDDMMYYYY(item.expireDate), 
+          netPrice: item.netPrice || 0 
+        };
       }));
     }
   };
@@ -213,9 +248,18 @@ export default function BuyingForm({ onBillCreated }) {
     if (searchParams.get('edit') === 'true') {
       const storedBill = localStorage.getItem('editingBill');
       if (storedBill) {
-        try { const billData = JSON.parse(storedBill); setIsEditing(true); setEditingBill(billData); initializeFormWithBillData(billData); } catch (err) { notify("error", "Failed to load bill data for editing."); }
+        try { 
+          const billData = JSON.parse(storedBill); 
+          setIsEditing(true); 
+          setEditingBill(billData); 
+          initializeFormWithBillData(billData); 
+        } catch (err) { 
+          notify("error", "Failed to load bill data for editing."); 
+        }
       }
-    } else if (billItems.length === 0) setBillItems([createEmptyItem()]);
+    } else if (billItems.length === 0) {
+      setBillItems([createEmptyItem()]);
+    }
   }, [searchParams, notify]);
 
   useEffect(() => {
@@ -265,26 +309,83 @@ export default function BuyingForm({ onBillCreated }) {
   }, [currency]);
 
   const handleItemSelect = useCallback((item) => {
-    if (!currency) { setCurrencyError(true); notify("warning", "Please select a currency before adding items."); const currencyToggle = document.querySelector('.bf-currency-toggle'); if (currencyToggle) currencyToggle.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
-    const newItem = { ...createEmptyItem(), barcode: item.barcode, name: item.name, outPrice: item.outPrice ? String(item.outPrice) : "", expireDate: formatDateToDDMMYYYY(item.expireDate) };
-    setBillItems(prev => { const filtered = prev.filter(i => i.barcode || i.name); const newIndex = filtered.length; const updated = [...filtered, newItem]; setTimeout(() => { const qtyInput = itemInputRefs.current[`${newIndex}-quantity`]; if (qtyInput) { qtyInput.focus(); qtyInput.select(); } }, 80); return updated; });
+    if (!currency) { 
+      setCurrencyError(true); 
+      notify("warning", "Please select a currency before adding items."); 
+      const currencyToggle = document.querySelector('.bf-currency-toggle'); 
+      if (currencyToggle) currencyToggle.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
+      return; 
+    }
+    const newItem = { 
+      ...createEmptyItem(), 
+      barcode: item.barcode, 
+      name: item.name, 
+      quantity: "1",
+      price: "", 
+      outPrice: "", 
+      expireDate: formatDateToDDMMYYYY(item.expireDate) 
+    };
+    setBillItems(prev => { 
+      const filtered = prev.filter(i => i.barcode || i.name); 
+      const newIndex = filtered.length; 
+      const updated = [...filtered, newItem]; 
+      setTimeout(() => { 
+        const qtyInput = itemInputRefs.current[`${newIndex}-quantity`]; 
+        if (qtyInput) { qtyInput.focus(); qtyInput.select(); } 
+      }, 80); 
+      return updated; 
+    });
     setShowSuggestions(false); setSearchQuery(""); setCurrencyError(false);
   }, [currency, notify]);
 
-  const handleItemChange = useCallback((index, field, value) => { setBillItems(prev => { const updatedItems = [...prev]; updatedItems[index] = { ...updatedItems[index], [field]: value }; return updatedItems; }); }, []);
-  const resetForm = useCallback(() => { setCompanyId(""); setCompanySearch(""); setCompanyCode(""); setCompanyBillNumber(""); setBillDate(formatDateToDDMMYYYY(new Date())); setBranch("Slemany"); setPaymentStatus("Unpaid"); setIsConsignment(false); setExpensePercentage("7"); setBillNote(""); setCurrency(""); setTransportFee("0"); setExternalExpense("0"); setBillItems([createEmptyItem()]); setIsEditing(false); setEditingBill(null); setCurrencyError(false); localStorage.removeItem('editingBill'); }, []);
+  const handleItemChange = useCallback((index, field, value) => { 
+    setBillItems(prev => { 
+      const updatedItems = [...prev]; 
+      updatedItems[index] = { ...updatedItems[index], [field]: value }; 
+      return updatedItems; 
+    }); 
+  }, []);
+
+  const resetForm = useCallback(() => { 
+    setCompanyId(""); setCompanySearch(""); setCompanyCode(""); setCompanyBillNumber(""); 
+    setBillDate(formatDateToDDMMYYYY(new Date())); setBranch("Slemany"); setPaymentStatus("Unpaid"); 
+    setIsConsignment(false); setExpensePercentage("7"); setBillNote(""); setCurrency(""); 
+    setTransportFee("0"); setExternalExpense("0"); setBillItems([createEmptyItem()]); 
+    setIsEditing(false); setEditingBill(null); setCurrencyError(false); 
+    localStorage.removeItem('editingBill'); 
+  }, []);
+
   const handleCancel = () => { resetForm(); router.push('/buying'); };
 
   const handleKeyDown = (e, index, field) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const navOrder = [ { type: 'item', field: 'barcode', index }, { type: 'item', field: 'name', index }, { type: 'item', field: 'quantity', index }, { type: 'item', field: 'price', index }, { type: 'item', field: 'outPrice', index }, { type: 'item', field: 'expireDate', index }, { type: 'global', field: 'transportFee' }, { type: 'global', field: 'externalExpense' }, { type: 'global', field: 'expensePercentage' }, { type: 'global', field: 'billNote' }, { type: 'global', field: 'submit' } ];
+      const navOrder = [ 
+        { type: 'item', field: 'barcode', index }, 
+        { type: 'item', field: 'name', index }, 
+        { type: 'item', field: 'quantity', index }, 
+        { type: 'item', field: 'price', index }, 
+        { type: 'item', field: 'outPrice', index }, 
+        { type: 'item', field: 'expireDate', index }, 
+        { type: 'global', field: 'transportFee' }, 
+        { type: 'global', field: 'externalExpense' }, 
+        { type: 'global', field: 'expensePercentage' }, 
+        { type: 'global', field: 'billNote' }, 
+        { type: 'global', field: 'submit' } 
+      ];
       let currentPos = -1;
-      for (let i = 0; i < navOrder.length; i++) { if ((navOrder[i].type === 'item' && navOrder[i].index === index && navOrder[i].field === field) || (navOrder[i].type === 'global' && navOrder[i].field === field)) { currentPos = i; break; } }
+      for (let i = 0; i < navOrder.length; i++) { 
+        if ((navOrder[i].type === 'item' && navOrder[i].index === index && navOrder[i].field === field) || (navOrder[i].type === 'global' && navOrder[i].field === field)) { 
+          currentPos = i; 
+          break; 
+        } 
+      }
       if (currentPos !== -1 && currentPos + 1 < navOrder.length) {
         const next = navOrder[currentPos + 1];
-        if (next.type === 'item') { const nextInput = itemInputRefs.current[`${next.index}-${next.field}`]; if (nextInput) { nextInput.focus(); nextInput.select(); } }
-        else if (next.type === 'global') {
+        if (next.type === 'item') { 
+          const nextInput = itemInputRefs.current[`${next.index}-${next.field}`]; 
+          if (nextInput) { nextInput.focus(); nextInput.select(); } 
+        } else if (next.type === 'global') {
           if (next.field === 'transportFee' && transportFeeRef.current) { transportFeeRef.current.focus(); transportFeeRef.current.select(); }
           else if (next.field === 'externalExpense' && externalExpenseRef.current) { externalExpenseRef.current.focus(); externalExpenseRef.current.select(); }
           else if (next.field === 'expensePercentage' && expensePercentageRef.current) { expensePercentageRef.current.focus(); expensePercentageRef.current.select(); }
@@ -301,9 +402,61 @@ export default function BuyingForm({ onBillCreated }) {
     setIsLoading(true);
     try {
       if (!companyId) { notify("error", "Please select a supplier company."); setIsLoading(false); return; }
-      const validItems = billItems.filter(item => item.barcode && item.name && parseFloat(item.quantity) > 0 && item.price);
-      if (validItems.length === 0) { notify("error", "Please add at least one valid item with a price."); setIsLoading(false); return; }
 
+      // Validate base items presence
+      const activeRows = billItems.filter(item => item.barcode || item.name || item.price || item.outPrice);
+      if (activeRows.length === 0) {
+        notify("error", "Please add at least one item.");
+        setIsLoading(false);
+        return;
+      }
+
+      // Check all active lines
+      for (let i = 0; i < activeRows.length; i++) {
+        const itm = activeRows[i];
+        const buyPr = parseFloat(parseFormattedNumber(itm.price));
+        const outPr = parseFloat(parseFormattedNumber(itm.outPrice));
+        const qtyRaw = itm.quantity !== "" && itm.quantity !== null && itm.quantity !== undefined ? parseFloat(itm.quantity) : NaN;
+
+        if (!itm.barcode || !itm.name) {
+          notify("error", `Item row #${i + 1} is missing barcode or product name.`);
+          setIsLoading(false);
+          return;
+        }
+
+        // Qty rule: Must be entered. In edit mode, 0 is allowed to cancel an item. In create mode, must be > 0.
+        if (isNaN(qtyRaw)) {
+          notify("error", `Please enter a valid quantity for "${itm.name}".`);
+          setIsLoading(false);
+          return;
+        }
+
+        if (!isEditing && qtyRaw <= 0) {
+          notify("error", `Quantity for "${itm.name}" must be greater than 0.`);
+          setIsLoading(false);
+          return;
+        }
+
+        if (isEditing && qtyRaw < 0) {
+          notify("error", `Quantity for "${itm.name}" cannot be negative.`);
+          setIsLoading(false);
+          return;
+        }
+
+        if (isNaN(buyPr) || buyPr <= 0) {
+          notify("error", `Please enter a valid Buy Price for "${itm.name}".`);
+          setIsLoading(false);
+          return;
+        }
+
+        if (isNaN(outPr) || outPr <= 0) {
+          notify("error", `Selling Price (Out Price) is required for "${itm.name}". Please fill it before saving.`);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const validItems = activeRows;
       const totalQuantity = validItems.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
       const transportFeeValue = parseFloat(parseFormattedNumber(transportFee)) || 0;
       const externalExpenseValue = parseFloat(parseFormattedNumber(externalExpense)) || 0;
@@ -313,28 +466,92 @@ export default function BuyingForm({ onBillCreated }) {
         const expireDateValue = parseDateString(item.expireDate);
         const netPrice = calculateNetPrice(item, totalQuantity, transportFeeValue, externalExpenseValue, expensePercentageValue);
         const priceValue = parseFloat(parseFormattedNumber(item.price)) || 0;
-        const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || (priceValue * 1.5);
-        const itemData = { barcode: item.barcode, name: item.name, quantity: parseInt(item.quantity) || 1, expireDate: expireDateValue, branch, isConsignment, consignmentOwnerId: isConsignment ? companyId : null, netPrice, price: priceValue, outPrice: outPriceValue, currency };
-        if (currency === "USD") { itemData.basePriceUSD = priceValue; itemData.basePriceIQD = 0; itemData.netPriceUSD = netPrice; itemData.netPriceIQD = 0; itemData.outPriceUSD = outPriceValue; itemData.outPriceIQD = 0; }
-        else { itemData.basePriceIQD = priceValue; itemData.basePriceUSD = 0; itemData.netPriceIQD = netPrice; itemData.netPriceUSD = 0; itemData.outPriceIQD = outPriceValue; itemData.outPriceUSD = 0; }
+        const outPriceValue = parseFloat(parseFormattedNumber(item.outPrice)) || 0;
+        const qtyVal = parseInt(item.quantity, 10);
+
+        const itemData = { 
+          barcode: item.barcode, 
+          name: item.name, 
+          quantity: isNaN(qtyVal) ? 0 : qtyVal, 
+          expireDate: expireDateValue, 
+          branch, 
+          isConsignment, 
+          consignmentOwnerId: isConsignment ? companyId : null, 
+          netPrice, 
+          price: priceValue, 
+          outPrice: outPriceValue, 
+          currency 
+        };
+        
+        if (currency === "USD") { 
+          itemData.basePriceUSD = priceValue; 
+          itemData.basePriceIQD = 0; 
+          itemData.netPriceUSD = netPrice; 
+          itemData.netPriceIQD = 0; 
+          itemData.outPriceUSD = outPriceValue; 
+          itemData.outPriceIQD = 0; 
+        } else { 
+          itemData.basePriceIQD = priceValue; 
+          itemData.basePriceUSD = 0; 
+          itemData.netPriceIQD = netPrice; 
+          itemData.netPriceUSD = 0; 
+          itemData.outPriceIQD = outPriceValue; 
+          itemData.outPriceUSD = 0; 
+        }
         return itemData;
       });
 
       const parsedBillDate = parseDateString(billDate) || new Date();
-      const additionalData = { expensePercentage: expensePercentageValue, billNote: billNote || "", currency, transportFee: transportFeeValue, externalExpense: externalExpenseValue, totalTransportFeeUSD: currency === "USD" ? transportFeeValue : 0, totalTransportFeeIQD: currency === "IQD" ? transportFeeValue : 0, totalExternalExpenseUSD: currency === "USD" ? externalExpenseValue : 0, totalExternalExpenseIQD: currency === "IQD" ? externalExpenseValue : 0, billDate: parsedBillDate, exchangeRate: 1 };
+      const additionalData = { 
+        expensePercentage: expensePercentageValue, 
+        billNote: billNote || "", 
+        currency, 
+        transportFee: transportFeeValue, 
+        externalExpense: externalExpenseValue, 
+        totalTransportFeeUSD: currency === "USD" ? transportFeeValue : 0, 
+        totalTransportFeeIQD: currency === "IQD" ? transportFeeValue : 0, 
+        totalExternalExpenseUSD: currency === "USD" ? externalExpenseValue : 0, 
+        totalExternalExpenseIQD: currency === "IQD" ? externalExpenseValue : 0, 
+        billDate: parsedBillDate, 
+        exchangeRate: 1 
+      };
 
       if (isEditing) {
-        await updateBoughtBill(editingBill.billNumber, { companyId, companyBillNumber, date: parsedBillDate, paymentStatus, isConsignment, items: itemsWithNetPrices, ...additionalData, branch });
-        notify("success", `Bill #${editingBill.billNumber} updated successfully!`); setTimeout(() => { resetForm(); router.push('/buying'); }, 1500);
+        await updateBoughtBill(editingBill.billNumber, { 
+          companyId, 
+          companyBillNumber, 
+          date: parsedBillDate, 
+          paymentStatus, 
+          isConsignment, 
+          items: itemsWithNetPrices, 
+          ...additionalData, 
+          branch 
+        });
+        notify("success", `Bill #${editingBill.billNumber} updated successfully!`); 
+        setTimeout(() => { resetForm(); router.push('/buying'); }, 1500);
       } else {
         const bill = await createBoughtBill(companyId, itemsWithNetPrices, null, paymentStatus, companyBillNumber, isConsignment, additionalData);
         if (onBillCreated) onBillCreated(bill);
-        notify("success", `Bill #${bill.billNumber} created successfully!`); setTimeout(() => { resetForm(); }, 1500);
+        notify("success", `Bill #${bill.billNumber} created successfully!`); 
+        setTimeout(() => { resetForm(); }, 1500);
       }
-    } catch (err) { console.error("Error in handleSubmit:", err); notify("error", err.message || `Failed to ${isEditing ? 'update' : 'create'} bill.`); } finally { setIsLoading(false); }
+    } catch (err) { 
+      console.error("Error in handleSubmit:", err); 
+      notify("error", err.message || `Failed to ${isEditing ? 'update' : 'create'} bill.`); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
-  const removeItem = useCallback((index) => { setBillItems(prev => { const updatedItems = [...prev]; updatedItems.splice(index, 1); if (updatedItems.length === 0) return [createEmptyItem()]; return updatedItems; }); }, []);
+  const removeItem = useCallback((index) => { 
+    setBillItems(prev => { 
+      const updatedItems = [...prev]; 
+      updatedItems.splice(index, 1); 
+      if (updatedItems.length === 0) return [createEmptyItem()]; 
+      return updatedItems; 
+    }); 
+  }, []);
+
   const totalBasePrice = billItems.reduce((sum, item) => sum + ((parseFloat(parseFormattedNumber(item.price)) || 0) * (parseFloat(item.quantity) || 0)), 0);
   const totalQuantity = billItems.reduce((sum, item) => sum + (parseFloat(item.quantity) || 0), 0);
   const validItemsCount = billItems.filter(item => item.barcode || item.name).length;
@@ -342,7 +559,6 @@ export default function BuyingForm({ onBillCreated }) {
   return (
     <div className="bf-root style-reset">
       <style jsx global>{`
-        /* ALL PREVIOUS CSS IS HERE - OMITTED FOR BREVITY BUT KEPT IN YOUR FILE */
         .style-reset * { box-sizing: border-box; }
         .bf-root { font-family: 'Inter', system-ui, -apple-system, sans-serif; background: #f1f5f9; min-height: 100vh; padding: 0.5rem; color: #0f172a; width: 100%; overflow-x: hidden; margin: 0; position: relative; }
         .bf-card { width: 100%; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; }
@@ -369,13 +585,26 @@ export default function BuyingForm({ onBillCreated }) {
         .bf-currency-btn.active-usd { background: #2563eb; color: #ffffff; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2); }
         .bf-currency-btn.active-iqd { background: #059669; color: #ffffff; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2); }
         .bf-currency-error-text { color: #ef4444; font-size: 0.75rem; font-weight: 500; display: flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; }
-        .bf-table-container { overflow-x: auto; border-radius: 8px; border: 1px solid #e2e8f0; width: 100%; }
-        .bf-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; text-align: left; }
+        
+        /* Table and inputs responsive styles */
+        .bf-table-container { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid #e2e8f0; width: 100%; margin-bottom: 0.5rem; }
+        .bf-table { width: 100%; min-width: 820px; border-collapse: collapse; font-size: 0.8125rem; text-align: left; }
         .bf-table th { background: #f8fafc; padding: 0.75rem 0.625rem; font-weight: 700; color: #475569; border-bottom: 2px solid #e2e8f0; text-transform: uppercase; font-size: 0.75rem; white-space: nowrap; }
         .bf-table td { padding: 0.5rem 0.625rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
         .bf-table tr:hover { background: #f8fafc; }
-        .bf-table-input { padding: 0.375rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.8125rem; width: 100%; outline: none; }
+        .bf-table-input { padding: 0.45rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; width: 100%; outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
         .bf-table-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15); }
+        
+        /* Explicit min-widths to prevent mobile clipping */
+        .col-barcode { min-width: 130px; }
+        .col-name { min-width: 180px; }
+        .col-qty { min-width: 75px; text-align: center; font-weight: 700; }
+        .col-price { min-width: 105px; text-align: right; }
+        .col-outprice { min-width: 105px; text-align: right; background: #fffbeb !important; border-color: #fde68a !important; }
+        .col-net { min-width: 95px; text-align: right; font-weight: 700; color: #2563eb; }
+        .col-expire { min-width: 110px; }
+        .col-action { width: 44px; text-align: center; }
+
         .bf-summary-bar { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
         .bf-summary-item { display: flex; flex-direction: column; }
         .bf-summary-label { font-size: 0.75rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
@@ -557,20 +786,20 @@ export default function BuyingForm({ onBillCreated }) {
 
               <div className="bf-table-container">
                 <table className="bf-table">
-                  <thead><tr><th style={{ width: "15%" }}>Barcode</th><th style={{ width: "25%" }}>Product Description</th><th style={{ width: "8%", textAlign: "center" }}>Qty</th><th style={{ width: "13%", textAlign: "right" }}>Buy Price ({currency || '?'})</th><th style={{ width: "13%", textAlign: "right" }}>Selling Price ({currency || '?'})</th><th style={{ width: "13%", textAlign: "right" }}>Net Cost ({currency || '?'})</th><th style={{ width: "10%" }}>Expire Date</th><th style={{ width: "3%", textAlign: "center" }}></th></tr></thead>
+                  <thead><tr><th style={{ width: "16%" }}>Barcode</th><th style={{ width: "24%" }}>Product Description</th><th style={{ width: "10%", textAlign: "center" }}>Qty</th><th style={{ width: "13%", textAlign: "right" }}>Buy Price ({currency || '?'})</th><th style={{ width: "13%", textAlign: "right" }}>Selling Price ({currency || '?'}) *</th><th style={{ width: "11%", textAlign: "right" }}>Net Cost ({currency || '?'})</th><th style={{ width: "10%" }}>Expire Date</th><th style={{ width: "3%", textAlign: "center" }}></th></tr></thead>
                   <tbody>
                     {billItems.map((item, index) => {
                       const netPrice = calculateNetPrice(item, totalQuantity || 1, parseFloat(parseFormattedNumber(transportFee)) || 0, parseFloat(parseFormattedNumber(externalExpense)) || 0, parseFloat(parseFormattedNumber(expensePercentage)) || 0);
                       return (
                         <tr key={index}>
-                          <td><input ref={(el) => itemInputRefs.current[`${index}-barcode`] = el} type="text" className="bf-table-input" value={item.barcode || ''} onChange={(e) => handleItemChange(index, "barcode", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'barcode')} onFocus={selectOnFocus} placeholder="Barcode" /></td>
-                          <td><input ref={(el) => itemInputRefs.current[`${index}-name`] = el} type="text" className="bf-table-input" value={item.name || ''} onChange={(e) => handleItemChange(index, "name", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'name')} onFocus={selectOnFocus} placeholder="Product name" /></td>
-                          <td style={{ textAlign: "center" }}><input ref={(el) => itemInputRefs.current[`${index}-quantity`] = el} type="number" min="0" step="1" className="bf-table-input" style={{ textAlign: "center", fontWeight: 600 }} value={item.quantity || ''} onChange={(e) => handleItemChange(index, "quantity", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'quantity')} onFocus={selectOnFocus} /></td>
-                          <td><input ref={(el) => itemInputRefs.current[`${index}-price`] = el} type="text" inputMode="decimal" className="bf-table-input" style={{ textAlign: "right" }} value={formatForInput(item.price)} onChange={(e) => { const raw = e.target.value.replace(/,/g, ''); const clean = raw.replace(/[^0-9.]/g, ''); if ((clean.match(/\./g) || []).length > 1) return; handleItemChange(index, "price", clean); const rawPrice = parseFloat(clean); if (!isNaN(rawPrice) && rawPrice > 0 && (!item.outPrice || item.outPrice === '')) handleItemChange(index, "outPrice", (rawPrice * 1.5).toFixed(2)); }} onKeyDown={(e) => handleKeyDown(e, index, 'price')} onFocus={selectOnFocus} placeholder="0.00" /></td>
-                          <td><input ref={(el) => itemInputRefs.current[`${index}-outPrice`] = el} type="text" inputMode="decimal" className="bf-table-input" style={{ textAlign: "right", background: "#fffbeb", borderColor: "#fde68a" }} value={formatForInput(item.outPrice)} onChange={(e) => { const raw = e.target.value.replace(/,/g, ''); const clean = raw.replace(/[^0-9.]/g, ''); if ((clean.match(/\./g) || []).length > 1) return; handleItemChange(index, "outPrice", clean); }} onKeyDown={(e) => handleKeyDown(e, index, 'outPrice')} onFocus={selectOnFocus} placeholder="0.00" /></td>
-                          <td style={{ textAlign: "right", fontWeight: 700, color: "#2563eb" }}>{formatNumber(netPrice)}</td>
-                          <td><input ref={(el) => itemInputRefs.current[`${index}-expireDate`] = el} type="text" className="bf-table-input" placeholder="dd/mm/yyyy" value={item.expireDate || ''} onChange={(e) => handleItemChange(index, "expireDate", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'expireDate')} /></td>
-                          <td style={{ textAlign: "center" }}><button type="button" onClick={() => removeItem(index)} style={{ background: "#fef2f2", border: "none", color: "#ef4444", padding: "0.375rem", borderRadius: "6px", cursor: "pointer", display: "inline-flex" }}><FiTrash2 size={14} /></button></td>
+                          <td><input ref={(el) => itemInputRefs.current[`${index}-barcode`] = el} type="text" className="bf-table-input col-barcode" value={item.barcode || ''} onChange={(e) => handleItemChange(index, "barcode", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'barcode')} onFocus={selectOnFocus} placeholder="Barcode" /></td>
+                          <td><input ref={(el) => itemInputRefs.current[`${index}-name`] = el} type="text" className="bf-table-input col-name" value={item.name || ''} onChange={(e) => handleItemChange(index, "name", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'name')} onFocus={selectOnFocus} placeholder="Product name" /></td>
+                          <td style={{ textAlign: "center" }}><input ref={(el) => itemInputRefs.current[`${index}-quantity`] = el} type="number" min="0" step="1" className="bf-table-input col-qty" value={item.quantity} onChange={(e) => handleItemChange(index, "quantity", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'quantity')} onFocus={selectOnFocus} placeholder="0" /></td>
+                          <td><input ref={(el) => itemInputRefs.current[`${index}-price`] = el} type="text" inputMode="decimal" className="bf-table-input col-price" value={formatForInput(item.price)} onChange={(e) => { const raw = e.target.value.replace(/,/g, ''); const clean = raw.replace(/[^0-9.]/g, ''); if ((clean.match(/\./g) || []).length > 1) return; handleItemChange(index, "price", clean); }} onKeyDown={(e) => handleKeyDown(e, index, 'price')} onFocus={selectOnFocus} placeholder="0.00" /></td>
+                          <td><input ref={(el) => itemInputRefs.current[`${index}-outPrice`] = el} type="text" inputMode="decimal" className="bf-table-input col-outprice" value={formatForInput(item.outPrice)} onChange={(e) => { const raw = e.target.value.replace(/,/g, ''); const clean = raw.replace(/[^0-9.]/g, ''); if ((clean.match(/\./g) || []).length > 1) return; handleItemChange(index, "outPrice", clean); }} onKeyDown={(e) => handleKeyDown(e, index, 'outPrice')} onFocus={selectOnFocus} placeholder="0.00" /></td>
+                          <td className="col-net">{formatNumber(netPrice)}</td>
+                          <td><input ref={(el) => itemInputRefs.current[`${index}-expireDate`] = el} type="text" className="bf-table-input col-expire" placeholder="dd/mm/yyyy" value={item.expireDate || ''} onChange={(e) => handleItemChange(index, "expireDate", e.target.value)} onKeyDown={(e) => handleKeyDown(e, index, 'expireDate')} /></td>
+                          <td className="col-action"><button type="button" onClick={() => removeItem(index)} style={{ background: "#fef2f2", border: "none", color: "#ef4444", padding: "0.4rem", borderRadius: "6px", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><FiTrash2 size={15} /></button></td>
                         </tr>
                       );
                     })}

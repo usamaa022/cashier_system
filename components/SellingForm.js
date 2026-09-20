@@ -179,6 +179,35 @@ const formatFinancialLine = (usd, iqd, hasUSD, hasIQD) => {
   return parts[0];
 };
 
+// Merges multiple batches of the same barcode into a single clean row on the invoice
+const consolidateBillItems = (items, billCurrency) => {
+  if (!items || !Array.isArray(items)) return [];
+  const grouped = {};
+
+  items.forEach((item) => {
+    const itemPrice = parseFloat(item.price) || 0;
+    const key = `${item.barcode}_${itemPrice}`;
+    if (!grouped[key]) {
+      grouped[key] = {
+        ...item,
+        quantity: parseInt(item.quantity) || 0,
+        expireDates: [formatExpireDate(item.expireDate)].filter(d => d !== "N/A"),
+      };
+    } else {
+      grouped[key].quantity += (parseInt(item.quantity) || 0);
+      const expStr = formatExpireDate(item.expireDate);
+      if (expStr !== "N/A" && !grouped[key].expireDates.includes(expStr)) {
+        grouped[key].expireDates.push(expStr);
+      }
+    }
+  });
+
+  return Object.values(grouped).map(item => ({
+    ...item,
+    expireDateDisplay: item.expireDates.length > 0 ? item.expireDates.join(", ") : "N/A"
+  }));
+};
+
 // Calculate Financial Summary (Only counting Unpaid sales and Unpaid returns)
 const calculatePharmacyFinancialSummary = (
   pharmacyId,
@@ -280,7 +309,6 @@ const calculatePharmacyFinancialSummary = (
     });
   });
 
-  // Calculate Net Remaining Balance
   const remainingUnpaidUSD = totalUnpaidBillsUSD - totalReturnBillsUSD;
   const remainingUnpaidIQD = totalUnpaidBillsIQD - totalReturnBillsIQD;
 
@@ -299,7 +327,6 @@ const calculatePharmacyFinancialSummary = (
   };
 };
 
-// ─── Styles ──────────────────────────────────────────────────────────────────
 const styles = {
   container: {
     maxWidth: "100%",
@@ -479,7 +506,8 @@ const styles = {
     fontFamily: "'NRT-Reg', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
   },
   quantityInput: {
-    width: "60px",
+    minWidth: "75px",
+    width: "75px",
     padding: "8px",
     border: "2px solid #e1e8ed",
     borderRadius: "6px",
@@ -489,7 +517,8 @@ const styles = {
     WebkitAppearance: "none",
   },
   priceInput: {
-    width: "90px",
+    minWidth: "105px",
+    width: "105px",
     padding: "8px",
     border: "2px solid #e1e8ed",
     borderRadius: "6px",
@@ -1034,7 +1063,7 @@ const styles = {
   },
   rowContainer: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr 1fr auto',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: '12px',
     alignItems: 'end',
     marginBottom: '12px',
@@ -1324,22 +1353,23 @@ const styles = {
     display: 'flex',
     flexWrap: 'wrap',
     alignItems: 'center',
-    gap: '8px',
+    gap: '10px',
     width: '100%',
+    marginTop: '6px',
   },
   itemControlGroup: {
     display: 'flex',
     alignItems: 'center',
-    gap: '4px',
+    gap: '6px',
   },
   itemControlLabel: {
-    fontSize: '12px',
+    fontSize: '13px',
     color: '#6b7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   buttonRow: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '10px',
     marginTop: '15px',
   },
@@ -1347,7 +1377,7 @@ const styles = {
     display: 'grid',
     gridTemplateColumns: '1fr',
     gap: '10px',
-    marginTop: '15px',
+    marginTop: '10px',
   },
   consignmentContainer: {
     display: 'flex',
@@ -1406,7 +1436,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
   const [pharmacyId, setPharmacyId] = useState("");
   const [pharmacyName, setPharmacyName] = useState("");
   const [pharmacySuggestions, setPharmacySuggestions] = useState([]);
-  const [showPharmacySuggestions, setShowPharmacySuggestions] = useState(false);
   
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState("Unpaid");
@@ -1582,18 +1611,17 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     }
     
     if (field === "quantity") {
-      const maxQty = updatedItems[index].availableQuantity || 1;
-      const val = parseInt(value);
+      const maxQty = updatedItems[index].availableQuantity || 9999;
+      const val = parseInt(value, 10);
       if (value === "") {
         updatedItems[index].quantity = "";
       } else if (!isNaN(val)) {
         updatedItems[index].quantity = Math.min(Math.max(0, val), maxQty);
       }
     } else if (field === "price") {
-      const parsedValue = value === "" ? "" : parseFloat(value);
-      updatedItems[index].price = value; 
-      
-      const calcPrice = parsedValue || 0;
+      const clean = value.replace(/,/g, '');
+      updatedItems[index].price = clean; 
+      const calcPrice = parseFloat(clean) || 0;
       if (billCurrency === "IQD") {
         updatedItems[index].outPriceIQD = calcPrice;
         updatedItems[index].outPriceUSD = 0;
@@ -1615,8 +1643,8 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       return {
         ...item,
         price: initialPrice,
-        outPriceUSD: newCurr === "USD" ? (initialPrice || 0) : 0,
-        outPriceIQD: newCurr === "IQD" ? (initialPrice || 0) : 0,
+        outPriceUSD: newCurr === "USD" ? (parseFloat(initialPrice) || 0) : 0,
+        outPriceIQD: newCurr === "IQD" ? (parseFloat(initialPrice) || 0) : 0,
       };
     });
     setSelectedItems(updatedItems);
@@ -1638,9 +1666,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     setSelectedItems(updatedItems);
   }, [selectedItems]);
 
-  // ─── LOAD BILL FOR EDITING (LOCKED FOR BILLS WITH RETURNS) ──────
   const loadBillForEditing = useCallback(async (bill) => {
-    // 1. Check if the bill has any return invoice attached
     const returnedMap = await loadReturnedItemsForBill(bill.billNumber, bill.pharmacyId);
     const hasAnyReturns = Object.values(returnedMap).some(item => item.hasReturn);
 
@@ -1684,7 +1710,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setSaleDate(new Date().toISOString().split("T")[0]);
     }
 
-    setPaymentMethod(bill.paymentStatus || "Unpaid");
+    setPaymentMethod(bill.paymentStatus || bill.paymentMethod || "Unpaid");
     setIsConsignment(bill.isConsignment || false);
     setNote(bill.note || "");
 
@@ -1781,7 +1807,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [recentBills, storeItems, loadReturnedItemsForBill]);
 
- const handleUpdateBill = useCallback(async () => {
+  const handleUpdateBill = useCallback(async () => {
     if (!pharmacyId) { setError("Please select a pharmacy."); return; }
     if (selectedItems.length === 0) { setError("Please add at least one item."); return; }
     if (!editingBillNumber) { setError("No bill selected for update."); return; }
@@ -1867,7 +1893,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         }
       }
 
-      // Calculate totals based on active currency
       let calculatedTotalUSD = 0;
       let calculatedTotalIQD = 0;
 
@@ -1881,13 +1906,14 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         }
       });
 
-      const updatedBill = await updateSoldBill(editingBillNumber, {
+      const updatedBillResult = await updateSoldBill(editingBillNumber, {
         items: filteredItems,
         pharmacyId,
         pharmacyName,
         currency: billCurrency,
         date: dateToSave,
-        paymentMethod,
+        paymentStatus: paymentMethod,
+        paymentMethod: paymentMethod,
         isConsignment,
         note: note.trim(),
         updatedBy: updaterEmail,
@@ -1897,11 +1923,28 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         totalAmount: billCurrency === "IQD" ? calculatedTotalIQD : calculatedTotalUSD,
       });
 
-      // Mark the bill to be considered in financial summary during preview
-      updatedBill.isNew = true;
+      // Defensive handling: check if updateSoldBill returned boolean `true` or an object
+      const safeBillObj = (typeof updatedBillResult === 'object' && updatedBillResult !== null)
+        ? updatedBillResult
+        : {
+            billNumber: editingBillNumber,
+            pharmacyId,
+            pharmacyName,
+            items: filteredItems,
+            currency: billCurrency,
+            date: dateToSave,
+            paymentStatus: paymentMethod,
+            isConsignment,
+            note: note.trim(),
+            totalAmountUSD: calculatedTotalUSD,
+            totalAmountIQD: calculatedTotalIQD,
+            totalAmount: billCurrency === "IQD" ? calculatedTotalIQD : calculatedTotalUSD,
+          };
 
-      if (onBillCreated) onBillCreated(updatedBill);
-      setCurrentBill(updatedBill);
+      safeBillObj.isNew = true;
+
+      if (onBillCreated) onBillCreated(safeBillObj);
+      setCurrentBill(safeBillObj);
 
       setIsLoading(false);
       setShowBillPreview(true);
@@ -1909,7 +1952,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       alert(`✅ Bill #${formatBillNumber(editingBillNumber)} updated successfully!`);
 
       setTimeout(() => {
-        printBill(updatedBill);
+        printBill(safeBillObj);
       }, 300);
 
       getStoreItems(true).then(setStoreItems);
@@ -2010,7 +2053,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         billNumber,
       });
 
-      // Mark the bill as new so it's counted in the preview total
       bill.isNew = true;
 
       if (onBillCreated) onBillCreated(bill);
@@ -2023,7 +2065,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       setNote("");
       alert(`Bill #${billNumber} created successfully by ${creatorName}!`);
 
-      // Trigger auto-print
       setTimeout(() => {
         printBill(bill);
       }, 300);
@@ -2414,7 +2455,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     if (currentBill && currentBill.billNumber !== "TEMP0000") resetForm();
   }, [currentBill, resetForm]);
 
-const buildBillHTML = useCallback((bill) => {
+  const buildBillHTML = useCallback((bill) => {
     const billPaymentMethod = bill.paymentStatus || paymentMethod;
 
     const financialSummary = calculatePharmacyFinancialSummary(
@@ -2422,7 +2463,7 @@ const buildBillHTML = useCallback((bill) => {
       recentBills,
       returnBills,
       bill.items,
-      bill.isPreview || bill.isNew // Add items if previewing OR if bill was just created and passed here
+      bill.isPreview || bill.isNew
     );
 
     const { pharmacyHasUSD, pharmacyHasIQD } = financialSummary;
@@ -2437,6 +2478,9 @@ const buildBillHTML = useCallback((bill) => {
     };
 
     const billCurr = bill.currency || "USD";
+
+    // 🌟 Consolidate duplicate rows of the same item from different store batches into a single clean line
+    const consolidatedItems = consolidateBillItems(bill.items, billCurr);
 
     const currentBillTotalUSD = billCurr === "USD" ? (bill.items?.reduce((sum, item) => sum + ((item.outPriceUSD || item.price || 0) * item.quantity), 0) || 0) : 0;
     const currentBillTotalIQD = billCurr === "IQD" ? (bill.items?.reduce((sum, item) => sum + ((item.outPriceIQD || item.price || 0) * item.quantity), 0) || 0) : 0;
@@ -2507,7 +2551,7 @@ const buildBillHTML = useCallback((bill) => {
                 </tr>
               </thead>
               <tbody>
-          ${bill.items?.map((item, idx) => {
+          ${consolidatedItems.map((item, idx) => {
                 const price = billCurr === "IQD" ? (item.outPriceIQD || item.price || 0) : (item.outPriceUSD || item.price || 0);
                 const priceFormatted = billCurr === "IQD" ? Math.round(price).toLocaleString() + " IQD" : "$" + price.toFixed(2);
                 const totalFormatted = billCurr === "IQD" ? Math.round(price * item.quantity).toLocaleString() + " IQD" : "$" + (price * item.quantity).toFixed(2);
@@ -2516,6 +2560,7 @@ const buildBillHTML = useCallback((bill) => {
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${idx + 1}</td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0;">
                         <div style="font-weight: 600; font-family: 'NRT-Bd', sans-serif; font-size: 13px; color: #1a365d;">${item.name}</div>
+                        ${item.expireDateDisplay && item.expireDateDisplay !== "N/A" ? `<div style="font-size: 11px; color: #64748b;">Exp: ${item.expireDateDisplay}</div>` : ""}
                       </td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-size: 13px; color: #3b4c6b;">${item.barcode}</td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${item.quantity}</td>
@@ -2649,7 +2694,7 @@ const buildBillHTML = useCallback((bill) => {
     const { singleBillHTML, displayBillNumber } = buildBillHTML(bill);
 
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const numCopies = 1; // Print only 1 copy
+    const numCopies = 1;
 
     if (isMobile) {
       const loadHtml2Pdf = () => {
@@ -2699,12 +2744,12 @@ const buildBillHTML = useCallback((bill) => {
             html2canvas: { 
               scale: 2, 
               useCORS: true, 
-              windowWidth: 800,
-              width: 800,
-              x: 0,
-              y: 0,
-              scrollX: 0,
-              scrollY: 0
+              windowWidth: 800, 
+              width: 800, 
+              x: 0, 
+              y: 0, 
+              scrollX: 0, 
+              scrollY: 0 
             },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
           };
@@ -2735,7 +2780,7 @@ const buildBillHTML = useCallback((bill) => {
         <style>
           @font-face { font-family: 'NRT-Reg'; src: url('/fonts/NRT-Reg.ttf') format('truetype'); }
           @font-face { font-family: 'NRT-Bd';  src: url('/fonts/NRT-Bd.ttf')  format('truetype'); }
-          @page { margin: 0; } /* Removes default header/footer from browser print */
+          @page { margin: 0; }
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: 'NRT-Reg', 'Segoe UI', sans-serif;
@@ -2865,19 +2910,19 @@ const buildBillHTML = useCallback((bill) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  useEffect(() => {
+useEffect(() => {
     const timer = setTimeout(async () => {
       if (pharmacySearch.length > 0) {
         try {
           const results = await searchPharmacies(pharmacySearch);
           setPharmacySuggestions(results);
-          setShowPharmacySuggestions(results.length > 0);
+          setShowPharmacyList(results.length > 0); // <-- Fix here
         } catch (err) {
           console.error("Error searching pharmacies:", err);
         }
       } else {
         setPharmacySuggestions([]);
-        setShowPharmacySuggestions(false);
+        setShowPharmacyList(false); // <-- Fix here
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -3152,7 +3197,6 @@ const buildBillHTML = useCallback((bill) => {
             </div>
           </div>
 
-          {/* Date, Bill Currency, Payment, Consignment row */}
           <div style={styles.rowContainer}>
             <div style={styles.dateField}>
               <label style={styles.fieldLabel}>Sale Date</label>
@@ -3274,7 +3318,7 @@ const buildBillHTML = useCallback((bill) => {
                               <td style={styles.tableCell}>{formatExpireDate(batch.expireDate)}</td>
                               <td style={{ 
                                 ...styles.tableCell, 
-                                textAlign: "center",
+                                textAlign: "center", 
                                 fontWeight: "600",
                                 color: batch.branch === "Slemany" ? "#16a34a" :
                                        batch.branch === "Erbil" ? "#dc2626" :
@@ -3334,7 +3378,6 @@ const buildBillHTML = useCallback((bill) => {
               </h3>
               {selectedItems.map((item, index) => {
                 const activePrice = parseFloat(item.price) || 0;
-
                 const isItemIQD = item.originalCurrency === "IQD";
                 const netVal = isItemIQD ? (item.netPriceIQD || item.netPrice || 0) : (item.netPriceUSD || item.netPrice || 0);
                 const netDisplay = isItemIQD
@@ -3390,7 +3433,6 @@ const buildBillHTML = useCallback((bill) => {
                           max={item.availableQuantity}
                           style={{
                             ...styles.quantityInput,
-                            width: "60px",
                             ...(isLocked ? { backgroundColor: "#f0f0f0", cursor: "not-allowed", borderColor: "#e74c3c", opacity: "0.65" } : {})
                           }}
                           value={item.quantity}
@@ -3415,7 +3457,6 @@ const buildBillHTML = useCallback((bill) => {
                           inputMode="decimal"
                           style={{
                             ...styles.priceInput,
-                            width: "90px",
                             ...(isLocked ? { backgroundColor: "#f0f0f0", cursor: "not-allowed", borderColor: "#e74c3c", opacity: "0.65" } : {})
                           }}
                           value={
@@ -3439,7 +3480,7 @@ const buildBillHTML = useCallback((bill) => {
                         <span style={{ fontSize: "13px", color: "#7f8c8d" }}>{billCurrency === "IQD" ? "IQD" : "USD"}</span>
                       </div>
 
-                      <div style={{ fontWeight: "600", minWidth: "80px", textAlign: "right", color: "#2c3e50", fontSize: "15px" }}>
+                      <div style={{ fontWeight: "600", minWidth: "90px", textAlign: "right", color: "#2c3e50", fontSize: "15px" }}>
                         {totalDisplay}
                       </div>
 
@@ -3514,7 +3555,6 @@ const buildBillHTML = useCallback((bill) => {
           </div>
         </div>
 
-        {/* Recent bills section */}
         <div className="card-wrapper" style={styles.recentBillsSection}>
           <div style={styles.sectionHeader}>
             <h3 style={styles.sectionTitle}>Recent Sales Bills</h3>
@@ -3655,7 +3695,6 @@ const buildBillHTML = useCallback((bill) => {
                       const totalAmountIQD = billCurr === "IQD" ? (bill.items?.reduce((sum, item) => sum + ((item.outPriceIQD || item.price || 0) * item.quantity), 0) || 0) : 0;
                       const branchStr = getBillBranchDisplay(bill);
 
-                      // Determine if bill is locked
                       const hasReturn = returnBills.some(r => String(r.billNumber) === String(bill.billNumber));
                       const isLocked = hasReturn;
                       const lockReason = hasReturn ? "Bill has return invoices attached" : "Edit Bill";
@@ -3985,7 +4024,6 @@ const buildBillHTML = useCallback((bill) => {
           )}
         </div>
 
-        {/* Modals */}
         {showBillPreview && currentBill && (
           <div style={styles.modalOverlay}>
             <div style={styles.modalContent}>
@@ -4028,136 +4066,7 @@ const buildBillHTML = useCallback((bill) => {
                   <button style={styles.closeButton} onClick={closeBillPreview}>Close</button>
                 </div>
               </div>
-              <div style={styles.billTemplate} dangerouslySetInnerHTML={{ __html: `
-                <div style="padding-top: 0px; font-size: 15px;">
-                  <div style="margin-bottom: 0px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
-                      <div style="flex: 1; min-width: 200px;">
-                        <h1 style="margin: 0 0 2px 0; font-size: 24px; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">ARAN MED STORE</h1>
-                        <p style="margin: 0 0 3px 0; font-size: 15px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">سلێمانی - بەرامبەر تاوەری تەندروستی سمارت</p>
-                        <p style="margin: 0; font-size: 15px; color: #34495e; font-family: 'NRT-Reg', sans-serif;">+964 772 533 5252 | +964 751 741 2241</p>
-                      </div>
-                      <div style="flex-shrink: 0; text-align: right;">
-                        <img src="/Aranlogo.png" alt="Aran Logo" style="width: 200px; max-width: 100%; object-fit: contain; display: inline-block;" />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px;">
-                    <div style="flex: 1; min-width: 200px; padding: 12px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-                      <h3 style="margin: 0 0 8px 0; font-family: 'NRT-Bd', sans-serif; font-size: 16px; color: #2c3e50;">Bill To: ${currentBill.pharmacyName}</h3>
-                      <table style="width: 100%; font-family: 'NRT-Reg', sans-serif; font-size: 14px;">
-                        <tr>
-                          <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 90px;">Payment:</td>
-                          <td style="padding: 3px 0;">
-                            <div style="background-color: ${currentBill.paymentStatus === "Cash" ? "#27ae60" : currentBill.paymentStatus === "Paid" ? "#3498db" : "#e74c3c"}; display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 14px; font-weight: 600; color: #fff;">
-                              ${currentBill.paymentStatus.toUpperCase()}
-                            </div>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif; width: 90px;">Consignment:</td>
-                          <td style="padding: 3px 0;">
-                            <div style="display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 14px; font-weight: 500; color: #34495E">
-                              ${currentBill.isConsignment ? 'تحت صرف' : 'Owned'}
-                            </div>
-                          </td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <div style="flex: 1; min-width: 200px; padding: 12px; background-color: #f8f9fa; border-radius: 8px; border: 1px solid #e1e8ed;">
-                      <table style="width: 100%; font-family: 'NRT-Reg', sans-serif; font-size: 14px;">
-                        <tr>
-                          <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice #:</td>
-                          <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${currentBill.billNumber === "TEMP0000" ? "TEMP0000" : formatBillNumber(currentBill.billNumber)}</td>
-                        </tr>
-                        <tr>
-                          <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Invoice Date:</td>
-                          <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${formatDate(currentBill.date)}</td>
-                        </tr>
-                        <tr>
-                          <td style="font-weight: 600; padding: 3px 10px 3px 0; color: #2c3e50; font-family: 'NRT-Bd', sans-serif;">Created By:</td>
-                          <td style="padding: 3px 0; color: #34495e; font-weight: 500;">${currentBill.createdByName || "Current User"}</td>
-                        </tr>
-                      </table>
-                    </div>
-
-                    <div style="flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-                      <img src="/scann.png" alt="QR Code" style="margin-top:10px; width: 110px; max-width: 90%;" />
-                    </div>
-                  </div>
-
-                  <div style="overflow-x: auto;">
-                    <table style="width: 100%; border-collapse: separate; border-spacing: 0; margin-bottom: 15px; font-size: 14px; min-width: 500px;">
-                      <thead>
-                        <tr style="background-color: #1e3a8a; color: white;">
-                          <th style="padding: 12px 8px; text-align: center; border-radius: 8px 0 0 8px; font-family: 'NRT-Bd', sans-serif;">#</th>
-                          <th style="padding: 12px 8px; text-align: left; font-family: 'NRT-Bd', sans-serif;">Item Details</th>
-                          <th style="padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Barcode</th>
-                          <th style="padding: 12px 8px; text-align: center; font-family: 'NRT-Bd', sans-serif;">Qty</th>
-                          <th style="padding: 12px 8px; text-align: right; font-family: 'NRT-Bd', sans-serif;">Unit Price</th>
-                          <th style="padding: 12px 8px; text-align: right; border-radius: 0 8px 8px 0; font-family: 'NRT-Bd', sans-serif;">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        ${currentBill.items?.map((item, idx) => {
-                          const cb = currentBill.currency || "USD";
-                          const price = cb === "IQD"
-                            ? (item.outPriceIQD || item.price || 0)
-                            : (item.outPriceUSD || item.price || 0);
-                          const priceFormatted = cb === "IQD"
-                            ? Math.round(price).toLocaleString() + " IQD"
-                            : "$" + price.toFixed(2);
-                          const totalFormatted = cb === "IQD"
-                            ? Math.round(price * item.quantity).toLocaleString() + " IQD"
-                            : "$" + (price * item.quantity).toFixed(2);
-                          return `
-                            <tr>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${idx + 1}</td>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed;">
-                                <div style="font-weight: 600; margin-bottom: 2px; font-family: 'NRT-Bd', sans-serif; font-size: 14px;">${item.name}</div>
-                                <div style="font-size: 13px; color: #7f8c8d;">Exp: ${formatExpireDate(item.expireDate)}</div>
-                              </td>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-family: monospace; font-size: 14px;">${item.barcode}</td>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: center; font-weight: 600;">${item.quantity}</td>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${priceFormatted}</td>
-                              <td style="padding: 10px 8px; border-bottom: 1px solid #e1e8ed; text-align: right; font-weight: 600;">${totalFormatted}</td>
-                            </tr>
-                          `;
-                        }).join("")}
-                        <tr class="total-row">
-                          <td colspan="5" style="background-color: #20c38f !important; color: white; text-align: right; padding: 12px 8px; font-size: 15px; font-family: 'NRT-Bd', sans-serif; border-radius: 8px 0 0 8px;">CURRENT TOTAL:</td>
-                          <td style="background-color: #1e3a8a !important; color: white; text-align: right; padding: 12px 8px; font-family: 'NRT-Bd', sans-serif; font-size: 15px; border-radius: 0 8px 8px 0;">
-                            ${formatTotalLine(
-                              currentBill.items?.reduce((sum, item) => {
-                                if (currentBill.currency === "USD") return sum + ((item.outPriceUSD || item.price || 0) * item.quantity);
-                                return sum;
-                              }, 0) || 0,
-                              currentBill.items?.reduce((sum, item) => {
-                                if (currentBill.currency === "IQD") return sum + ((item.outPriceIQD || item.price || 0) * item.quantity);
-                                return sum;
-                              }, 0) || 0
-                            )}
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-
-                  ${currentBill.note ? `
-                    <div style="background-color: #fff8e1; padding: 10px; border-radius: 8px; border: 1px solid #ffecb3; margin-bottom: 15px;">
-                      <h4 style="font-weight: 600; margin: 0 0 4px 0; color: #e67e22; font-size: 14px; font-family: 'NRT-Bd', sans-serif;">Note:</h4>
-                      <p style="font-size: 14px; color: #2c3e50; line-height: 1.4; margin: 0; font-family: 'NRT-Reg', sans-serif;">${currentBill.note}</p>
-                    </div>
-                  ` : ""}
-
-                  <div style="margin-top: 80px; text-align: right; page-break-inside: avoid;">
-                    <div style="width: 250px; height: 1.5px; background-color: #2c3e50; margin: 10px 0 8px auto;"></div>
-                    <p style="font-size: 14px; color: #34495e; font-style: italic; font-weight: 600; font-family: 'NRT-Reg', sans-serif; margin: 0; padding-right: 15px;">Receiver Signature (Stamp)</p>
-                  </div>
-                </div>
-              `}} />
+              <div style={styles.billTemplate} dangerouslySetInnerHTML={{ __html: buildBillHTML(currentBill).singleBillHTML }} />
             </div>
           </div>
         )}
