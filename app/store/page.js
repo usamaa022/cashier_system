@@ -835,12 +835,9 @@ export default function StorePage() {
       const exportData = filteredItems.map(item => {
         const expiryStyle = getExpiryStyle(item.expireDate);
         const row = {
-          'Item Name': item.name,
           'Barcode': item.barcode,
-          'Branch': item.branch,
-          'Bought Bill #': item.boughtBillNumber,
-          'Added Date': formatDateTime(item.createdAt),
-          'Currency': item.priceType,
+          'Item Name': item.name,
+          'Total Quantity': item.totalQuantity,
         };
 
         if (canSeeBasePrice) {
@@ -855,8 +852,6 @@ export default function StorePage() {
         row['Net Price (IQD)'] = item.netPriceIQD ? formatIQD(item.netPriceIQD) : '-';
         row['Out Price (IQD)'] = item.outPriceIQD ? formatIQD(item.outPriceIQD) : '-';
 
-        row['Total Quantity'] = item.totalQuantity;
-
         if (canSeeBasePrice) {
           row['Total Base Value (USD)'] = item.basePriceUSD ? formatUSD(item.basePriceUSD * item.totalQuantity) : '-';
         }
@@ -867,8 +862,12 @@ export default function StorePage() {
         }
         row['Total Net Value (IQD)'] = item.netPriceIQD ? formatIQD(item.netPriceIQD * item.totalQuantity) : '-';
 
+        row['Added Date'] = formatDateTime(item.createdAt);
         row['Expiry Date'] = item.expireDate ? formatDate(item.expireDate) : 'N/A';
         row['Expiry Status'] = item.expireDate ? expiryStyle.status : 'N/A';
+        row['Bought Bill #'] = item.boughtBillNumber;
+        row['Currency'] = item.priceType;
+        row['Branch'] = item.branch;
 
         return row;
       });
@@ -1066,7 +1065,7 @@ export default function StorePage() {
           </div>
         </div>
 
-        {/* The Table Always Renders So Header and Structure Never Disappear */}
+        {/* Table container */}
         <div style={{
           width: '100%',
           overflowX: 'auto',
@@ -1079,24 +1078,44 @@ export default function StorePage() {
           <table style={{ width: '100%', margin: 0, borderCollapse: 'collapse', minWidth: '1000px' }}>
             <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
               <tr style={{ backgroundColor: '#f9fafb' }}>
+                {/* 1. Barcode */}
                 <TableHeader title="Barcode" columnKey="barcode" colWidth="110px" alignLeft={true} sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 2. Item Name */}
                 <TableHeader title="Item Name" columnKey="name" colWidth="auto" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
-                <TableHeader title="Branch" columnKey="branch" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
-                <TableHeader title="Bought Bill #" columnKey="boughtBill" colWidth="120px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
-                <TableHeader title="Added Date" columnKey="createdAt" colWidth="140px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
-                <TableHeader title="Currency" columnKey="priceType" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 3. Quantity */}
+                <TableHeader title="Quantity" columnKey="quantity" type="number" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 4. Prices */}
                 {canSeeBasePrice && (
                   <TableHeader title="Base Price (USD)" columnKey="basePriceUSD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
                 )}
                 <TableHeader title="Net Price (USD)" columnKey="netPriceUSD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
                 <TableHeader title="Out Price (USD)" columnKey="outPriceUSD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
                 {canSeeBasePrice && (
                   <TableHeader title="Base Price (IQD)" columnKey="basePriceIQD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
                 )}
                 <TableHeader title="Net Price (IQD)" columnKey="netPriceIQD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
                 <TableHeader title="Out Price (IQD)" columnKey="outPriceIQD" type="number" colWidth="110px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
-                <TableHeader title="Quantity" columnKey="quantity" type="number" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 5. Added Date */}
+                <TableHeader title="Added Date" columnKey="createdAt" colWidth="140px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+
+                {/* 6. Expiry Date */}
                 <TableHeader title="Expiry Date" columnKey="expireDate" colWidth="120px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 7. Bought Bill # */}
+                <TableHeader title="Bought Bill #" columnKey="boughtBill" colWidth="120px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 8. Currency */}
+                <TableHeader title="Currency" columnKey="priceType" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+
+                {/* 9. Branch */}
+                <TableHeader title="Branch" columnKey="branch" colWidth="90px" sortConfig={sortConfig} handleSort={handleSort} getSortIcon={getSortIcon} storeItems={storeItems} columnFilters={columnFilters} activeFilterDropdown={activeFilterDropdown} setActiveFilterDropdown={setActiveFilterDropdown} handleUpdateColumnFilter={handleUpdateColumnFilter} clearColumnFilter={clearColumnFilter} />
+                
+                {/* 10. Actions */}
                 <th style={{ padding: '12px', textAlign: 'left', backgroundColor: "#34495e", color: "white", width: "80px", borderRight: 'none', ...nrtFontBoldStyle }}>Actions</th>
               </tr>
             </thead>
@@ -1128,37 +1147,28 @@ export default function StorePage() {
                       opacity: isZeroQuantity ? '0.6' : '1',
                       backgroundColor: isZeroQuantity ? '#f9fafb' : 'transparent'
                     }}>
+                      {/* 1. Barcode */}
                       <td style={{ padding: '12px', fontFamily: 'monospace', borderRight: '1px solid #e5e7eb', ...nrtFontStyle }}>{item.barcode}</td>
+
+                      {/* 2. Item Name */}
                       <td style={{ padding: '12px', fontWeight: '500', borderRight: '1px solid #e5e7eb', wordBreak: 'break-word', whiteSpace: 'normal', ...nrtFontStyle }}>{item.name}</td>
-                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
-                        <span style={getBranchStyle(item.branch)}>{item.branch}</span>
-                      </td>
+
+                      {/* 3. Quantity */}
                       <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
                         <span style={{
-                          backgroundColor: '#dbeafe',
-                          color: '#1e40af',
+                          backgroundColor: isZeroQuantity ? '#f3f4f6' : (item.totalQuantity > 10 ? '#d1fae5' : '#fee2e2'),
+                          color: isZeroQuantity ? '#6b7280' : (item.totalQuantity > 10 ? '#065f46' : '#991b1b'),
                           padding: '4px 8px',
                           borderRadius: '4px',
                           fontSize: '12px',
+                          fontWeight: '600',
                           ...nrtFontStyle
                         }}>
-                          {item.boughtBillNumber || 'N/A'}
+                          {item.totalQuantity} {isZeroQuantity && '(Out of Stock)'}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb', ...nrtFontStyle }}>{formatDateTime(item.createdAt)}</td>
-                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
-                        <span style={{
-                          backgroundColor: isUSD ? '#dbeafe' : '#fef3c7',
-                          color: isUSD ? '#1e40af' : '#92400e',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          ...nrtFontStyle
-                        }}>
-                          {item.priceType}
-                        </span>
-                      </td>
+
+                      {/* 4. Prices */}
                       {canSeeBasePrice && (
                         <td style={{
                           padding: '12px', borderRight: '1px solid #e5e7eb',
@@ -1185,6 +1195,7 @@ export default function StorePage() {
                       }}>
                         {isUSD ? formatUSD(item.outPriceUSD) : '-'}
                       </td>
+
                       {canSeeBasePrice && (
                         <td style={{
                           padding: '12px', borderRight: '1px solid #e5e7eb',
@@ -1211,19 +1222,11 @@ export default function StorePage() {
                       }}>
                         {!isUSD ? formatIQD(item.outPriceIQD) : '-'}
                       </td>
-                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
-                        <span style={{
-                          backgroundColor: isZeroQuantity ? '#f3f4f6' : (item.totalQuantity > 10 ? '#d1fae5' : '#fee2e2'),
-                          color: isZeroQuantity ? '#6b7280' : (item.totalQuantity > 10 ? '#065f46' : '#991b1b'),
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: '600',
-                          ...nrtFontStyle
-                        }}>
-                          {item.totalQuantity} {isZeroQuantity && '(Out of Stock)'}
-                        </span>
-                      </td>
+
+                      {/* 5. Added Date */}
+                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb', ...nrtFontStyle }}>{formatDateTime(item.createdAt)}</td>
+
+                      {/* 6. Expiry Date */}
                       <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
                         {item.expireDate ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1265,6 +1268,42 @@ export default function StorePage() {
                           </span>
                         )}
                       </td>
+
+                      {/* 7. Bought Bill # */}
+                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
+                        <span style={{
+                          backgroundColor: '#dbeafe',
+                          color: '#1e40af',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          ...nrtFontStyle
+                        }}>
+                          {item.boughtBillNumber || 'N/A'}
+                        </span>
+                      </td>
+
+                      {/* 8. Currency */}
+                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
+                        <span style={{
+                          backgroundColor: isUSD ? '#dbeafe' : '#fef3c7',
+                          color: isUSD ? '#1e40af' : '#92400e',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          ...nrtFontStyle
+                        }}>
+                          {item.priceType}
+                        </span>
+                      </td>
+
+                      {/* 9. Branch */}
+                      <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}>
+                        <span style={getBranchStyle(item.branch)}>{item.branch}</span>
+                      </td>
+
+                      {/* 10. Actions */}
                       <td style={{ padding: '12px', borderRight: 'none' }}>
                         <button
                           onClick={() => {
@@ -1301,21 +1340,44 @@ export default function StorePage() {
             </tbody>
             <tfoot style={{ position: 'sticky', bottom: 0, zIndex: 1 }}>
               <tr style={{ backgroundColor: '#f9fafb', borderTop: '2px solid #e5e7eb', boxShadow: '0 -2px 4px rgba(0,0,0,0.05)' }}>
-                <td colSpan={6} style={{ padding: '12px', textAlign: 'right', fontWeight: '600', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
+                {/* Matches 1. Barcode & 2. Item Name */}
+                <td colSpan={2} style={{ padding: '12px', textAlign: 'right', fontWeight: '600', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
                   Totals:
                 </td>
+
+                {/* Matches 3. Quantity */}
+                <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
+                  {totalQuantity}
+                </td>
+
+                {/* Matches 4. USD Prices (3 cols if superAdmin, else 2 cols) */}
                 <td colSpan={canSeeBasePrice ? 3 : 2} style={{ padding: '12px', fontWeight: '600', color: '#065f46', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
                   {canSeeBasePrice && <>USD Base: {formatUSD(totalBaseValueUSD)}<br/></>}
                   USD Net: {formatUSD(totalNetValueUSD)}
                 </td>
+
+                {/* Matches IQD Prices (3 cols if superAdmin, else 2 cols) */}
                 <td colSpan={canSeeBasePrice ? 3 : 2} style={{ padding: '12px', fontWeight: '600', color: '#92400e', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
                   {canSeeBasePrice && <>IQD Base: {formatIQD(totalBaseValueIQD)}<br/></>}
                   IQD Net: {formatIQD(totalNetValueIQD)}
                 </td>
-                <td style={{ padding: '12px', fontWeight: '600', color: '#1f2937', borderRight: '1px solid #e5e7eb', ...nrtFontBoldStyle }}>
-                  {totalQuantity}
-                </td>
+
+                {/* Matches 5. Added Date */}
                 <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}></td>
+
+                {/* Matches 6. Expiry Date */}
+                <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}></td>
+
+                {/* Matches 7. Bought Bill # */}
+                <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}></td>
+
+                {/* Matches 8. Currency */}
+                <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}></td>
+
+                {/* Matches 9. Branch */}
+                <td style={{ padding: '12px', borderRight: '1px solid #e5e7eb' }}></td>
+
+                {/* Matches 10. Actions */}
                 <td style={{ padding: '12px', borderRight: 'none' }}></td>
               </tr>
             </tfoot>

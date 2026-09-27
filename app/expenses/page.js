@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { getExpenses, createExpense, deleteExpense, toFirestoreTimestamp } from "@/lib/data";
@@ -9,18 +9,16 @@ import * as XLSX from 'xlsx';
 import { 
   PlusCircle, 
   Trash2, 
-  Calendar, 
-  DollarSign, 
-  Tag, 
-  FileText, 
   Search, 
   Filter, 
-  Store, 
   X, 
-  Check, 
   TrendingDown,
   Edit,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Camera,
+  Image as ImageIcon,
+  Download,
+  Paperclip
 } from "lucide-react";
 
 const CATEGORIES = [
@@ -142,6 +140,7 @@ const ExcelFilterDropdown = ({
       if (columnKey === 'amountUSD') val = item.currency === "USD" ? item.amount : "";
       if (columnKey === 'amountIQD') val = item.currency === "IQD" ? item.amount : "";
       if (columnKey === 'createdByName') val = getDisplayNameOnly(item.createdByName || "Unknown");
+      if (columnKey === 'attachment') val = item.attachment ? "Yes" : "No";
       if (columnKey === 'note') val = item.note || "";
 
       if (val !== "") vals.add(String(val ?? ""));
@@ -376,8 +375,16 @@ export default function ExpensesPage() {
     category: "General",
     date: new Date().toISOString().split("T")[0],
     branch: user?.branch || "Slemany",
-    note: ""
+    note: "",
+    attachment: null
   });
+
+  // Full Screen Image Viewer Modal
+  const [fullScreenImage, setFullScreenImage] = useState(null);
+
+  // Hidden File & Camera Input Refs (Canvas Compression Approach)
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   // Sorting & Column Filters
   const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
@@ -431,7 +438,8 @@ export default function ExpensesPage() {
       category: "General",
       date: new Date().toISOString().split("T")[0],
       branch: user?.branch || "Slemany",
-      note: ""
+      note: "",
+      attachment: null
     });
     setShowModal(true);
     setError(null);
@@ -450,10 +458,63 @@ export default function ExpensesPage() {
       category: item.category || "General",
       date: dateFormatted,
       branch: item.branch || (user?.branch || "Slemany"),
-      note: item.note || ""
+      note: item.note || "",
+      attachment: item.attachment || null
     });
     setShowModal(true);
     setError(null);
+  };
+
+  // Canvas Image Compression (Converts image to lightweight Base64 string directly)
+  const handleFileUpload = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            let width = img.width;
+            let height = img.height;
+            const maxWidth = 800;
+            if (width > maxWidth) {
+              height = (maxWidth / width) * height;
+              width = maxWidth;
+            }
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedImage = canvas.toDataURL('image/jpeg', 0.85);
+            setForm(prev => ({ ...prev, attachment: compressedImage }));
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Please select a valid image file.');
+      }
+    }
+  };
+
+  const handleCameraCapture = () => {
+    if (cameraInputRef.current) {
+      cameraInputRef.current.click();
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const downloadImage = (imageData) => {
+    const link = document.createElement('a');
+    link.href = imageData;
+    link.download = `expense_receipt_${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleSubmit = async (e) => {
@@ -479,6 +540,7 @@ export default function ExpensesPage() {
           date: toFirestoreTimestamp(form.date),
           branch: isSuperAdmin ? form.branch : (user?.branch || "Slemany"),
           note: form.note ? form.note.trim() : "",
+          attachment: form.attachment || null,
           updatedAt: serverTimestamp(),
           updatedBy: user?.uid || "unknown"
         });
@@ -488,6 +550,7 @@ export default function ExpensesPage() {
           ...form,
           amount: parseFloat(form.amount),
           branch: isSuperAdmin ? form.branch : (user?.branch || "Slemany"),
+          attachment: form.attachment || null,
           createdBy: user?.uid || "unknown",
           createdByName: userDisplayName
         });
@@ -606,6 +669,9 @@ export default function ExpensesPage() {
       } else if (key === 'amountIQD') {
         valA = a.currency === 'IQD' ? Number(a.amount) || 0 : 0;
         valB = b.currency === 'IQD' ? Number(b.amount) || 0 : 0;
+      } else if (key === 'attachment') {
+        valA = a.attachment ? 1 : 0;
+        valB = b.attachment ? 1 : 0;
       } else if (key === 'createdByName') {
         valA = a.createdByName || ''; valB = b.createdByName || '';
       } else {
@@ -649,6 +715,7 @@ export default function ExpensesPage() {
         if (columnKey === 'branch') itemValue = item.branch;
         if (columnKey === 'amountUSD') itemValue = item.currency === 'USD' ? item.amount : "";
         if (columnKey === 'amountIQD') itemValue = item.currency === 'IQD' ? item.amount : "";
+        if (columnKey === 'attachment') itemValue = item.attachment ? "Yes" : "No";
         if (columnKey === 'createdByName') itemValue = getDisplayNameOnly(item.createdByName || "Unknown");
         if (columnKey === 'note') itemValue = item.note || "";
 
@@ -680,6 +747,7 @@ export default function ExpensesPage() {
           'Branch': item.branch,
           'Amount (USD)': item.currency === 'USD' ? item.amount : '-',
           'Amount (IQD)': item.currency === 'IQD' ? item.amount : '-',
+          'Has Attachment': item.attachment ? "Yes" : "No",
           'Note / Description': item.note || ""
         };
         if (isSuperAdmin) {
@@ -712,7 +780,7 @@ export default function ExpensesPage() {
     );
   }
 
-  const tableColSpan = isSuperAdmin ? 9 : 8;
+  const tableColSpan = isSuperAdmin ? 10 : 9;
 
   return (
     <div style={{ width: "100%", minHeight: "100vh", backgroundColor: "#f8fafc", padding: 0, margin: 0, ...nrtFontStyle, boxSizing: "border-box", overflowX: "hidden" }}>
@@ -811,7 +879,7 @@ export default function ExpensesPage() {
         {/* Expenses Table with Excel Filters */}
         <div style={{ backgroundColor: "white", borderRadius: 0, borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0", boxShadow: "none", width: "100%", margin: 0 }}>
           <div style={{ overflowX: "auto", minHeight: "60vh", maxHeight: "80vh", width: "100%" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "14px", minWidth: "1100px" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "14px", minWidth: "1200px" }}>
               <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
                 <tr style={{ backgroundColor: "#34495e", color: "white", borderBottom: "1px solid #475569" }}>
                   <TableHeader 
@@ -901,6 +969,21 @@ export default function ExpensesPage() {
                     handleUpdateColumnFilter={handleUpdateColumnFilter} 
                     clearColumnFilter={clearColumnFilter} 
                   />
+                  <TableHeader 
+                    title="Attachment" 
+                    columnKey="attachment" 
+                    type="string"
+                    colWidth="120px" 
+                    sortConfig={sortConfig} 
+                    handleSort={handleSort} 
+                    getSortIcon={getSortIcon} 
+                    expensesList={expenses} 
+                    columnFilters={columnFilters} 
+                    activeFilterDropdown={activeFilterDropdown} 
+                    setActiveFilterDropdown={setActiveFilterDropdown} 
+                    handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                    clearColumnFilter={clearColumnFilter} 
+                  />
                   {isSuperAdmin && (
                     <TableHeader 
                       title="Created By" 
@@ -920,7 +1003,7 @@ export default function ExpensesPage() {
                   <TableHeader 
                     title="Note / Description" 
                     columnKey="note" 
-                    colWidth="280px" 
+                    colWidth="240px" 
                     sortConfig={sortConfig} 
                     handleSort={handleSort} 
                     getSortIcon={getSortIcon} 
@@ -968,12 +1051,38 @@ export default function ExpensesPage() {
                         <td style={{ padding: "16px", textAlign: "right", fontWeight: "800", color: !isUSD ? "#d97706" : "#94a3b8", fontSize: "15px" }}>
                           {!isUSD ? formatIQD(item.amount) : "—"}
                         </td>
+                        <td style={{ padding: "16px", textAlign: "center" }}>
+                          {item.attachment ? (
+                            <button
+                              type="button"
+                              onClick={() => setFullScreenImage(item.attachment)}
+                              style={{
+                                background: "#dcfce7",
+                                border: "1px solid #bbf7d0",
+                                color: "#166534",
+                                borderRadius: "6px",
+                                padding: "4px 8px",
+                                cursor: "pointer",
+                                fontSize: "12px",
+                                fontWeight: "600",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "4px"
+                              }}
+                              title="Click to view full image"
+                            >
+                              <Paperclip size={13} /> View
+                            </button>
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontSize: "12px" }}>—</span>
+                          )}
+                        </td>
                         {isSuperAdmin && (
                           <td style={{ padding: "16px", color: "#475569", fontWeight: "600", fontSize: "13px" }}>
                             {getDisplayNameOnly(item.createdByName || "Unknown")}
                           </td>
                         )}
-                        <td style={{ padding: "16px", color: "#64748b", maxWidth: "260px", wordBreak: "break-word", fontSize: "13px" }}>
+                        <td style={{ padding: "16px", color: "#64748b", maxWidth: "240px", wordBreak: "break-word", fontSize: "13px" }}>
                           {item.note || "—"}
                         </td>
                         <td style={{ padding: "16px", textAlign: "center" }}>
@@ -1004,8 +1113,8 @@ export default function ExpensesPage() {
         {/* Add / Edit Expense Modal */}
         {showModal && (
           <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}>
-            <div style={{ backgroundColor: "white", borderRadius: "12px", width: "100%", maxWidth: "520px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", overflow: "hidden", ...nrtFontStyle }}>
-              <div style={{ background: "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)", padding: "16px 20px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ backgroundColor: "white", borderRadius: "12px", width: "100%", maxWidth: "540px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 40px rgba(0,0,0,0.2)", ...nrtFontStyle }}>
+              <div style={{ background: "linear-gradient(135deg, #2563eb 0%, #1e40af 100%)", padding: "16px 20px", color: "white", display: "flex", justifyContent: "space-between", alignItems: "center", position: "sticky", top: 0, zIndex: 20 }}>
                 <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "700", ...nrtFontBoldStyle }}>
                   {isEditing ? "Edit Expense Record" : "Insert New Expense"}
                 </h3>
@@ -1089,6 +1198,70 @@ export default function ExpensesPage() {
                   />
                 </div>
 
+                {/* Attachment Section (Canvas compression matching BuyingList) */}
+                <div style={{ marginBottom: "16px" }}>
+                  <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "6px" }}>
+                    Bill / Receipt Picture
+                  </label>
+                  
+                  {form.attachment ? (
+                    <div style={{ border: "2px solid #e2e8f0", borderRadius: "8px", padding: "10px", backgroundColor: "#f8fafc", textAlign: "center" }}>
+                      <img 
+                        src={form.attachment} 
+                        alt="Receipt Preview" 
+                        style={{ maxHeight: "180px", maxWidth: "100%", objectFit: "contain", borderRadius: "6px", cursor: "zoom-in", margin: "0 auto", display: "block" }} 
+                        onClick={() => setFullScreenImage(form.attachment)}
+                        title="Click to zoom in"
+                      />
+                      <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "10px" }}>
+                        <button
+                          type="button"
+                          onClick={() => setForm(prev => ({ ...prev, attachment: null }))}
+                          style={{ padding: "6px 12px", backgroundColor: "#ef4444", color: "white", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "600", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                        >
+                          <X size={14} /> Remove Picture
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Hidden File Inputs */}
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        style={{ display: "none" }} 
+                      />
+                      <input 
+                        type="file" 
+                        ref={cameraInputRef} 
+                        onChange={handleFileUpload} 
+                        accept="image/*" 
+                        capture="environment" 
+                        style={{ display: "none" }} 
+                      />
+
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                        <button
+                          type="button"
+                          onClick={triggerFileInput}
+                          style={{ padding: "10px", backgroundColor: "#f1f5f9", border: "1px dashed #cbd5e1", borderRadius: "8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", color: "#475569", fontWeight: "600", fontSize: "13px" }}
+                        >
+                          <ImageIcon size={20} color="#64748b" /> Choose Image File
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCameraCapture}
+                          style={{ padding: "10px", backgroundColor: "#10b981", border: "none", borderRadius: "8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", color: "white", fontWeight: "600", fontSize: "13px" }}
+                        >
+                          <Camera size={20} color="white" /> Take Photo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ marginBottom: "20px" }}>
                   <label style={{ display: "block", fontSize: "13px", fontWeight: "600", color: "#334155", marginBottom: "4px" }}>Note / Description</label>
                   <textarea
@@ -1117,6 +1290,36 @@ export default function ExpensesPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Full Screen Image Modal */}
+        {fullScreenImage && (
+          <div 
+            onClick={(e) => { if (e.target === e.currentTarget) setFullScreenImage(null); }}
+            style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0, 0, 0, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100001, padding: "1rem" }}
+          >
+            <div style={{ position: "relative", maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <img 
+                src={fullScreenImage} 
+                alt="Full screen attachment" 
+                style={{ maxWidth: "90vw", maxHeight: "75vh", objectFit: "contain", borderRadius: "8px" }} 
+              />
+              <div style={{ display: "flex", gap: "0.75rem", marginTop: "1rem" }}>
+                <button 
+                  onClick={() => setFullScreenImage(null)} 
+                  style={{ padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem", backgroundColor: "#ef4444", color: "white" }}
+                >
+                  <X size={18} /> Close
+                </button>
+                <button 
+                  onClick={() => downloadImage(fullScreenImage)} 
+                  style={{ padding: "0.5rem 1rem", border: "none", borderRadius: "8px", fontSize: "0.85rem", fontWeight: "600", cursor: "pointer", display: "flex", alignItems: "center", gap: "0.5rem", backgroundColor: "#2563eb", color: "white" }}
+                >
+                  <Download size={18} /> Save to Gallery
+                </button>
+              </div>
             </div>
           </div>
         )}
