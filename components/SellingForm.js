@@ -185,16 +185,30 @@ const consolidateBillItems = (items, billCurrency) => {
   const grouped = {};
 
   items.forEach((item) => {
-    const itemPrice = parseFloat(item.price) || 0;
-    const key = `${item.barcode}_${itemPrice}`;
+    let effectivePrice = 0;
+    if (billCurrency === "IQD") {
+      effectivePrice = parseFloat(item.outPriceIQD ?? item.price ?? 0);
+    } else {
+      effectivePrice = parseFloat(item.outPriceUSD ?? item.price ?? 0);
+    }
+
+    const priceKey = billCurrency === "IQD" ? Math.round(effectivePrice) : effectivePrice.toFixed(2);
+    const key = `${String(item.barcode).trim()}_${priceKey}`;
+    const qty = parseInt(item.quantity, 10) || 0;
+
+    if (qty <= 0) return;
+
     if (!grouped[key]) {
       grouped[key] = {
         ...item,
-        quantity: parseInt(item.quantity) || 0,
-        expireDates: [formatExpireDate(item.expireDate)].filter(d => d !== "N/A"),
+        price: effectivePrice,
+        quantity: qty,
+        outPriceUSD: billCurrency === "USD" ? effectivePrice : (item.outPriceUSD || 0),
+        outPriceIQD: billCurrency === "IQD" ? effectivePrice : (item.outPriceIQD || 0),
+        expireDates: [formatExpireDate(item.expireDate)].filter((d) => d !== "N/A"),
       };
     } else {
-      grouped[key].quantity += (parseInt(item.quantity) || 0);
+      grouped[key].quantity += qty;
       const expStr = formatExpireDate(item.expireDate);
       if (expStr !== "N/A" && !grouped[key].expireDates.includes(expStr)) {
         grouped[key].expireDates.push(expStr);
@@ -202,9 +216,9 @@ const consolidateBillItems = (items, billCurrency) => {
     }
   });
 
-  return Object.values(grouped).map(item => ({
+  return Object.values(grouped).map((item) => ({
     ...item,
-    expireDateDisplay: item.expireDates.length > 0 ? item.expireDates.join(", ") : "N/A"
+    expireDateDisplay: item.expireDates.length > 0 ? item.expireDates.join(", ") : "N/A",
   }));
 };
 
@@ -222,13 +236,12 @@ const calculatePharmacyFinancialSummary = (
   let pharmacyHasUSD = false;
   let pharmacyHasIQD = false;
 
-  // 1. Calculate Unpaid Sales Bills
   allBills.forEach((bill) => {
     if (bill.pharmacyId !== pharmacyId) return;
     
     const billStatus = String(bill.paymentStatus || bill.status || "").toLowerCase();
     const isPaid = bill.isPaid === true || billStatus === "paid" || billStatus === "completed" || billStatus === "processed";
-    if (isPaid) return; // Skip paid sales bills
+    if (isPaid) return;
 
     const billCurrency = bill.currency || "USD";
 
@@ -245,7 +258,6 @@ const calculatePharmacyFinancialSummary = (
     });
   });
 
-  // Include current bill items if previewing
   if (isPreview && currentBillItems.length > 0) {
     currentBillItems.forEach((item) => {
       const price = item.price || 0;
@@ -267,7 +279,6 @@ const calculatePharmacyFinancialSummary = (
     });
   }
 
-  // 2. Calculate Unpaid Return Bills Only
   let totalReturnBillsUSD = 0;
   let totalReturnBillsIQD = 0;
 
@@ -1745,7 +1756,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         if (billItem.billNumber === bill.billNumber) continue;
         const foundItem = billItem.items?.find(i => 
           i.barcode === item.barcode && 
-          i.originalCurrency === originalCurrency &&
+          i.originalCurrency === originalCurrency && 
           i.branch === branch
         );
         if (foundItem) {
@@ -1923,7 +1934,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
         totalAmount: billCurrency === "IQD" ? calculatedTotalIQD : calculatedTotalUSD,
       });
 
-      // Defensive handling: check if updateSoldBill returned boolean `true` or an object
       const safeBillObj = (typeof updatedBillResult === 'object' && updatedBillResult !== null)
         ? updatedBillResult
         : {
@@ -2478,8 +2488,6 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     };
 
     const billCurr = bill.currency || "USD";
-
-    // 🌟 Consolidate duplicate rows of the same item from different store batches into a single clean line
     const consolidatedItems = consolidateBillItems(bill.items, billCurr);
 
     const currentBillTotalUSD = billCurr === "USD" ? (bill.items?.reduce((sum, item) => sum + ((item.outPriceUSD || item.price || 0) * item.quantity), 0) || 0) : 0;
@@ -2868,28 +2876,26 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     const timer = setTimeout(async () => {
       if (searchQuery.trim().length > 0) {
         try {
-          let results = [];
           const searchTerm = searchQuery.trim();
-          
           const freshStoreItems = await getStoreItems(true);
           setStoreItems(freshStoreItems);
-          
+
           const searchResults = await searchInitializedItems(searchTerm, "both");
-          results = searchResults;
-          
+
           const storeSearchResults = freshStoreItems.filter((item) => {
             if (item.quantity <= 0) return false;
             const nameMatch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
             const barcodeMatch = item.barcode.toLowerCase().includes(searchTerm.toLowerCase());
             return nameMatch || barcodeMatch;
           });
-          
-          const allResults = [...results, ...storeSearchResults];
-          
-          const uniqueResults = allResults.filter((item, index, self) => 
-            index === self.findIndex((i) => i.barcode === item.barcode && i.branch === item.branch)
+
+          const allResults = [...searchResults, ...storeSearchResults];
+
+          // DEDUPLICATE BY BARCODE: Each product card shows ONCE with all its batches
+          const uniqueResults = allResults.filter(
+            (item, index, self) => index === self.findIndex((i) => i.barcode === item.barcode)
           );
-          
+
           setSearchResults(uniqueResults);
         } catch (err) {
           console.error("Search error:", err);
@@ -2898,10 +2904,16 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
           const searchTerm = searchQuery.trim().toLowerCase();
           const filtered = freshStoreItems.filter((item) => {
             if (item.quantity <= 0) return false;
-            return item.name.toLowerCase().includes(searchTerm) || 
-                   item.barcode.toLowerCase().includes(searchTerm);
+            return (
+              item.name.toLowerCase().includes(searchTerm) ||
+              item.barcode.toLowerCase().includes(searchTerm)
+            );
           });
-          setSearchResults(filtered);
+
+          const uniqueFallback = filtered.filter(
+            (item, index, self) => index === self.findIndex((i) => i.barcode === item.barcode)
+          );
+          setSearchResults(uniqueFallback);
         }
       } else {
         setSearchResults([]);
@@ -2910,19 +2922,19 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(async () => {
       if (pharmacySearch.length > 0) {
         try {
           const results = await searchPharmacies(pharmacySearch);
           setPharmacySuggestions(results);
-          setShowPharmacyList(results.length > 0); // <-- Fix here
+          setShowPharmacyList(results.length > 0);
         } catch (err) {
           console.error("Error searching pharmacies:", err);
         }
       } else {
         setPharmacySuggestions([]);
-        setShowPharmacyList(false); // <-- Fix here
+        setShowPharmacyList(false);
       }
     }, 300);
     return () => clearTimeout(timer);
@@ -3332,7 +3344,7 @@ useEffect(() => {
                                                  batch.branch === "Kirkuk" ? "#fffbeb" :
                                                  batch.branch === "Kalar" ? "#f5f3ff" :
                                                  "transparent",
-                                padding: "6px 10px",
+                                padding: "6px 10px", 
                                 fontSize: "15px"
                               }}>
                                 {batch.branch || "N/A"}
@@ -3933,7 +3945,7 @@ useEffect(() => {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {bill.items?.map((item, idx) => {
+                                        {consolidateBillItems(bill.items, bill.currency || "USD").map((item, idx) => {
                                           const cCurrency = bill.currency || "USD";
                                           const price = cCurrency === "IQD" ? (item.outPriceIQD || item.price || 0) : (item.outPriceUSD || item.price || 0);
                                           const priceDisplay = cCurrency === "IQD"
@@ -3959,7 +3971,7 @@ useEffect(() => {
                                                   {item.name}
                                                 </div>
                                                 <div style={{ fontSize: "15px", color: "#7f8c8d" }}>
-                                                  Exp: {formatExpireDate(item.expireDate)}
+                                                  Exp: {item.expireDateDisplay || formatExpireDate(item.expireDate)}
                                                 </div>
                                               </td>
                                               <td style={{ ...styles.enhancedTableCell, textAlign: "center", fontFamily: "'NRT-Reg', monospace" }}>
