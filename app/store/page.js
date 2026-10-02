@@ -411,21 +411,24 @@ export default function StorePage() {
   const [columnFilters, setColumnFilters] = useState({});
   const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
 
-  const canSeeBasePrice = user?.role === "superAdmin";
+  // --- ROBUST SUPER ADMIN CHECK (Supports case variations: superAdmin, superadmin, super_admin) ---
+  const userRole = (user?.role || "").trim().toLowerCase();
+  const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+  const canSeeBasePrice = isSuperAdmin;
 
   useEffect(() => {
     if (!user) return;
 
     if (!branchFilterInitialized) {
-      setBranchFilter(user.role === "superAdmin" ? "All Stores" : (user.branch || "Slemany"));
+      setBranchFilter(isSuperAdmin ? "All Stores" : (user.branch || "Slemany"));
       setBranchFilterInitialized(true);
       return;
     }
 
-    if (user.role !== "superAdmin") {
+    if (!isSuperAdmin) {
       setBranchFilter(user.branch || "Slemany");
     }
-  }, [user, branchFilterInitialized]);
+  }, [user, branchFilterInitialized, isSuperAdmin]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -456,16 +459,16 @@ export default function StorePage() {
       try {
         let q;
 
-        if (user.role === "superAdmin" && branchFilter !== "All Stores") {
+        if (isSuperAdmin && branchFilter !== "All Stores") {
           q = query(
             collection(db, "storeItems"),
             where("branch", "==", branchFilter),
             orderBy("createdAt", "desc")
           );
-        } else if (user.role !== "superAdmin") {
+        } else if (!isSuperAdmin) {
           q = query(
             collection(db, "storeItems"),
-            where("branch", "==", user.branch),
+            where("branch", "==", user.branch || "Slemany"),
             orderBy("createdAt", "desc")
           );
         } else {
@@ -494,16 +497,16 @@ export default function StorePage() {
               console.warn("Composite index missing, using fallback query");
 
               let fallbackQuery;
-              if (user.role === "superAdmin" && branchFilter !== "All Stores") {
+              if (isSuperAdmin && branchFilter !== "All Stores") {
                 fallbackQuery = query(
                   collection(db, "storeItems"),
                   where("branch", "==", branchFilter),
                   orderBy("createdAt", "desc")
                 );
-              } else if (user.role !== "superAdmin") {
+              } else if (!isSuperAdmin) {
                 fallbackQuery = query(
                   collection(db, "storeItems"),
-                  where("branch", "==", user.branch),
+                  where("branch", "==", user.branch || "Slemany"),
                   orderBy("createdAt", "desc")
                 );
               } else {
@@ -616,7 +619,7 @@ export default function StorePage() {
         unsubscribe();
       }
     };
-  }, [user, router, branchFilter, branchFilterInitialized]);
+  }, [user, router, branchFilter, branchFilterInitialized, isSuperAdmin]);
 
   const sortItems = useCallback((items) => {
     return [...items].sort((a, b) => {
@@ -904,6 +907,7 @@ export default function StorePage() {
     );
   }
 
+  // Barcode, Name, Qty, [Base USD], Net USD, Out USD, [Base IQD], Net IQD, Out IQD, Added Date, Expiry Date, Bought Bill, Currency, Branch, Actions
   const columnsCount = (canSeeBasePrice ? 14 : 12) + 1;
 
   return (
@@ -974,7 +978,7 @@ export default function StorePage() {
             </div>
           )}
 
-          {user?.role === "superAdmin" && (
+          {isSuperAdmin && (
             <div style={{ marginBottom: '1rem' }}>
               <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', ...nrtFontStyle }}>Branch:</label>
               <select
@@ -1054,13 +1058,13 @@ export default function StorePage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div style={{ fontSize: '14px', color: '#6b7280', ...nrtFontStyle }}>
               Showing {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
-              {user.role === "superAdmin" && branchFilter !== "All Stores" && ` in ${branchFilter}`}
-              {user.role === "superAdmin" && branchFilter === "All Stores" && ` across all branches`}
-              {user.role !== "superAdmin" && ` in ${user.branch}`}
+              {isSuperAdmin && branchFilter !== "All Stores" && ` in ${branchFilter}`}
+              {isSuperAdmin && branchFilter === "All Stores" && ` across all branches`}
+              {!isSuperAdmin && ` in ${user.branch || "Slemany"}`}
             </div>
             <div style={{ fontSize: '14px', fontWeight: '600', display: 'flex', gap: '1rem', ...nrtFontBoldStyle }}>
-              <div>Total USD Value: Net: {formatUSD(totalNetValueUSD)}</div>
-              <div>Total IQD Value: Net: {formatIQD(totalNetValueIQD)}</div>
+              <div>Total USD Value: {canSeeBasePrice && <>Base: {formatUSD(totalBaseValueUSD)} | </>}Net: {formatUSD(totalNetValueUSD)}</div>
+              <div>Total IQD Value: {canSeeBasePrice && <>Base: {formatIQD(totalBaseValueIQD)} | </>}Net: {formatIQD(totalNetValueIQD)}</div>
             </div>
           </div>
         </div>

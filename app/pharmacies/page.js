@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import * as XLSX from 'xlsx';
 import {
   Search,
@@ -15,7 +15,8 @@ import {
   MapPin,
   X,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Filter
 } from "lucide-react";
 import {
   getPharmacies,
@@ -24,7 +25,28 @@ import {
   deletePharmacy
 } from "@/lib/data";
 
-// FIX: Define InputWrapper OUTSIDE the main component so it doesn't unmount on every keystroke
+// --- Advanced Filter Operators ---
+const STRING_OPERATORS = [
+  { value: "contains", label: "لەخۆدەگرێت (Contains)" },
+  { value: "equals", label: "یەکسانە بە (Equals)" },
+  { value: "startsWith", label: "دەستپێدەکات بە (Starts with)" },
+  { value: "endsWith", label: "کۆتایی دێت بە (Ends with)" },
+  { value: "isEmpty", label: "بەتاڵە (Is empty)" },
+  { value: "isNotEmpty", label: "بەتاڵ نییە (Is not empty)" }
+];
+
+const NUMBER_OPERATORS = [
+  { value: "equals", label: "یەکسانە بە (Equals)" },
+  { value: "notEquals", label: "یەکسان نییە (Not equals)" },
+  { value: "greaterThan", label: "> گەورەترە لە" },
+  { value: "greaterThanOrEqual", label: ">= گەورەتر یان یەکسانە" },
+  { value: "lessThan", label: "< بچووکترە لە" },
+  { value: "lessThanOrEqual", label: "<= بچووکتر یان یەکسانە" },
+  { value: "isEmpty", label: "بەتاڵە (Is empty)" },
+  { value: "isNotEmpty", label: "بەتاڵ نییە (Is not empty)" }
+];
+
+// Helper wrapper for input fields
 const InputWrapper = ({ label, icon: Icon, children, errorMsg }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
     <label style={{ 
@@ -33,7 +55,7 @@ const InputWrapper = ({ label, icon: Icon, children, errorMsg }) => (
       display: "flex", 
       alignItems: "center", 
       gap: "0.4rem",
-      fontFamily: "var(--font-nrt-bd)" // NRT Bold font
+      fontFamily: "var(--font-nrt-bd)"
     }}>
       <Icon size={16} color="#64748b" /> {label}
     </label>
@@ -46,9 +68,220 @@ const InputWrapper = ({ label, icon: Icon, children, errorMsg }) => (
   </div>
 );
 
+// --- Excel Filter Dropdown Component ---
+const ExcelFilterDropdown = ({ 
+  columnKey, 
+  type = "string",
+  alignLeft = false,
+  pharmacies,
+  columnFilters,
+  activeFilterDropdown,
+  setActiveFilterDropdown,
+  handleUpdateColumnFilter,
+  clearColumnFilter
+}) => {
+  const [search, setSearch] = useState("");
+  const isOpen = activeFilterDropdown === columnKey;
+  const operators = type === "number" ? NUMBER_OPERATORS : STRING_OPERATORS;
+
+  const filterState = columnFilters[columnKey] || { operator: operators[0].value, textValue: '', selectedValues: [] };
+  const { operator, textValue, selectedValues } = filterState;
+
+  const uniqueValues = useMemo(() => {
+    const vals = new Set();
+    pharmacies.forEach(item => {
+      let val = "";
+      if (columnKey === 'name') val = item.name;
+      if (columnKey === 'code') val = item.code;
+      if (columnKey === 'phone') val = item.phone || '';
+      if (columnKey === 'phone2') val = item.phone2 || '';
+      if (columnKey === 'city') val = item.city || '';
+
+      vals.add(String(val ?? ""));
+    });
+    return Array.from(vals).sort();
+  }, [pharmacies, columnKey]);
+
+  const displayValues = uniqueValues.filter(v => v.toLowerCase().includes(search.toLowerCase()));
+  const isActive = !!(textValue || (selectedValues && selectedValues.length > 0) || ['isEmpty', 'isNotEmpty'].includes(operator));
+
+  const handleCheckbox = (val, checked) => {
+    const current = selectedValues || [];
+    const updated = checked ? [...current, val] : current.filter(v => v !== val);
+    handleUpdateColumnFilter(columnKey, { selectedValues: updated });
+  };
+
+  const handleSelectAll = (checked) => {
+    handleUpdateColumnFilter(columnKey, { selectedValues: checked ? [...uniqueValues] : [] });
+  };
+
+  return (
+    <div className="filter-dropdown-container" style={{ position: "relative", display: "inline-block" }}>
+      <div
+        onClick={(e) => { 
+          e.stopPropagation(); 
+          setActiveFilterDropdown(isOpen ? null : columnKey); 
+        }}
+        style={{ 
+          cursor: "pointer", 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center", 
+          padding: "0.25rem", 
+          borderRadius: "0.375rem", 
+          background: isActive ? "#dbeafe" : "transparent", 
+          color: isActive ? "#2563eb" : "#94a3b8" 
+        }}
+      >
+        <Filter size={14} />
+      </div>
+
+      {isOpen && (
+        <div 
+          style={{ 
+            position: "absolute", 
+            top: "100%", 
+            ...(alignLeft ? { left: 0, right: "auto" } : { right: 0, left: "auto" }),
+            marginTop: "0.5rem", 
+            background: "white", 
+            border: "1px solid #cbd5e1", 
+            borderRadius: "0.5rem", 
+            boxShadow: "0 10px 25px -5px rgba(0,0,0,0.2)", 
+            zIndex: 9999, 
+            width: "270px", 
+            maxWidth: "85vw", 
+            display: "flex", 
+            flexDirection: "column", 
+            cursor: "default", 
+            overflow: "hidden", 
+            color: "#2c3e50",
+            direction: "rtl",
+            textAlign: "right"
+          }} 
+          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <div style={{ padding: "0.75rem", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", boxSizing: "border-box", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <p style={{ margin: "0", fontSize: "0.75rem", fontWeight: "600", color: "#475569", fontFamily: "var(--font-nrt-bd)" }}>مەرج (Condition)</p>
+            <select
+              value={operator || operators[0].value}
+              onChange={(e) => handleUpdateColumnFilter(columnKey, { operator: e.target.value })}
+              style={{ width: "100%", boxSizing: "border-box", padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", background: "white", fontFamily: "var(--font-nrt-reg)" }}
+            >
+              {operators.map(op => <option key={op.value} value={op.value}>{op.label}</option>)}
+            </select>
+            {!['isEmpty', 'isNotEmpty'].includes(operator) && (
+              <input
+                type={type === "number" ? "number" : "text"}
+                placeholder="نرخ بنووسە..."
+                value={textValue || ""}
+                onChange={(e) => handleUpdateColumnFilter(columnKey, { textValue: e.target.value })}
+                onKeyDown={(e) => e.stopPropagation()}
+                style={{ width: "100%", boxSizing: "border-box", padding: "0.4rem", borderRadius: "0.375rem", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", fontFamily: "var(--font-nrt-reg)" }}
+              />
+            )}
+          </div>
+
+          <div style={{ padding: "0.75rem", display: "flex", flexDirection: "column", flex: 1, boxSizing: "border-box" }}>
+            <p style={{ margin: "0 0 0.5rem 0", fontSize: "0.75rem", fontWeight: "600", color: "#475569", fontFamily: "var(--font-nrt-bd)" }}>نرخەکان (Values)</p>
+            <div style={{ display: "flex", alignItems: "center", border: "1px solid #cbd5e1", borderRadius: "0.375rem", padding: "0.25rem 0.5rem", marginBottom: "0.5rem", boxSizing: "border-box" }}>
+              <Search size={14} color="#94a3b8" />
+              <input
+                type="text"
+                placeholder="گەڕان لە نرخەکان..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                style={{ border: "none", outline: "none", width: "100%", boxSizing: "border-box", fontSize: "0.85rem", marginRight: "0.5rem", fontFamily: "var(--font-nrt-reg)" }}
+              />
+            </div>
+
+            <div style={{ maxHeight: "180px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", padding: "0.25rem", cursor: "pointer", fontWeight: "500", borderBottom: "1px solid #f1f5f9", fontFamily: "var(--font-nrt-bd)" }}>
+                <input
+                  type="checkbox"
+                  checked={selectedValues.length === uniqueValues.length && uniqueValues.length > 0}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  style={{ cursor: "pointer", width: "1rem", height: "1rem", accentColor: "#2563eb" }}
+                />
+                <span>(دیاریکردنی هەمووی)</span>
+              </label>
+              {displayValues.map(val => (
+                <label key={val} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", padding: "0.25rem", cursor: "pointer", color: "#1e293b", fontFamily: "var(--font-nrt-reg)" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedValues.includes(val)}
+                    onChange={(e) => handleCheckbox(val, e.target.checked)}
+                    style={{ cursor: "pointer", width: "1rem", height: "1rem", accentColor: "#2563eb" }}
+                  />
+                  <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{val === "" ? "(بەتاڵ)" : val}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid #e2e8f0", padding: "0.75rem", backgroundColor: "#f8fafc", boxSizing: "border-box" }}>
+            <button onClick={() => clearColumnFilter(columnKey)} style={{ background: "transparent", border: "none", color: "#ef4444", fontSize: "0.85rem", cursor: "pointer", fontWeight: 600, fontFamily: "var(--font-nrt-bd)" }}>پاککردنەوە</button>
+            <button onClick={() => setActiveFilterDropdown(null)} style={{ background: "#2563eb", border: "none", color: "white", fontSize: "0.85rem", padding: "0.4rem 1rem", borderRadius: "0.375rem", cursor: "pointer", fontWeight: 600, fontFamily: "var(--font-nrt-bd)" }}>جێبەجێکردن</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Table Header with Sort & Excel Filter Dropdown ---
+const TableHeader = ({ 
+  title, 
+  columnKey, 
+  type = "string", 
+  colWidth,
+  alignLeft = false,
+  sortConfig,
+  handleSort,
+  pharmacies,
+  columnFilters,
+  activeFilterDropdown,
+  setActiveFilterDropdown,
+  handleUpdateColumnFilter,
+  clearColumnFilter
+}) => {
+  const isActive = activeFilterDropdown === columnKey;
+  return (
+    <th style={{
+      backgroundColor: "#34495e", color: "white", padding: "12px 14px",
+      textAlign: "right", fontSize: "14px", fontFamily: "var(--font-nrt-bd)",
+      whiteSpace: "nowrap", borderLeft: "1px solid #576574",
+      width: colWidth || "auto",
+      minWidth: colWidth || "auto",
+      position: "relative",
+      zIndex: isActive ? 9999 : 1
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+        <div onClick={() => handleSort(columnKey)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", flex: 1, userSelect: "none" }}>
+          {title}
+          <span style={{ fontSize: "11px", color: "#bdc3c7" }}>
+            {sortConfig.key === columnKey ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕"}
+          </span>
+        </div>
+        <ExcelFilterDropdown 
+          columnKey={columnKey} 
+          type={type} 
+          alignLeft={alignLeft}
+          pharmacies={pharmacies}
+          columnFilters={columnFilters}
+          activeFilterDropdown={activeFilterDropdown}
+          setActiveFilterDropdown={setActiveFilterDropdown}
+          handleUpdateColumnFilter={handleUpdateColumnFilter}
+          clearColumnFilter={clearColumnFilter}
+        />
+      </div>
+    </th>
+  );
+};
+
 export default function PharmaciesPage() {
   const [pharmacies, setPharmacies] = useState([]);
-  const [filteredPharmacies, setFilteredPharmacies] = useState([]);
   const [editingPharmacy, setEditingPharmacy] = useState(null);
   
   const [newPharmacy, setNewPharmacy] = useState({
@@ -64,16 +297,20 @@ export default function PharmaciesPage() {
   const [codeError, setCodeError] = useState("");
   const [refreshTrigger, setRefreshTrigger] = useState(false);
   
+  // Search query inputs
   const [searchQuery, setSearchQuery] = useState({
     name: "",
     code: "",
     city: ""
   });
   
+  // Sorting & Header Column Filter states
   const [sortConfig, setSortConfig] = useState({
     key: "code",
     direction: "desc"
   });
+  const [columnFilters, setColumnFilters] = useState({});
+  const [activeFilterDropdown, setActiveFilterDropdown] = useState(null);
 
   const cities = [
     "سلێمانی",
@@ -114,7 +351,6 @@ export default function PharmaciesPage() {
         setIsLoading(true);
         const data = await getPharmacies();
         setPharmacies(data);
-        setFilteredPharmacies(data);
         
         // Auto-assign code if we are not editing
         if (!editingPharmacy) {
@@ -129,18 +365,100 @@ export default function PharmaciesPage() {
     fetchPharmacies();
   }, [refreshTrigger]);
 
-  // Master Filter & Sort Effect
+  // Click outside listener for dropdowns
   useEffect(() => {
-    let filtered = pharmacies.filter(pharmacy => {
-      return (
-        (pharmacy.name || "").toLowerCase().includes(searchQuery.name.toLowerCase()) &&
-        (pharmacy.code || "").toLowerCase().includes(searchQuery.code.toLowerCase()) &&
-        (pharmacy.city || "").toLowerCase().includes(searchQuery.city.toLowerCase())
-      );
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.filter-dropdown-container')) {
+        setActiveFilterDropdown(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  const handleUpdateColumnFilter = useCallback((columnKey, updates) => {
+    setColumnFilters(prev => {
+      const current = prev[columnKey] || { operator: '', textValue: '', selectedValues: [] };
+      const next = { ...current, ...updates };
+      if (!next.operator && !next.textValue && (!next.selectedValues || next.selectedValues.length === 0)) {
+        const newFilters = { ...prev };
+        delete newFilters[columnKey];
+        return newFilters;
+      }
+      return { ...prev, [columnKey]: next };
+    });
+  }, []);
+
+  const clearColumnFilter = useCallback((columnKey) => {
+    setColumnFilters(prev => {
+      const next = { ...prev };
+      delete next[columnKey];
+      return next;
+    });
+  }, []);
+
+  const evaluateFilter = (itemValue, filterData, type = "string") => {
+    if (!filterData) return true;
+    const { operator, textValue, selectedValues } = filterData;
+
+    if (selectedValues && selectedValues.length > 0) {
+      if (!selectedValues.includes(String(itemValue))) return false;
+    }
+
+    if (operator && (textValue !== "" || ['isEmpty', 'isNotEmpty'].includes(operator))) {
+      const valStr = String(itemValue || '').toLowerCase();
+      const searchStr = String(textValue).toLowerCase();
+      const valNum = Number(itemValue);
+      const searchNum = Number(textValue);
+
+      switch (operator) {
+        case 'contains': return valStr.includes(searchStr);
+        case 'equals': return type === 'number' ? valNum === searchNum : valStr === searchStr;
+        case 'notEquals': return type === 'number' ? valNum !== searchNum : valStr !== searchStr;
+        case 'startsWith': return valStr.startsWith(searchStr);
+        case 'endsWith': return valStr.endsWith(searchStr);
+        case 'greaterThan': return valNum > searchNum;
+        case 'greaterThanOrEqual': return valNum >= searchNum;
+        case 'lessThan': return valNum < searchNum;
+        case 'lessThanOrEqual': return valNum <= searchNum;
+        case 'isEmpty': return !itemValue || itemValue === "N/A" || itemValue === "-" || itemValue === "---";
+        case 'isNotEmpty': return !!itemValue && itemValue !== "N/A" && itemValue !== "-" && itemValue !== "---";
+        default: return true;
+      }
+    }
+    return true;
+  };
+
+  // Master Filter & Sort Memoization
+  const filteredPharmacies = useMemo(() => {
+    let result = pharmacies.filter(pharmacy => {
+      const matchesName = !searchQuery.name || (pharmacy.name || "").toLowerCase().includes(searchQuery.name.toLowerCase());
+      const matchesCode = !searchQuery.code || (pharmacy.code || "").toString().toLowerCase().includes(searchQuery.code.toLowerCase());
+      const matchesCity = !searchQuery.city || (pharmacy.city || "").toLowerCase().includes(searchQuery.city.toLowerCase());
+
+      if (!(matchesName && matchesCode && matchesCity)) return false;
+
+      for (const [columnKey, filterData] of Object.entries(columnFilters)) {
+        let itemValue = "";
+        if (columnKey === 'name') itemValue = pharmacy.name;
+        if (columnKey === 'code') itemValue = pharmacy.code;
+        if (columnKey === 'phone') itemValue = pharmacy.phone || '';
+        if (columnKey === 'phone2') itemValue = pharmacy.phone2 || '';
+        if (columnKey === 'city') itemValue = pharmacy.city || '';
+
+        const isNum = columnKey === 'code';
+        if (!evaluateFilter(itemValue, filterData, isNum ? "number" : "string")) return false;
+      }
+
+      return true;
     });
 
     if (sortConfig.key) {
-      filtered.sort((a, b) => {
+      result.sort((a, b) => {
         let aValue = a[sortConfig.key] || "";
         let bValue = b[sortConfig.key] || "";
         
@@ -164,8 +482,8 @@ export default function PharmaciesPage() {
       });
     }
 
-    setFilteredPharmacies(filtered);
-  }, [searchQuery, pharmacies, sortConfig]);
+    return result;
+  }, [pharmacies, searchQuery, columnFilters, sortConfig]);
 
   // Validation Helper
   const checkDuplicateCode = (code, currentId = null) => {
@@ -340,7 +658,7 @@ export default function PharmaciesPage() {
           onMouseOver={e => e.currentTarget.style.backgroundColor = "#059669"}
           onMouseOut={e => e.currentTarget.style.backgroundColor = "#10b981"}
         >
-          <Download size={18} /> export to excel 
+          <Download size={18} /> Export to Excel 
         </button>
       </div>
 
@@ -446,8 +764,27 @@ export default function PharmaciesPage() {
       <div style={{ backgroundColor: "white", borderRadius: 0, borderTop: "1px solid #e2e8f0", borderBottom: "1px solid #e2e8f0", boxShadow: "none", overflow: "hidden", width: "100%", boxSizing: "border-box" }}>
         
         <div style={{ backgroundColor: "#f8fafc", padding: "1.5rem", borderBottom: "1px solid #e2e8f0", width: "100%", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", color: "#0f172a", fontFamily: "var(--font-nrt-bd)" }}>
-            <Search size={20} color="#64748b" /> گەڕانی پێشکەوتوو
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1rem", color: "#0f172a", fontFamily: "var(--font-nrt-bd)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <Search size={20} color="#64748b" /> گەڕانی خێرا
+            </div>
+            {Object.keys(columnFilters).length > 0 && (
+              <button
+                onClick={() => setColumnFilters({})}
+                style={{
+                  background: "#fee2e2",
+                  color: "#ef4444",
+                  fontSize: "0.8rem",
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "0.375rem",
+                  border: "1px solid #fca5a5",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-nrt-bd)"
+                }}
+              >
+                پاککردنەوەی هەموو فلتەرەکانی خشتە
+              </button>
+            )}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", width: "100%", boxSizing: "border-box" }}>
             <input
@@ -483,21 +820,80 @@ export default function PharmaciesPage() {
           </span>
         </div>
 
-        {/* TABLE */}
+        {/* TABLE WITH ADVANCED COLUMN FILTERS */}
         <div style={{ overflowX: "auto", width: "100%", boxSizing: "border-box" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px", textAlign: "right", margin: 0 }}>
-            <thead style={{ backgroundColor: "#f8fafc", color: "#334155", fontFamily: "var(--font-nrt-bd)" }}>
+            <thead style={{ position: "sticky", top: 0, zIndex: 10 }}>
               <tr>
-                <th onClick={() => handleSort("name")} style={{ padding: "1rem", cursor: "pointer", borderBottom: "2px solid #e2e8f0" }}>
-                  ناو {sortConfig.key === "name" && (sortConfig.direction === "asc" ? "↑" : "↓")}
+                <TableHeader 
+                  title="ناو" 
+                  columnKey="name" 
+                  colWidth="auto"
+                  sortConfig={sortConfig} 
+                  handleSort={handleSort} 
+                  pharmacies={pharmacies} 
+                  columnFilters={columnFilters} 
+                  activeFilterDropdown={activeFilterDropdown} 
+                  setActiveFilterDropdown={setActiveFilterDropdown} 
+                  handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                  clearColumnFilter={clearColumnFilter} 
+                />
+                <TableHeader 
+                  title="کۆد" 
+                  columnKey="code" 
+                  type="number"
+                  colWidth="130px"
+                  sortConfig={sortConfig} 
+                  handleSort={handleSort} 
+                  pharmacies={pharmacies} 
+                  columnFilters={columnFilters} 
+                  activeFilterDropdown={activeFilterDropdown} 
+                  setActiveFilterDropdown={setActiveFilterDropdown} 
+                  handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                  clearColumnFilter={clearColumnFilter} 
+                />
+                <TableHeader 
+                  title="ژ.مۆبایل (کڕین)" 
+                  columnKey="phone" 
+                  colWidth="190px"
+                  sortConfig={sortConfig} 
+                  handleSort={handleSort} 
+                  pharmacies={pharmacies} 
+                  columnFilters={columnFilters} 
+                  activeFilterDropdown={activeFilterDropdown} 
+                  setActiveFilterDropdown={setActiveFilterDropdown} 
+                  handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                  clearColumnFilter={clearColumnFilter} 
+                />
+                <TableHeader 
+                  title="ژ.مۆبایل (محاسب)" 
+                  columnKey="phone2" 
+                  colWidth="190px"
+                  sortConfig={sortConfig} 
+                  handleSort={handleSort} 
+                  pharmacies={pharmacies} 
+                  columnFilters={columnFilters} 
+                  activeFilterDropdown={activeFilterDropdown} 
+                  setActiveFilterDropdown={setActiveFilterDropdown} 
+                  handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                  clearColumnFilter={clearColumnFilter} 
+                />
+                <TableHeader 
+                  title="شار" 
+                  columnKey="city" 
+                  colWidth="150px"
+                  sortConfig={sortConfig} 
+                  handleSort={handleSort} 
+                  pharmacies={pharmacies} 
+                  columnFilters={columnFilters} 
+                  activeFilterDropdown={activeFilterDropdown} 
+                  setActiveFilterDropdown={setActiveFilterDropdown} 
+                  handleUpdateColumnFilter={handleUpdateColumnFilter} 
+                  clearColumnFilter={clearColumnFilter} 
+                />
+                <th style={{ backgroundColor: "#34495e", color: "white", padding: "12px 14px", borderBottom: "2px solid #576574", textAlign: "center", width: "160px", fontFamily: "var(--font-nrt-bd)" }}>
+                  کردارەکان
                 </th>
-                <th onClick={() => handleSort("code")} style={{ padding: "1rem", cursor: "pointer", borderBottom: "2px solid #e2e8f0" }}>
-                  کۆد {sortConfig.key === "code" && (sortConfig.direction === "asc" ? "↑" : "↓")}
-                </th>
-                <th style={{ padding: "1rem", borderBottom: "2px solid #e2e8f0" }}>ژ.مۆبایل (کڕین)</th>
-                <th style={{ padding: "1rem", borderBottom: "2px solid #e2e8f0" }}>ژ.مۆبایل (محاسب)</th>
-                <th style={{ padding: "1rem", borderBottom: "2px solid #e2e8f0" }}>شار</th>
-                <th style={{ padding: "1rem", borderBottom: "2px solid #e2e8f0", textAlign: "center" }}>کردارەکان</th>
               </tr>
             </thead>
             <tbody>
@@ -511,7 +907,7 @@ export default function PharmaciesPage() {
               ) : filteredPharmacies.length === 0 ? (
                 <tr>
                   <td colSpan="6" style={{ padding: "3rem", textAlign: "center", color: "#94a3b8", fontFamily: "var(--font-nrt-bd)" }}>
-                    هیچ دەرمانخانەیەک نەدۆزرایەوە بەم زانیاریانە.
+                    هیچ دەرمانخانەیەک نەدۆزرایەوە بەم مەرج و فلتەرانە.
                   </td>
                 </tr>
               ) : (
