@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  Users,
   ShieldCheck,
   User as UserIcon,
   Lock,
@@ -18,17 +17,10 @@ import {
   Eye,
   EyeOff
 } from "lucide-react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { createNewUserAccount } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
-import { 
-  collection, 
-  getDocs, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp 
-} from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 
 export default function UserManagementPage() {
   const { user: authUser } = useAuth();
@@ -64,33 +56,67 @@ export default function UserManagementPage() {
   const isManagement = isSuperAdmin || isAdmin;
   const isStandardUser = !isManagement;
 
+  const showNotify = (msg, type = "success") => {
+    setNotification({ msg, type });
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  // Calls the server route that updates Firebase Auth + Firestore together
+  const callAdminApi = async (method, body) => {
+    const currentAuthUser = auth.currentUser;
+    if (!currentAuthUser) throw new Error("You are not signed in.");
+    const token = await currentAuthUser.getIdToken();
+
+    const res = await fetch("/api/admin/users", {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(body)
+    });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {}
+
+    if (!res.ok) {
+      throw new Error(
+        data.error || `Server error ${res.status}. Check the terminal running npm run dev.`
+      );
+    }
+    return data;
+  };
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const snap = await getDocs(collection(db, "users"));
       const userList = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
 
-      let currentFetchedRole = "user"; // Default fallback
+      let currentFetchedRole = "user";
 
       if (authUser?.uid || authUser?.email) {
-        const loggedInDoc = userList.find((u) => u.uid === authUser?.uid || u.email === authUser?.email);
+        const loggedInDoc = userList.find(
+          (u) => u.uid === authUser?.uid || u.email === authUser?.email
+        );
         if (loggedInDoc) {
           setCurrentUser(loggedInDoc);
-          // Grab the role directly from the fetched document instead of state
           currentFetchedRole = (loggedInDoc.role || "user").toLowerCase();
         }
       }
 
-      // Check permissions using the immediately fetched role, not the lagging React state
-      const fetchedIsSuperAdmin = currentFetchedRole === "superadmin" || currentFetchedRole === "super_admin";
+      const fetchedIsSuperAdmin =
+        currentFetchedRole === "superadmin" || currentFetchedRole === "super_admin";
       const fetchedIsAdmin = currentFetchedRole === "admin";
       const fetchedIsManagement = fetchedIsSuperAdmin || fetchedIsAdmin;
 
       if (!fetchedIsManagement) {
-        // Standard users can only see their own row
-        setUsers(userList.filter((u) => u.uid === authUser?.uid || u.email === authUser?.email));
+        setUsers(
+          userList.filter((u) => u.uid === authUser?.uid || u.email === authUser?.email)
+        );
       } else {
-        // Admins and SuperAdmins see everyone
         setUsers(userList);
       }
     } catch (err) {
@@ -107,11 +133,6 @@ export default function UserManagementPage() {
     }
   }, [authUser]);
 
-  const showNotify = (msg, type = "success") => {
-    setNotification({ msg, type });
-    setTimeout(() => setNotification(null), 4000);
-  };
-
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       const q = searchQuery.toLowerCase();
@@ -126,6 +147,7 @@ export default function UserManagementPage() {
 
   const openCreateModal = () => {
     setEditingUser(null);
+    setShowPassword(false);
     setFormData({
       displayName: "",
       email: "",
@@ -138,43 +160,51 @@ export default function UserManagementPage() {
 
   const openEditModal = (userItem) => {
     setEditingUser(userItem);
+    setShowPassword(false);
     setFormData({
       displayName: userItem.displayName || userItem.name || "",
       email: userItem.email || "",
-      password: userItem.password || "",
+      password: "", // never prefill: leave blank to keep the current password
       role: userItem.role || "user",
       branch: userItem.branch || "Slemany"
     });
     setIsModalOpen(true);
   };
 
+  const canChangePasswordFor = (userItem) =>
+    isSuperAdmin ||
+    userItem?.uid === authUser?.uid ||
+    userItem?.email === authUser?.email;
+
   const handleSaveUser = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       if (editingUser) {
-        const userRef = doc(db, "users", editingUser.uid);
-        const updatePayload = {
+        if (formData.password && formData.password.length < 6) {
+          showNotify("Password must be at least 6 characters.", "error");
+          return;
+        }
+
+        const result = await callAdminApi("POST", {
+          uid: editingUser.uid,
           displayName: formData.displayName,
-          email: formData.email.trim().toLowerCase(),
-          updatedAt: serverTimestamp()
-        };
+          password: formData.password || undefined,
+          role: isSuperAdmin ? formData.role : undefined,
+          branch: isManagement ? formData.branch : undefined
+        });
 
-        if (formData.password) {
-          updatePayload.password = formData.password;
-        }
-        if (isSuperAdmin || isAdmin) {
-          updatePayload.branch = formData.branch;
-        }
-        if (isSuperAdmin) {
-          updatePayload.role = formData.role;
-        }
-
-        await updateDoc(userRef, updatePayload);
-        showNotify("User account updated successfully!");
+        showNotify(
+          result.createdAuth
+            ? "Login account was missing, so it was created. User can now sign in."
+            : formData.password
+            ? "User updated and login password changed!"
+            : "User account updated successfully!"
+        );
       } else {
         if (!isSuperAdmin) {
-          return showNotify("Only SuperAdmin can create new user accounts.", "error");
+          showNotify("Only SuperAdmin can create new user accounts.", "error");
+          return;
         }
 
         await createNewUserAccount({
@@ -206,21 +236,23 @@ export default function UserManagementPage() {
 
   const handleDeleteUser = async (uid) => {
     if (!isSuperAdmin) return showNotify("Only SuperAdmin can delete users.", "error");
-    if (confirm("Are you sure you want to delete this user record?")) {
+    if (confirm("Delete this user? This removes their login and their database record.")) {
       try {
-        await deleteDoc(doc(db, "users", uid));
-        showNotify("User document removed from database.");
+        await callAdminApi("DELETE", { uid });
+        showNotify("User deleted from Firebase Auth and database.");
         fetchUsers();
       } catch (err) {
-        showNotify("Failed to delete user.", "error");
+        showNotify(err.message || "Failed to delete user.", "error");
       }
     }
   };
 
+  const editingCanChangePassword = editingUser ? canChangePasswordFor(editingUser) : true;
+
   return (
     <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc", padding: "1.5rem", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ maxWidth: "1200px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-        
+
         {notification && (
           <div style={{
             padding: "1rem",
@@ -264,7 +296,7 @@ export default function UserManagementPage() {
                 {isStandardUser ? "Account Security Settings" : "User Management System"}
               </h1>
               <p style={{ margin: "0.25rem 0 0 0", fontSize: "0.875rem", color: "#64748b" }}>
-                Active Session: <strong style={{ color: "#0f172a" }}>{currentUser.email || authUser?.email}</strong> 
+                Active Session: <strong style={{ color: "#0f172a" }}>{currentUser.email || authUser?.email}</strong>
                 <span style={{
                   marginLeft: "0.5rem",
                   padding: "0.2rem 0.6rem",
@@ -297,7 +329,6 @@ export default function UserManagementPage() {
           </div>
         </div>
 
-        {/* Search filter for Admin / SuperAdmin */}
         {!isStandardUser && (
           <div style={{
             backgroundColor: "#ffffff", borderRadius: "0.75rem", padding: "0.75rem 1rem", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: "0.75rem"
@@ -334,7 +365,7 @@ export default function UserManagementPage() {
                 ) : (
                   filteredUsers.map((userItem) => (
                     <tr key={userItem.uid} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                      
+
                       <td style={{ padding: "1rem", fontWeight: "600", color: "#0f172a" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                           <div style={{ backgroundColor: "#f1f5f9", padding: "0.5rem", borderRadius: "50%", color: "#64748b" }}>
@@ -354,12 +385,17 @@ export default function UserManagementPage() {
                         </div>
                       </td>
 
-                      {/* PASSWORD COLUMN VISIBILITY LOGIC */}
                       <td style={{ padding: "1rem", fontFamily: "monospace", color: "#475569" }}>
                         {isSuperAdmin || userItem.uid === authUser?.uid ? (
-                          <span style={{ background: "#f1f5f9", padding: "0.25rem 0.5rem", borderRadius: "0.375rem" }}>
-                            {userItem.password || "••••••••"}
-                          </span>
+                          userItem.password ? (
+                            <span style={{ background: "#f1f5f9", padding: "0.25rem 0.5rem", borderRadius: "0.375rem" }}>
+                              {userItem.password}
+                            </span>
+                          ) : (
+                            <span style={{ color: "#94a3b8", fontStyle: "italic", fontFamily: "system-ui, sans-serif" }}>
+                              Not stored — edit to set
+                            </span>
+                          )
                         ) : (
                           <span style={{ color: "#cbd5e1" }}>•••••••• [Hidden]</span>
                         )}
@@ -411,7 +447,7 @@ export default function UserManagementPage() {
       {isModalOpen && (
         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "1rem" }}>
           <div style={{ backgroundColor: "#ffffff", borderRadius: "1rem", width: "100%", maxWidth: "32rem", boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)", overflow: "hidden" }}>
-            
+
             <div style={{ padding: "1.25rem 1.5rem", borderBottom: "1px solid #e2e8f0", backgroundColor: "#f8fafc", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: "700", color: "#0f172a" }}>
                 {editingUser ? `Edit User: ${editingUser.displayName || editingUser.email}` : "Create Account in Firebase"}
@@ -420,7 +456,7 @@ export default function UserManagementPage() {
             </div>
 
             <form onSubmit={handleSaveUser} style={{ padding: "1.5rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
-              
+
               <div>
                 <label style={{ display: "block", fontSize: "0.875rem", fontWeight: "600", color: "#475569", marginBottom: "0.375rem" }}>Display Name</label>
                 <input
@@ -447,15 +483,22 @@ export default function UserManagementPage() {
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.875rem", fontWeight: "600", color: "#475569", marginBottom: "0.375rem" }}>Password</label>
+                <label style={{ display: "block", fontSize: "0.875rem", fontWeight: "600", color: "#475569", marginBottom: "0.375rem" }}>
+                  {editingUser ? "New Password" : "Password"}
+                  {editingUser && !editingCanChangePassword && (
+                    <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}> (SuperAdmin or the user only)</span>
+                  )}
+                </label>
                 <div style={{ position: "relative" }}>
                   <input
                     type={showPassword ? "text" : "password"}
                     required={!editingUser}
+                    disabled={!!editingUser && !editingCanChangePassword}
+                    autoComplete="new-password"
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    style={{ width: "100%", padding: "0.625rem", paddingRight: "2.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", outline: "none" }}
-                    placeholder={editingUser ? "Leave blank to keep unchanged" : "At least 6 characters"}
+                    style={{ width: "100%", padding: "0.625rem", paddingRight: "2.5rem", border: "1px solid #cbd5e1", borderRadius: "0.5rem", outline: "none", backgroundColor: editingUser && !editingCanChangePassword ? "#f1f5f9" : "white" }}
+                    placeholder={editingUser ? "Leave blank to keep the current password" : "At least 6 characters"}
                   />
                   <button
                     type="button"
@@ -465,6 +508,11 @@ export default function UserManagementPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
+                {editingUser && editingCanChangePassword && (
+                  <p style={{ margin: "0.375rem 0 0", fontSize: "0.75rem", color: "#64748b" }}>
+                    Changing this updates the real login password in Firebase Auth.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -499,7 +547,6 @@ export default function UserManagementPage() {
                 >
                   <option value="Slemany">Slemany</option>
                   <option value="Erbil">Erbil</option>
-              
                 </select>
               </div>
 

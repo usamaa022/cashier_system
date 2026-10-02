@@ -1,9 +1,3 @@
-/** @type {import('next').NextConfig} */
-// const nextConfig = {};
-
-// export default nextConfig;
-
-
 import withPWA from 'next-pwa';
 
 const nextConfig = {
@@ -11,7 +5,8 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  // your other existing config can go here
+  // Load firebase-admin from node_modules instead of bundling it (fixes the 500 crash)
+  serverExternalPackages: ["firebase-admin"],
 };
 
 export default withPWA({
@@ -20,6 +15,11 @@ export default withPWA({
   skipWaiting: true,
   disable: process.env.NODE_ENV === 'development', // Disable PWA in dev mode
   runtimeCaching: [
+    // Never cache or intercept admin API calls
+    {
+      urlPattern: /\/api\/.*/i,
+      handler: 'NetworkOnly',
+    },
     // Cache Firestore data
     {
       urlPattern: /^https:\/\/firestore\.googleapis\.com\/.*/,
