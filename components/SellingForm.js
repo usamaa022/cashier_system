@@ -2566,10 +2566,9 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
                 return `
                     <tr>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${idx + 1}</td>
-                      <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0;">
-                        <div style="font-weight: 600; font-family: 'NRT-Bd', sans-serif; font-size: 13px; color: #1a365d;">${item.name}</div>
-                        ${item.expireDateDisplay && item.expireDateDisplay !== "N/A" ? `<div style="font-size: 11px; color: #64748b;">Exp: ${item.expireDateDisplay}</div>` : ""}
-                      </td>
+                    <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0;">
+  <div style="font-weight: 600; font-family: 'NRT-Bd', sans-serif; font-size: 13px; color: #1a365d;">${item.name}</div>${item.expireDateDisplay && item.expireDateDisplay !== "N/A" ? `<div style="font-size: 11px; color: #64748b;">Exp: ${new Date(item.expireDateDisplay).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')}</div>` : ""}
+</td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-size: 13px; color: #3b4c6b;">${item.barcode}</td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: center; font-weight: 600; color: #1a365d;">${item.quantity}</td>
                       <td style="padding: 10px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; font-weight: 600; color: #1a365d;">${priceFormatted}</td>
@@ -2609,8 +2608,11 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
               <p style="font-size: 13px; color: #3b4c6b; margin: 0;">${bill.note}</p>
             </div>
           ` : ""}
+<br>
+<br>
+<br>
 
-          <div style="margin-top: 10px; text-align: right; page-break-inside: avoid;">
+              <div style="margin-top: 10px; text-align: right; page-break-inside: avoid;">
             <div style="width: 250px; height: 1.5px; background-color: #1a365d; margin: 10px 0 8px auto;"></div>
             <p style="font-size: 14px; color: #1a365d; font-style: italic; font-weight: 100; font-family: 'NRT-Reg', sans-serif; margin: 0; padding-right: 15px;">Receiver Signature (Stamp)</p>
           </div>

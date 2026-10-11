@@ -12,6 +12,11 @@ export default function StatementPage() {
   const [error, setError] = useState(null);
   const [pharmacies, setPharmacies] = useState([]);
 
+  // --- NEW STATES FOR SUMMARY FEATURE ---
+  const [showSummaryMode, setShowSummaryMode] = useState(false);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [allPharmaciesData, setAllPharmaciesData] = useState([]);
+
   // Fetch pharmacies on component mount
   useEffect(() => {
     const fetchPharmacies = async () => {
@@ -43,8 +48,49 @@ export default function StatementPage() {
     }
   };
 
-  // Handle pharmacy selection
+  // Reusable Calculation Logic (for both single and mass summary)
+  const calculateNetTotals = (pharmacyBills, pharmacyReturns) => {
+    let totalUSD = 0;
+    let totalIQD = 0;
+    let totalReturnUSD = 0;
+    let totalReturnIQD = 0;
+
+    pharmacyBills.forEach(bill => {
+      const bCurrency = bill.currency || "USD";
+      if (bill.items && Array.isArray(bill.items)) {
+        bill.items.forEach(item => {
+          const qty = item.quantity || 0;
+          const usdPrice = item.outPriceUSD !== undefined ? item.outPriceUSD : (bCurrency === "USD" ? item.price : 0);
+          const iqdPrice = item.outPriceIQD !== undefined ? item.outPriceIQD : (bCurrency === "IQD" ? item.price : 0);
+          totalUSD += usdPrice * qty;
+          totalIQD += iqdPrice * qty;
+        });
+      }
+    });
+
+    pharmacyReturns.forEach(returnItem => {
+      const rCurrency = returnItem.currency || returnItem.originalCurrency || "USD";
+      const qty = returnItem.returnQuantity || 0;
+      const usdPrice = returnItem.returnPriceUSD !== undefined ? returnItem.returnPriceUSD : (rCurrency === "USD" ? returnItem.returnPrice : 0);
+      const iqdPrice = returnItem.returnPriceIQD !== undefined ? returnItem.returnPriceIQD : (rCurrency === "IQD" ? returnItem.returnPrice : 0);
+      totalReturnUSD += usdPrice * qty;
+      totalReturnIQD += iqdPrice * qty;
+    });
+
+    return {
+      totalUSD,
+      totalIQD,
+      totalReturnUSD,
+      totalReturnIQD,
+      netUSD: totalUSD - totalReturnUSD,
+      netIQD: totalIQD - totalReturnIQD,
+    };
+  };
+
+  // Handle single pharmacy selection
   const handlePharmacySelect = useCallback(async (selectedOption) => {
+    setShowSummaryMode(false); // Reset summary mode if they search
+    
     if (!selectedOption) {
       setSelectedPharmacy(null);
       setBills([]);
@@ -87,49 +133,95 @@ export default function StatementPage() {
     }
   }, []);
 
-  // Calculate Totals
-  const calculateTotals = () => {
-    let totalUSD = 0;
-    let totalIQD = 0;
-    let totalReturnUSD = 0;
-    let totalReturnIQD = 0;
+  // --- NEW: Load Summary for ALL Pharmacies ---
+  const handleLoadAllSummary = async () => {
+    setShowSummaryMode(true);
+    setSelectedPharmacy(null); // Clear single search
+    setIsLoadingSummary(true);
+    setError(null);
 
-    bills.forEach(bill => {
-      const bCurrency = bill.currency || "USD";
-      if (bill.items && Array.isArray(bill.items)) {
-        bill.items.forEach(item => {
-          const qty = item.quantity || 0;
-          const usdPrice = item.outPriceUSD !== undefined ? item.outPriceUSD : (bCurrency === "USD" ? item.price : 0);
-          const iqdPrice = item.outPriceIQD !== undefined ? item.outPriceIQD : (bCurrency === "IQD" ? item.price : 0);
+    try {
+      // Process in parallel for speed
+      const results = await Promise.all(
+        pharmacies.map(async (pharmacy) => {
+          const [billsResult, returnsResult] = await Promise.all([
+            getPharmacyBills(pharmacy.id),
+            getReturnsForPharmacy(pharmacy.id),
+          ]);
+
+          const unpaidBills = billsResult.bills.filter(
+            (bill) => bill.paymentStatus !== "Paid" && bill.paymentStatus !== "Cash"
+          );
+          const unpaidReturns = returnsResult.filter(
+            (returnItem) =>
+              returnItem.paymentStatus !== "Processed" && returnItem.paymentStatus !== "Paid"
+          );
+          const uniqueBills = unpaidBills.filter((bill, index, self) =>
+            index === self.findIndex(b => b.id === bill.id)
+          );
+
+          const totals = calculateNetTotals(uniqueBills, unpaidReturns);
           
-          totalUSD += usdPrice * qty;
-          totalIQD += iqdPrice * qty;
-        });
-      }
-    });
+          return {
+            id: pharmacy.id,
+            name: pharmacy.name,
+            code: pharmacy.code,
+            ...totals
+          };
+        })
+      );
 
-    returns.forEach(returnItem => {
-      const rCurrency = returnItem.currency || returnItem.originalCurrency || "USD";
-      const qty = returnItem.returnQuantity || 0;
-      
-      const usdPrice = returnItem.returnPriceUSD !== undefined ? returnItem.returnPriceUSD : (rCurrency === "USD" ? returnItem.returnPrice : 0);
-      const iqdPrice = returnItem.returnPriceIQD !== undefined ? returnItem.returnPriceIQD : (rCurrency === "IQD" ? returnItem.returnPrice : 0);
-      
-      totalReturnUSD += usdPrice * qty;
-      totalReturnIQD += iqdPrice * qty;
-    });
+      // Filter out pharmacies with zero debt, and sort by highest USD, then IQD
+      const activePharmacies = results
+        .filter(p => p.netUSD > 0 || p.netIQD > 0 || p.netUSD < 0 || p.netIQD < 0)
+        .sort((a, b) => b.netUSD - a.netUSD || b.netIQD - a.netIQD);
 
-    return {
-      totalUSD,
-      totalIQD,
-      totalReturnUSD,
-      totalReturnIQD,
-      netUSD: totalUSD - totalReturnUSD,
-      netIQD: totalIQD - totalReturnIQD,
-    };
+      setAllPharmaciesData(activePharmacies);
+    } catch (err) {
+      console.error("Error loading mass summary:", err);
+      setError("Failed to load summary for all pharmacies.");
+    } finally {
+      setIsLoadingSummary(false);
+    }
   };
 
-  const totals = calculateTotals();
+  // --- NEW: Export Summary to Excel (CSV) ---
+  const handleExportCSV = () => {
+    const headers = ["Pharmacy Name", "Code", "Total Sales (USD)", "Total Returns (USD)", "Net Unpaid (USD)", "Total Sales (IQD)", "Total Returns (IQD)", "Net Unpaid (IQD)"];
+    
+    const rows = allPharmaciesData.map(p => [
+      `"${p.name}"`, 
+      `"${p.code || ''}"`, 
+      p.totalUSD, 
+      p.totalReturnUSD, 
+      p.netUSD,
+      p.totalIQD,
+      p.totalReturnIQD,
+      p.netIQD
+    ]);
+
+    // Calculate totals for CSV Footer
+    const grandTotals = allPharmaciesData.reduce((acc, curr) => ({
+      netUSD: acc.netUSD + curr.netUSD,
+      netIQD: acc.netIQD + curr.netIQD
+    }), { netUSD: 0, netIQD: 0 });
+
+    rows.push([]); // Empty row
+    rows.push(['"GRAND TOTALS"', '""', '""', '""', grandTotals.netUSD, '""', '""', grandTotals.netIQD]);
+
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Pharmacies_Summary_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const totals = calculateNetTotals(bills, returns);
 
   const formatDateForDisplay = (date) => {
     if (!date) return "N/A";
@@ -140,7 +232,7 @@ export default function StatementPage() {
     }
   };
 
-  // NATIVE MOBILE APP PRINT ENGINE (IFRAME METHOD)
+  // --- iframe Print Function (unchanged for brevity but fully intact) ---
   const handlePrint = () => {
     // Create a visually hidden iframe
     const iframe = document.createElement('iframe');
@@ -167,35 +259,27 @@ export default function StatementPage() {
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
           @page { margin: 0.3in; size: A4; }
           body { font-family: 'Inter', sans-serif; color: #1f2937; font-size: 11px; line-height: 1.4; padding: 0; margin: 0; }
-          
           .avoid-break { page-break-inside: avoid; break-inside: avoid; margin-bottom: 15px; }
           tr { page-break-inside: avoid; break-inside: avoid; }
-          
           .print-header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 2px solid #2563eb; margin-bottom: 12px; }
           .company-name { font-size: 22px; font-weight: 800; color: #1e40af; margin-bottom: 2px; letter-spacing: -0.5px; }
           .company-info { font-size: 11px; color: #4b5563; }
           .company-logo { max-height: 60px; object-fit: contain; }
-          
           .pharmacy-details { background: #f8fafc; padding: 12px 16px; margin-bottom: 15px; border-radius: 6px; border-left: 3px solid #3b82f6; display: flex; justify-content: space-between; align-items: center; }
           .statement-title { font-size: 18px; font-weight: 700; color: #111827; margin: 0; text-transform: uppercase; letter-spacing: 1px; }
-          
           .section-title { font-weight: 700; color: #1e40af; font-size: 13px; letter-spacing: 0.5px; margin-bottom: 6px; text-transform: uppercase; }
-          
           table.data-table { width: 100%; border-collapse: collapse; margin-bottom: 5px; }
           table.data-table th { color: #64748b; font-weight: 600; padding: 8px 6px; text-align: left; border-bottom: 1px solid #cbd5e1; text-transform: uppercase; font-size: 10px; }
           table.data-table td { padding: 8px 6px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
           table.data-table tr:last-child td { border-bottom: none; }
           table.data-table tfoot td { font-weight: 700; border-top: 1px solid #cbd5e1; padding-top: 10px; }
-          
           .text-right { text-align: right; }
           .text-center { text-align: center; }
           .note-cell { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #64748b; }
-          
           .summary-section { background: #f8fafc; border-radius: 8px; padding: 16px; }
           table.summary-table { width: 100%; border-collapse: collapse; }
           table.summary-table td { padding: 8px 6px; font-size: 13px; }
           .summary-total td { font-weight: 800; font-size: 15px; color: #047857; border-top: 2px solid #34d399; padding-top: 12px; margin-top: 4px; }
-          
           @media print { 
             body { padding: 0; } 
             .no-print { display: none; }
@@ -249,7 +333,7 @@ export default function StatementPage() {
                 }
                 return `
                   <tr>
-                    <td style="font-weight: 600;">${bill.billNumber || `BILL-${bill.id?.slice(-6)}`}</td>
+                   <td style="font-weight: 600;">${bill.billNumber || ('BILL-' + (bill.id ? bill.id.slice(-6) : ''))}</td>
                     <td class="text-left">${formatDateForDisplay(bill.date)}</td>
                     <td class="text-center" style="font-weight: 600; color:#1e40af;">${billUSD > 0 ? formatCurrency(billUSD, "USD") : '-'}</td>
                     <td class="text-left" style="font-weight: 600; color:#1e40af;">${billIQD > 0 ? formatCurrency(billIQD, "IQD") : '-'}</td>
@@ -295,7 +379,7 @@ export default function StatementPage() {
                   const iqdP = ret.returnPriceIQD !== undefined ? ret.returnPriceIQD : (rCurr === "IQD" ? ret.returnPrice : 0);
                   return `
                     <tr>
-                      <td style="font-weight: 600;">${ret.returnNumber || `RET-${ret.id?.slice(-5) || idx + 1}`}</td>
+                     <td style="font-weight: 600;">${ret.returnNumber || ('RET-' + (ret.id ? ret.id.slice(-5) : (idx + 1)))}</td>
                       <td>${ret.billNumber || '-'}</td>
                       <td><div style="font-weight:600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;">${ret.name}</div></td>
                       <td class="text-center font-bold">${qty}</td>
@@ -347,13 +431,10 @@ export default function StatementPage() {
     `);
     doc.close();
 
-    // Give the iframe 800ms to load images, then natively print
     setTimeout(() => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
       
-      // We clean up the hidden iframe after 10 seconds.
-      // This ensures the mobile OS has plenty of time to process the print/app dialog.
       setTimeout(() => {
         if (document.body.contains(iframe)) {
           document.body.removeChild(iframe);
@@ -395,69 +476,40 @@ export default function StatementPage() {
     return { billUSD, billIQD };
   };
 
-  // --- INLINE STYLES FOR WEB UI TO MIMIC PRINT DESIGN EXACTLY ---
+  // --- INLINE STYLES ---
   const containerStyle = {
-    width: "100%",
-    maxWidth: "100%",
-    margin: "0",
-    padding: "10px",
-    boxSizing: "border-box",
-    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
-    color: "#1f2937",
-    backgroundColor: "#ffffff",
-    minHeight: "100vh"
+    width: "100%", maxWidth: "100%", margin: "0", padding: "10px", boxSizing: "border-box",
+    fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif", color: "#1f2937", backgroundColor: "#ffffff", minHeight: "100vh"
   };
 
   const headerStyle = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: "12px",
-    borderBottom: "2px solid #2563eb",
-    marginBottom: "20px",
-    width: "100%"
+    display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: "12px",
+    borderBottom: "2px solid #2563eb", marginBottom: "20px", width: "100%"
   };
 
-  const tableStyle = {
-    width: "100%",
-    borderCollapse: "collapse",
-    marginBottom: "30px",
-    border: "1px solid #cbd5e1"
-  };
+  const tableStyle = { width: "100%", borderCollapse: "collapse", marginBottom: "30px", border: "1px solid #cbd5e1" };
 
   const thStyle = {
-    border: "1px solid #cbd5e1",
-    padding: "10px",
-    backgroundColor: "#f8fafc",
-    color: "#1e40af",
-    fontWeight: "700",
-    textAlign: "left",
-    textTransform: "uppercase",
-    fontSize: "12px",
+    border: "1px solid #cbd5e1", padding: "10px", backgroundColor: "#f8fafc", color: "#1e40af",
+    fontWeight: "700", textAlign: "left", textTransform: "uppercase", fontSize: "12px",
   };
 
-  const tdStyle = {
-    border: "1px solid #cbd5e1",
-    padding: "10px",
-    fontSize: "13px",
-    verticalAlign: "middle"
-  };
+  const tdStyle = { border: "1px solid #cbd5e1", padding: "10px", fontSize: "13px", verticalAlign: "middle" };
 
-  const printButtonStyle = {
-    padding: "10px 20px",
-    backgroundColor: "#2563eb",
-    color: "white",
-    border: "none",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "14px",
-    marginTop: "20px",
-    display: "inline-block"
+  const btnStyle = {
+    padding: "10px 20px", backgroundColor: "#2563eb", color: "white", border: "none", borderRadius: "6px",
+    cursor: "pointer", fontWeight: "bold", fontSize: "14px", display: "inline-block", transition: "0.2s"
   };
+  const exportBtnStyle = { ...btnStyle, backgroundColor: "#10b981", marginRight: "10px" };
+  const backBtnStyle = { ...btnStyle, backgroundColor: "#64748b", marginRight: "10px" };
+
+  // Calculate Grand Totals for Summary View
+  const grandTotalUSD = allPharmaciesData.reduce((acc, curr) => acc + curr.netUSD, 0);
+  const grandTotalIQD = allPharmaciesData.reduce((acc, curr) => acc + curr.netIQD, 0);
 
   return (
     <div style={containerStyle}>
-      {/* Search Header Section */}
+      {/* Brand Header */}
       <div style={{ marginBottom: '30px', width: '100%' }}>
         <div style={headerStyle}>
           <div>
@@ -470,25 +522,100 @@ export default function StatementPage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: "10px", fontWeight: "bold", fontSize: "16px" }}>Select Pharmacy to View Statement:</div>
-        <Select
-          options={pharmacyOptions}
-          onChange={handlePharmacySelect}
-          value={selectedPharmacy ? { value: selectedPharmacy, label: `${selectedPharmacy.name} ${selectedPharmacy.code ? `(${selectedPharmacy.code})` : ''}` } : null}
-          styles={customSelectStyles}
-          placeholder="🔍 Search pharmacies by name or code..."
-          isClearable
-          isSearchable
-          noOptionsMessage={() => "No pharmacy found"}
-        />
+        {/* --- SEARCH AND ACTION BAR --- */}
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '300px' }}>
+            <div style={{ marginBottom: "10px", fontWeight: "bold", fontSize: "16px" }}>Select Pharmacy to View Statement:</div>
+            <Select
+              options={pharmacyOptions}
+              onChange={handlePharmacySelect}
+              value={selectedPharmacy ? { value: selectedPharmacy, label: `${selectedPharmacy.name} ${selectedPharmacy.code ? `(${selectedPharmacy.code})` : ''}` } : null}
+              styles={customSelectStyles}
+              placeholder="🔍 Search pharmacies by name or code..."
+              isClearable
+              isSearchable
+              noOptionsMessage={() => "No pharmacy found"}
+            />
+          </div>
+          <div>
+            <button 
+              onClick={handleLoadAllSummary} 
+              style={{...btnStyle, height: '48px', backgroundColor: showSummaryMode ? '#1e40af' : '#2563eb'}}
+              onMouseOver={(e) => e.target.style.opacity = '0.9'}
+              onMouseOut={(e) => e.target.style.opacity = '1'}
+            >
+              📊 All Pharmacies Summary
+            </button>
+          </div>
+        </div>
       </div>
 
       {isLoading && <div style={{ textAlign: "center", padding: "50px", fontWeight: "bold" }}>Loading statement data...</div>}
+      {isLoadingSummary && <div style={{ textAlign: "center", padding: "50px", fontWeight: "bold", color: "#2563eb" }}>Analyzing all pharmacies balances. Please wait...</div>}
       
       {error && <div style={{ color: "red", fontWeight: "bold", padding: "20px", border: "1px solid red", backgroundColor: "#fff5f5" }}>{error}</div>}
 
-      {/* Statement Content Mimicking Print */}
-      {selectedPharmacy && !isLoading && !error && (
+      {/* --- MASS SUMMARY VIEW --- */}
+      {showSummaryMode && !isLoadingSummary && allPharmaciesData.length > 0 && (
+        <div style={{ width: "100%", animation: "fadeIn 0.3s" }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h2 style={{ color: '#1e40af', margin: 0 }}>All Unpaid Pharmacies</h2>
+            <div>
+              <button style={exportBtnStyle} onClick={handleExportCSV}>📥 Export to Excel</button>
+              <button style={backBtnStyle} onClick={() => setShowSummaryMode(false)}>✕ Close Summary</button>
+            </div>
+          </div>
+
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={{...thStyle, width: '5%'}}>#</th>
+                <th style={{...thStyle, width: '35%'}}>Pharmacy Name</th>
+                <th style={{...thStyle, width: '15%'}}>Code</th>
+                <th style={{...thStyle, width: '22%', textAlign: 'right', backgroundColor: '#e0f2fe'}}>Net Unpaid (USD)</th>
+                <th style={{...thStyle, width: '23%', textAlign: 'right', backgroundColor: '#e0f2fe'}}>Net Unpaid (IQD)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allPharmaciesData.map((p, idx) => (
+                <tr key={p.id} style={{ backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8fafc' }}>
+                  <td style={{...tdStyle, color: '#64748b'}}>{idx + 1}</td>
+                  <td style={{...tdStyle, fontWeight: '600', color: '#0f172a'}}>{p.name}</td>
+                  <td style={tdStyle}>{p.code || '-'}</td>
+                  <td style={{...tdStyle, textAlign: 'right', fontWeight: 'bold', color: '#0369a1'}}>
+                    {p.netUSD > 0 ? formatCurrency(p.netUSD, "USD") : '-'}
+                  </td>
+                  <td style={{...tdStyle, textAlign: 'right', fontWeight: 'bold', color: '#0369a1'}}>
+                    {p.netIQD > 0 ? formatCurrency(p.netIQD, "IQD") : '-'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colSpan="3" style={{...tdStyle, textAlign: "right", fontWeight: "900", fontSize: '16px', backgroundColor: "#1e293b", color: 'white'}}>GRAND TOTAL:</td>
+                <td style={{...tdStyle, textAlign: "right", fontWeight: "900", fontSize: '16px', color: "#10b981", backgroundColor: "#1e293b"}}>
+                  {formatCurrency(grandTotalUSD, "USD")}
+                </td>
+                <td style={{...tdStyle, textAlign: "right", fontWeight: "900", fontSize: '16px', color: "#10b981", backgroundColor: "#1e293b"}}>
+                  {formatCurrency(grandTotalIQD, "IQD")}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {showSummaryMode && !isLoadingSummary && allPharmaciesData.length === 0 && (
+         <div style={{ textAlign: "center", padding: "40px", border: "1px solid #ccc", color: "#666", borderRadius: "8px" }}>
+            <strong>All Clear!</strong> No unpaid pharmacies found.
+            <br/><br/>
+            <button style={backBtnStyle} onClick={() => setShowSummaryMode(false)}>Go Back</button>
+         </div>
+      )}
+
+      {/* --- SINGLE STATEMENT VIEW --- */}
+      {selectedPharmacy && !showSummaryMode && !isLoading && !error && (
         <div style={{ width: "100%" }}>
           <div style={{ background: "#f8fafc", padding: "12px 16px", marginBottom: "20px", borderLeft: "3px solid #3b82f6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -642,14 +769,14 @@ export default function StatementPage() {
                 </table>
               </div>
 
-              <div style={{ textAlign: "right" }}>
+              <div style={{ textAlign: "right", marginTop: "20px" }}>
                 <button 
                   onClick={handlePrint} 
-                  style={printButtonStyle}
+                  style={btnStyle}
                   onMouseOver={(e) => e.target.style.backgroundColor = '#1d4ed8'}
                   onMouseOut={(e) => e.target.style.backgroundColor = '#2563eb'}
                 >
-                  Print Statement
+                  🖨️ Print Statement
                 </button>
               </div>
             </>
