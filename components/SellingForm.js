@@ -227,8 +227,7 @@ const calculatePharmacyFinancialSummary = (
   pharmacyId,
   allBills = [],
   allReturnBills = [],
-  currentBillItems = [],
-  isPreview = false
+  currentBill = null
 ) => {
   let totalUnpaidBillsUSD = 0;
   let totalUnpaidBillsIQD = 0;
@@ -236,11 +235,16 @@ const calculatePharmacyFinancialSummary = (
   let pharmacyHasUSD = false;
   let pharmacyHasIQD = false;
 
+  // 1. Sum up all PREVIOUS unpaid bills 
   allBills.forEach((bill) => {
     if (bill.pharmacyId !== pharmacyId) return;
-    
+
+    // Prevent Double-Counting: Skip the current bill if it's already inside recentBills
+    if (currentBill && String(bill.billNumber) === String(currentBill.billNumber)) return;
+
     const billStatus = String(bill.paymentStatus || bill.status || "").toLowerCase();
-    const isPaid = bill.isPaid === true || billStatus === "paid" || billStatus === "completed" || billStatus === "processed";
+    // BUG FIX: Include "cash" in the check so Cash bills don't add to debt!
+    const isPaid = bill.isPaid === true || billStatus === "paid" || billStatus === "cash" || billStatus === "completed" || billStatus === "processed";
     if (isPaid) return;
 
     const billCurrency = bill.currency || "USD";
@@ -258,27 +262,27 @@ const calculatePharmacyFinancialSummary = (
     });
   });
 
-  if (isPreview && currentBillItems.length > 0) {
-    currentBillItems.forEach((item) => {
-      const price = item.price || 0;
-      if ((item.outPriceIQD || 0) > 0 && !(item.outPriceUSD > 0)) {
-        pharmacyHasIQD = true;
-        totalUnpaidBillsIQD += price * item.quantity;
-      } else if ((item.outPriceUSD || 0) > 0) {
-        pharmacyHasUSD = true;
-        totalUnpaidBillsUSD += price * item.quantity;
-      } else {
-        if (item.originalCurrency === "IQD") {
+  // 2. Add the CURRENT bill ONLY if it is UNPAID (not Cash/Paid)
+  if (currentBill && currentBill.items && currentBill.items.length > 0) {
+    const currentStatus = String(currentBill.paymentStatus || currentBill.paymentMethod || "").toLowerCase();
+    const currentIsPaid = currentBill.isPaid === true || currentStatus === "paid" || currentStatus === "cash" || currentStatus === "completed" || currentStatus === "processed";
+
+    if (!currentIsPaid) {
+      const currentBillCurrency = currentBill.currency || "USD";
+      currentBill.items.forEach((item) => {
+        const price = item.price || 0;
+        if (currentBillCurrency === "IQD") {
           pharmacyHasIQD = true;
-          totalUnpaidBillsIQD += price * item.quantity;
+          totalUnpaidBillsIQD += (item.outPriceIQD || price) * item.quantity;
         } else {
           pharmacyHasUSD = true;
-          totalUnpaidBillsUSD += price * item.quantity;
+          totalUnpaidBillsUSD += (item.outPriceUSD || price) * item.quantity;
         }
-      }
-    });
+      });
+    }
   }
 
+  // 3. Process Returns
   let totalReturnBillsUSD = 0;
   let totalReturnBillsIQD = 0;
 
@@ -286,7 +290,8 @@ const calculatePharmacyFinancialSummary = (
     if (ret.pharmacyId !== pharmacyId) return;
 
     const returnStatus = String(ret.paymentStatus || ret.status || "").toLowerCase();
-    const isPaidOrProcessed = ret.isPaid === true || returnStatus === "paid" || returnStatus === "processed" || returnStatus === "completed";
+    // Also ensuring Cash returns don't count towards unpaid credit notes
+    const isPaidOrProcessed = ret.isPaid === true || returnStatus === "paid" || returnStatus === "processed" || returnStatus === "completed" || returnStatus === "cash";
     if (isPaidOrProcessed) return;
 
     if (ret.totalReturnAmountUSD !== undefined && ret.totalReturnAmountIQD !== undefined) {
@@ -296,7 +301,6 @@ const calculatePharmacyFinancialSummary = (
     }
 
     let itemsToProcess = [];
-
     if (ret.items && Array.isArray(ret.items) && ret.items.length > 0) {
       itemsToProcess = ret.items;
     } else if (ret.barcode) {
@@ -2472,8 +2476,7 @@ export default function SellingForm({ onBillCreated, userRole, user }) {
       bill.pharmacyId,
       recentBills,
       returnBills,
-      bill.items,
-      bill.isPreview || bill.isNew
+      bill
     );
 
     const { pharmacyHasUSD, pharmacyHasIQD } = financialSummary;
